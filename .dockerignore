@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Gradle 빌드 결과 및 캐시
+.gradle
+build
+
+# IntelliJ
+.idea
+*.iml
+out
+
+# 환경변수 및 비밀정보
+.env
+.env.*
+application-secret.properties
+
+# 로그
+*.log
+logs
+
+# 운영체제 파일
+.DS_Store
+Thumbs.db
+
+# 기타
+README.md
