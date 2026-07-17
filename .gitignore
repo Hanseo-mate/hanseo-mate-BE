@@ -35,3 +35,15 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local secrets ###
+.env
+.env.*
+!.env.example
+**/application-secret.properties
+**/application-secret.yml
+**/application-secret.yaml
+*.pem
+*.key
+*.p12
+*.jks
