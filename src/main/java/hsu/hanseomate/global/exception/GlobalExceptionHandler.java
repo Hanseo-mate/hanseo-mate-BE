@@ -2,12 +2,15 @@ package hsu.hanseomate.global.exception;
 
 import hsu.hanseomate.domain.essentiallink.exception.EssentialLinkNotFoundException;
 import hsu.hanseomate.domain.essentiallink.exception.InvalidCategoryException;
+import hsu.hanseomate.domain.courseimport.exception.CourseImportContractException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -31,6 +34,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(CourseImportContractException.class)
+    public ResponseEntity<ApiErrorResponse> handleCourseImportContract(
+            CourseImportContractException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -57,7 +68,12 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.BAD_REQUEST, message, request);
     }
 
-    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({
+            HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class,
+            MissingRequestHeaderException.class,
+            MissingServletRequestParameterException.class
+    })
     public ResponseEntity<ApiErrorResponse> handleMalformedRequest(
             Exception exception,
             HttpServletRequest request

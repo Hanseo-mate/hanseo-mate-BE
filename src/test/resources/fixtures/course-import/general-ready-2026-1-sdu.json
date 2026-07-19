@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "1.2",
+  "importId": "general-2026-1-sdu",
+  "fileName": "general-2026-1-sdu.xlsx",
+  "fileSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "curriculumType": "GENERAL_EDUCATION",
+  "parserVersion": "test-parser-1.2",
+  "academicYear": 2026,
+  "semester": 1,
+  "displayName": "2026학년도 1학기 교양 SDU",
+  "status": "READY",
+  "confidence": 1.0,
+  "statistics": {
+    "sheetCount": 1,
+    "totalRowCount": 1,
+    "parsedLectureCount": 1,
+    "failedRowCount": 0,
+    "warningCount": 0,
+    "errorCount": 0,
+    "academicUnitCount": 0,
+    "generalCategoryCount": 1,
+    "generalCategoryNodeCount": 5,
+    "scheduleCount": 1,
+    "periodCount": 2,
+    "missingScheduleCount": 0,
+    "missingClassroomCount": 0
+  },
+  "academicUnits": [],
+  "generalCategories": [
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "REMOTE",
+      "categoryName": "원격수업",
+      "area": "OTHER",
+      "deliveryProvider": "SDU",
+      "deliveryProviderName": "SDU",
+      "sourcePath": ["교양선택", "원격수업", "기타영역", "SDU"]
+    }
+  ],
+  "generalCategoryNodes": [
+    {
+      "nodeKey": "classification-elective",
+      "nodeType": "CLASSIFICATION",
+      "code": "ELECTIVE",
+      "name": "교양선택",
+      "parentKey": null,
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "area": null,
+      "deliveryProvider": null,
+      "deliveryProviderName": null,
+      "sourcePath": ["교양선택"],
+      "sourceSheet": "교양",
+      "sourceRow": 1,
+      "sortOrder": 1
+    },
+    {
+      "nodeKey": "category-remote",
+      "nodeType": "CATEGORY",
+      "code": "REMOTE",
+      "name": "원격수업",
+      "parentKey": "classification-elective",
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "area": null,
+      "deliveryProvider": null,
+      "deliveryProviderName": null,
+      "sourcePath": ["교양선택", "원격수업"],
+      "sourceSheet": "교양",
+      "sourceRow": 2,
+      "sortOrder": 2
+    },
+    {
+      "nodeKey": "area-other",
+      "nodeType": "AREA",
+      "code": "OTHER",
+      "name": "기타영역",
+      "parentKey": "category-remote",
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "area": "OTHER",
+      "deliveryProvider": null,
+      "deliveryProviderName": null,
+      "sourcePath": ["교양선택", "원격수업", "기타영역"],
+      "sourceSheet": "교양",
+      "sourceRow": 3,
+      "sortOrder": 3
+    },
+    {
+      "nodeKey": "provider-sdu",
+      "nodeType": "PROVIDER",
+      "code": "SDU",
+      "name": "SDU",
+      "parentKey": "area-other",
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "area": "OTHER",
+      "deliveryProvider": "SDU",
+      "deliveryProviderName": "SDU",
+      "sourcePath": ["교양선택", "원격수업", "기타영역", "SDU"],
+      "sourceSheet": "교양",
+      "sourceRow": 4,
+      "sortOrder": 4
+    },
+    {
+      "nodeKey": "category-no-course",
+      "nodeType": "CATEGORY",
+      "code": "NO_COURSE",
+      "name": "강좌 없는 분류",
+      "parentKey": "classification-elective",
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "area": null,
+      "deliveryProvider": null,
+      "deliveryProviderName": null,
+      "sourcePath": ["교양선택", "강좌 없는 분류"],
+      "sourceSheet": "교양",
+      "sourceRow": 5,
+      "sortOrder": 5
+    }
+  ],
+  "lectures": [
+    {
+      "sourceSheet": "교양",
+      "sourceRow": 12,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "REMOTE",
+        "categoryName": "원격수업",
+        "area": "OTHER",
+        "deliveryProvider": "SDU",
+        "deliveryProviderName": "SDU",
+        "sourcePath": ["교양선택", "원격수업", "기타영역", "SDU"]
+      },
+      "courseCode": "009998",
+      "courseName": "SDU미래사회",
+      "sectionNo": "02",
+      "credit": 3.0,
+      "classHours": 2.0,
+      "instructorName": "이교수",
+      "targetGrade": null,
+      "commonGrade": true,
+      "allowedGrades": [1, 2, 3, 4],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "목7,8",
+      "classroomText": "온라인",
+      "schedules": [
+        {
+          "dayOfWeek": "THURSDAY",
+          "periods": [7, 8],
+          "classroom": {
+            "campusCode": null,
+            "buildingName": null,
+            "roomNumber": null,
+            "originalValue": "온라인"
+          }
+        }
+      ],
+      "sourceCells": [
+        {"columnIndex": 1, "headerName": "학수번호", "canonicalField": "courseCode", "value": "009998"},
+        {"columnIndex": 2, "headerName": "교과목명", "canonicalField": "courseName", "value": "SDU미래사회"}
+      ]
+    }
+  ],
+  "issues": []
+}

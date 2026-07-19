@@ -46,7 +46,7 @@ class EssentialLinkApiIntegrationTest {
         var columns = jdbcTemplate.queryForList("""
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_name = 'essential_links'
+                WHERE LOWER(table_name) = 'essential_links'
                 ORDER BY ordinal_position
                 """, String.class);
 
