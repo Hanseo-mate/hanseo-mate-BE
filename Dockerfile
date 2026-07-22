@@ -28,6 +28,9 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
+# 컨테이너 배포는 운영 DB 검증 설정을 사용한다. 실행 환경에서 덮어쓸 수 있다.
+ENV SPRING_PROFILES_ACTIVE=prod
+
 COPY --from=builder /app/app.jar app.jar
 
 EXPOSE 8080

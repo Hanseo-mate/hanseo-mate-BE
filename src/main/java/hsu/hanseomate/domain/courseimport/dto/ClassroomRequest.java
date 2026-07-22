@@ -6,9 +6,9 @@ import jakarta.validation.constraints.Size;
 
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public record ClassroomRequest(
-        String campusCode,
-        String buildingName,
-        String roomNumber,
+        @Size(max = 100) String campusCode,
+        @Size(max = 255) String buildingName,
+        @Size(max = 100) String roomNumber,
         @NotBlank @Size(max = 500) String originalValue
 ) {
 }

@@ -2,7 +2,6 @@ package hsu.hanseomate.domain.courseimport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,10 +13,13 @@ import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseSourceCellRepository;
 import hsu.hanseomate.domain.course.repository.SemesterGeneralCategoryNodeRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
+import hsu.hanseomate.domain.courseimport.dto.CourseImportResponse;
 import hsu.hanseomate.domain.courseimport.dto.TimetableParseResultRequest;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
+import hsu.hanseomate.domain.courseimport.dto.type.StorageStatus;
 import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
 import hsu.hanseomate.domain.courseimport.repository.CourseImportHistoryRepository;
+import hsu.hanseomate.domain.courseimport.service.CourseImportService;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -30,11 +32,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -49,6 +49,9 @@ class CourseImportApiIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private CourseImportService courseImportService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -95,13 +98,13 @@ class CourseImportApiIntegrationTest {
     void storesReadyMajorImportAndPreservesOriginalData() throws Exception {
         String payload = fixture("major-ready-2026-1-a.json");
 
-        performImport("/api/internal/course-imports/major", payload)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.importId").value("major-2026-1-a"))
-                .andExpect(jsonPath("$.storageStatus").value("STORED"))
-                .andExpect(jsonPath("$.databaseChanged").value(true))
-                .andExpect(jsonPath("$.offeringCount").value(1))
-                .andExpect(jsonPath("$.message").value("2026학년도 1학기 전공 강좌 저장 완료"));
+        CourseImportResponse response = performImport(payload);
+        assertThat(response.importId()).isEqualTo("major-2026-1-a");
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(response.databaseChanged()).isTrue();
+        assertThat(response.offeringCount()).isEqualTo(1);
+        assertThat(response.reviewIssues()).isEmpty();
+        assertThat(response.message()).isEqualTo("2026학년도 1학기 전공 강좌 저장 완료");
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
@@ -173,14 +176,47 @@ class CourseImportApiIntegrationTest {
 
         assertThat(payload.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(65_535);
 
-        performImport("/api/internal/course-imports/major", payload)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.storageStatus").value("STORED"));
+        assertThat(performImport(payload).storageStatus()).isEqualTo(StorageStatus.STORED);
 
         CourseImportHistory history = courseImportHistoryRepository.findByImportId("major-large-payload")
                 .orElseThrow();
         assertThat(history.getRawPayloadJson().getBytes(StandardCharsets.UTF_8).length)
                 .isGreaterThan(65_535);
+    }
+
+    @Test
+    void excessiveReviewIssuesAreCappedInResponseAndDatabase() throws Exception {
+        String issues = IntStream.range(0, 1100)
+                .mapToObj(index -> """
+                        {
+                          "severity": "ERROR",
+                          "code": "ROW_REVIEW_REQUIRED",
+                          "message": "검토가 필요한 행입니다.",
+                          "sheetName": "전공",
+                          "rowNumber": %d,
+                          "field": "courseName",
+                          "rawValue": "값"
+                        }
+                        """.formatted(index + 1))
+                .collect(Collectors.joining(","));
+        String payload = fixture("major-ready-2026-1-a.json")
+                .replace("\"importId\": \"major-2026-1-a\"", "\"importId\": \"major-many-issues\"")
+                .replace(
+                        "\"fileSha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+                        "\"fileSha256\": \"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\""
+                )
+                .replace("\"issues\": []", "\"issues\": [" + issues + "]");
+
+        CourseImportResponse response = performImport(payload);
+
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.REVIEW_REQUIRED);
+        assertThat(response.databaseChanged()).isFalse();
+        assertThat(response.reviewIssues()).hasSize(1000);
+        assertThat(response.reviewIssues().get(999).code()).isEqualTo("ISSUES_TRUNCATED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM course_import_issues",
+                Integer.class
+        )).isEqualTo(1000);
     }
 
     @Test
@@ -196,9 +232,7 @@ class CourseImportApiIntegrationTest {
 
         assertThat(largeCellValue.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(65_535);
 
-        performImport("/api/internal/course-imports/major", payload)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.storageStatus").value("STORED"));
+        assertThat(performImport(payload).storageStatus()).isEqualTo(StorageStatus.STORED);
 
         CourseSourceCell savedCell = courseSourceCellRepository.findAll().stream()
                 .filter(cell -> cell.getColumnIndex() == 4)
@@ -234,23 +268,23 @@ class CourseImportApiIntegrationTest {
 
     @Test
     void reviewRequiredImportDoesNotChangeServiceData() throws Exception {
-        performImport(
-                "/api/internal/course-imports/major",
-                fixture("major-ready-2026-1-a.json")
-        ).andExpect(status().isOk());
+        performImport(fixture("major-ready-2026-1-a.json"));
 
         long offeringCount = courseOfferingRepository.count();
         long historyCount = courseImportHistoryRepository.count();
 
-        performImport(
-                "/api/internal/course-imports/major",
+        CourseImportResponse response = performImport(
                 fixture("major-review-required-2026-1.json")
-        )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.importId").value("major-2026-1-review"))
-                .andExpect(jsonPath("$.storageStatus").value("REVIEW_REQUIRED"))
-                .andExpect(jsonPath("$.databaseChanged").value(false))
-                .andExpect(jsonPath("$.offeringCount").value(0));
+        );
+        assertThat(response.importId()).isEqualTo("major-2026-1-review");
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.REVIEW_REQUIRED);
+        assertThat(response.databaseChanged()).isFalse();
+        assertThat(response.offeringCount()).isZero();
+        assertThat(response.reviewIssues()).singleElement().satisfies(issue -> {
+            assertThat(issue.code()).isEqualTo("AMBIGUOUS_HEADING_HIERARCHY");
+            assertThat(issue.rowNumber()).isEqualTo(182);
+            assertThat(issue.field()).isEqualTo("scheduleText");
+        });
 
         assertThat(courseOfferingRepository.count()).isEqualTo(offeringCount);
         assertThat(courseImportHistoryRepository.count()).isEqualTo(historyCount + 1);
@@ -271,59 +305,69 @@ class CourseImportApiIntegrationTest {
 
     @Test
     void readyImportWithPeriod111IsDefensivelyRejected() throws Exception {
-        performImport(
-                "/api/internal/course-imports/major",
+        CourseImportResponse response = performImport(
                 fixture("major-ready-invalid-period.json")
-        )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.storageStatus").value("REVIEW_REQUIRED"))
-                .andExpect(jsonPath("$.databaseChanged").value(false))
-                .andExpect(jsonPath("$.offeringCount").value(0));
+        );
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.REVIEW_REQUIRED);
+        assertThat(response.databaseChanged()).isFalse();
+        assertThat(response.offeringCount()).isZero();
+        assertThat(response.reviewIssues()).singleElement().satisfies(issue -> {
+            assertThat(issue.code()).isEqualTo("INVALID_PERIOD");
+            assertThat(issue.rowNumber()).isEqualTo(182);
+            assertThat(issue.field()).isEqualTo("scheduleText");
+            assertThat(issue.rawValue()).isEqualTo("111");
+        });
 
         assertThat(courseOfferingRepository.count()).isZero();
         assertThat(courseImportHistoryRepository.count()).isEqualTo(1);
         CourseImportHistory rejected = courseImportHistoryRepository.findAll().get(0);
         assertThat(rejected.getStorageStatus().name()).isEqualTo("REVIEW_REQUIRED");
         assertThat(rejected.getRawPayloadJson()).contains("111교시", "[111]");
+        Integer savedReviewIssueCount = jdbcTemplate.queryForObject(
+                "select count(*) from course_import_issues where code = 'INVALID_PERIOD'",
+                Integer.class
+        );
+        assertThat(savedReviewIssueCount).isEqualTo(1);
     }
 
     @Test
     void successfulFileRetryIsIdempotent() throws Exception {
         String original = fixture("major-ready-2026-1-a.json");
-        performImport("/api/internal/course-imports/major", original)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.storageStatus").value("STORED"));
+        assertThat(performImport(original).storageStatus()).isEqualTo(StorageStatus.STORED);
 
         String retry = original.replace(
                 "\"importId\": \"major-2026-1-a\"",
                 "\"importId\": \"major-2026-1-a-retry\""
         );
-        performImport("/api/internal/course-imports/major", retry)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.importId").value("major-2026-1-a-retry"))
-                .andExpect(jsonPath("$.storageStatus").value("DUPLICATE"))
-                .andExpect(jsonPath("$.databaseChanged").value(false));
+        CourseImportResponse response = performImport(retry);
+        assertThat(response.importId()).isEqualTo("major-2026-1-a-retry");
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.DUPLICATE);
+        assertThat(response.databaseChanged()).isFalse();
 
         assertThat(courseOfferingRepository.count()).isEqualTo(1);
         assertThat(courseImportHistoryRepository.count()).isEqualTo(1);
     }
 
     @Test
-    void databaseConstraintFailureRollsBackTheWholeSnapshotReplacement() throws Exception {
-        performImport(
-                "/api/internal/course-imports/major",
-                fixture("major-ready-2026-1-a.json")
-        ).andExpect(status().isOk());
+    void oversizedCreditReturnsLocatedReviewAndKeepsTheWholeSnapshot() throws Exception {
+        performImport(fixture("major-ready-2026-1-a.json"));
 
         String invalidReplacement = fixture("major-ready-2026-1-b.json")
                 .replace("\"credit\": 3.0", "\"credit\": 999999999.0");
 
-        performImport("/api/internal/course-imports/major", invalidReplacement)
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.status").value(500));
+        CourseImportResponse response = performImport(invalidReplacement);
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.REVIEW_REQUIRED);
+        assertThat(response.databaseChanged()).isFalse();
+        assertThat(response.offeringCount()).isZero();
+        assertThat(response.reviewIssues()).anySatisfy(issue -> {
+            assertThat(issue.code()).isEqualTo("INVALID_CREDIT");
+            assertThat(issue.rowNumber()).isEqualTo(7);
+            assertThat(issue.field()).isEqualTo("credit");
+            assertThat(issue.rawValue()).isEqualTo("9.99999999E8");
+        });
 
         assertThat(courseOfferingRepository.count()).isEqualTo(1);
-        assertThat(courseImportHistoryRepository.count()).isEqualTo(1);
+        assertThat(courseImportHistoryRepository.count()).isEqualTo(2);
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
                         .param("semester", "1")
@@ -335,13 +379,10 @@ class CourseImportApiIntegrationTest {
 
     @Test
     void reimportReplacesOnlyMatchingSemesterAndCurriculum() throws Exception {
-        performImport("/api/internal/course-imports/major", fixture("major-ready-2026-1-a.json"));
-        performImport(
-                "/api/internal/course-imports/general-education",
-                fixture("general-ready-2026-1-ocu.json")
-        );
-        performImport("/api/internal/course-imports/major", fixture("major-ready-2025-2.json"));
-        performImport("/api/internal/course-imports/major", fixture("major-ready-2026-1-b.json"));
+        performImport(fixture("major-ready-2026-1-a.json"));
+        performImport(fixture("general-ready-2026-1-ocu.json"));
+        performImport(fixture("major-ready-2025-2.json"));
+        performImport(fixture("major-ready-2026-1-b.json"));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
@@ -365,14 +406,8 @@ class CourseImportApiIntegrationTest {
 
     @Test
     void generalTaxonomyReplacementRemovesOcuAndExposesSdu() throws Exception {
-        performImport(
-                "/api/internal/course-imports/general-education",
-                fixture("general-ready-2026-1-ocu.json")
-        ).andExpect(status().isOk());
-        performImport(
-                "/api/internal/course-imports/general-education",
-                fixture("general-ready-2026-1-sdu.json")
-        ).andExpect(status().isOk());
+        performImport(fixture("general-ready-2026-1-ocu.json"));
+        performImport(fixture("general-ready-2026-1-sdu.json"));
 
         Semester semester = semesterRepository.findByAcademicYearAndSemester(2026, 1)
                 .orElseThrow();
@@ -414,11 +449,8 @@ class CourseImportApiIntegrationTest {
 
     @Test
     void userCourseQuerySupportsMajorAndGeneralEducationFilters() throws Exception {
-        performImport("/api/internal/course-imports/major", fixture("major-ready-2026-1-a.json"));
-        performImport(
-                "/api/internal/course-imports/general-education",
-                fixture("general-ready-2026-1-sdu.json")
-        );
+        performImport(fixture("major-ready-2026-1-a.json"));
+        performImport(fixture("general-ready-2026-1-sdu.json"));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
@@ -450,27 +482,12 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$[0].schedules[0].periods[1]").value(8));
     }
 
-    private ResultActions performImport(String path, String payload) throws Exception {
-        TimetableParseResultRequest request = readRequest(payload);
-        return mockMvc.perform(post(path)
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("X-IMPORT-ID", request.importId())
-                .header("X-PARSER-SCHEMA-VERSION", request.schemaVersion())
-                .header("Idempotency-Key", idempotencyKey(request))
-                .content(payload));
+    private CourseImportResponse performImport(String payload) {
+        return courseImportService.importCourses(readRequest(payload));
     }
 
     private TimetableParseResultRequest readRequest(String payload) {
         return objectMapper.readValue(payload, TimetableParseResultRequest.class);
-    }
-
-    private String idempotencyKey(TimetableParseResultRequest request) {
-        return "%d:%d:%s:%s".formatted(
-                request.academicYear(),
-                request.semester(),
-                request.curriculumType(),
-                request.fileSha256()
-        );
     }
 
     private String fixture(String name) throws Exception {

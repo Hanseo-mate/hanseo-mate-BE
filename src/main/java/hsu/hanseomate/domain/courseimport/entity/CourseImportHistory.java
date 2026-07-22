@@ -150,4 +150,8 @@ public class CourseImportHistory extends BaseTimeEntity {
                 StorageStatus.REVIEW_REQUIRED, displayName, confidence, 0, rawPayloadJson
         );
     }
+
+    public void markSuperseded() {
+        this.successfulDedupKey = null;
+    }
 }
