@@ -2,6 +2,8 @@ package hsu.hanseomate.global.exception;
 
 import hsu.hanseomate.domain.essentiallink.exception.EssentialLinkNotFoundException;
 import hsu.hanseomate.domain.essentiallink.exception.InvalidCategoryException;
+import hsu.hanseomate.domain.notices.exception.InvalidNoticeTypeException;
+import hsu.hanseomate.domain.notices.exception.NoticeNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidCategoryException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidCategory(
             InvalidCategoryException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(NoticeNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoticeNotFound(
+            NoticeNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidNoticeTypeException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidNoticeType(
+            InvalidNoticeTypeException exception,
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
