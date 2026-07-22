@@ -12,9 +12,9 @@ public record ParseIssueRequest(
         @NotNull IssueSeverity severity,
         @NotBlank @Size(max = 100) String code,
         @NotBlank @Size(max = 2000) String message,
-        String sheetName,
+        @Size(max = 255) String sheetName,
         @Min(value = 1, message = "rowNumber는 1 이상이어야 합니다.") Integer rowNumber,
-        String field,
-        String rawValue
+        @Size(max = 100) String field,
+        @Size(max = 2000) String rawValue
 ) {
 }

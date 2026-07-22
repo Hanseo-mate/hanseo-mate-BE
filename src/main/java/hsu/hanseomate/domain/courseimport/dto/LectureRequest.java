@@ -25,18 +25,18 @@ public record LectureRequest(
         @Size(max = 100) String sectionNo,
         Double credit,
         Double classHours,
-        String instructorName,
+        @Size(max = 255) String instructorName,
         @Min(value = 1, message = "targetGrade는 1 이상이어야 합니다.")
         @Max(value = 6, message = "targetGrade는 6 이하여야 합니다.")
         Integer targetGrade,
         boolean commonGrade,
         @NotNull List<@NotNull Integer> allowedGrades,
-        @NotNull List<@NotNull String> eligibleDepartmentNames,
+        @NotNull List<@NotNull @Size(max = 255) String> eligibleDepartmentNames,
         Boolean teamTeaching,
-        String note,
-        String eligibilityNote,
-        String scheduleText,
-        String classroomText,
+        @Size(max = 2000) String note,
+        @Size(max = 2000) String eligibilityNote,
+        @Size(max = 2000) String scheduleText,
+        @Size(max = 2000) String classroomText,
         @NotNull List<@NotNull @Valid CourseScheduleRequest> schedules,
         @NotNull List<@NotNull @Valid SourceCellRequest> sourceCells
 ) {

@@ -1,5 +1,5 @@
 -- HanseoMate 운영 MySQL 스키마
--- Flyway를 사용하지 않으므로 운영 배포 전에 DBA 또는 배포 절차에서 1회 실행한다.
+-- 운영 배포 전에 DBA 또는 배포 절차에서 1회 실행한다.
 -- MySQL 8.0 / utf8mb4 기준
 
 CREATE TABLE IF NOT EXISTS essential_links (

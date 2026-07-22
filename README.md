@@ -12,6 +12,7 @@
 - Spring Web MVC
 - Spring Data JPA
 - MySQL
+- Apache POI
 - Bean Validation
 - Springdoc OpenAPI
 - H2 테스트 데이터베이스
@@ -52,7 +53,7 @@ DB_PASSWORD
 
 운영 환경에서는 `SPRING_PROFILES_ACTIVE=prod`를 사용하며 세 가지 DB 환경변수가 모두 필요합니다.
 
-운영 프로필은 `ddl-auto=validate`이므로 최초 배포 전에 아래 스키마를 MySQL에 적용해야 합니다. Flyway는 사용하지 않습니다.
+운영 프로필은 `ddl-auto=validate`이므로 최초 배포 전에 아래 스키마를 MySQL에 적용해야 합니다.
 
 ```powershell
 mysql -u 사용자명 -p hanseo_mate < docs/course-import-schema-mysql.sql
@@ -88,8 +89,8 @@ ALTER TABLE course_import_issues
 | `POST` | `/api/admin/links` | 링크 등록 |
 | `PUT` | `/api/admin/links/{linkId}` | 링크 전체 수정 |
 | `DELETE` | `/api/admin/links/{linkId}` | 링크 삭제 |
-| `POST` | `/api/internal/course-imports/major` | 전공 강좌 JSON 일괄 저장 |
-| `POST` | `/api/internal/course-imports/general-education` | 교양 강좌 JSON 일괄 저장 |
+| `POST` | `/api/v1/timetables/major` | 전공 시간표 엑셀 분석 및 일괄 저장 |
+| `POST` | `/api/v1/timetables/general-education` | 교양 시간표 엑셀 분석 및 일괄 저장 |
 | `GET` | `/api/courses` | 학기·분류·학과·과목·교수 조건으로 강좌 조회 |
 
 링크 데이터는 `id`, `name`, `url`, `category`, `created_at`, `updated_at` 여섯 컬럼만 사용합니다.
@@ -122,6 +123,6 @@ SWAGGER_API_DOCS_ENABLED=true
 
 ## 현재 보안 주의사항
 
-로그인, 관리자 계정, JWT, 권한 검사는 아직 구현하지 않았습니다. 링크 관리 API와 강좌 수입 API를 포함한 모든 API는 현재 인증 없이 접근할 수 있습니다.
+로그인, 관리자 계정, JWT, 권한 검사는 아직 구현하지 않았습니다. 링크 관리 API와 강좌 엑셀 수입 API를 포함한 모든 API는 현재 인증 없이 접근할 수 있습니다.
 
 이 상태의 서버는 기능 검증용으로만 사용해야 하며, 인터넷에 정식 공개하기 전에 별도의 인증·권한 기능을 구현해야 합니다.

@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.course.repository;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
+import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
 import hsu.hanseomate.domain.courseimport.dto.type.DeliveryProvider;
 import hsu.hanseomate.domain.courseimport.dto.type.GeneralArea;
 import hsu.hanseomate.domain.courseimport.dto.type.GeneralClassification;
@@ -20,6 +21,15 @@ public interface CourseOfferingRepository extends JpaRepository<CourseOffering, 
             where o.semester.id = :semesterId and o.curriculumType = :curriculumType
             """)
     List<UUID> findIdsByScope(
+            @Param("semesterId") UUID semesterId,
+            @Param("curriculumType") CurriculumType curriculumType
+    );
+
+    @Query("""
+            select distinct o.importHistory from CourseOffering o
+            where o.semester.id = :semesterId and o.curriculumType = :curriculumType
+            """)
+    List<CourseImportHistory> findImportHistoriesByScope(
             @Param("semesterId") UUID semesterId,
             @Param("curriculumType") CurriculumType curriculumType
     );

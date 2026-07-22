@@ -28,6 +28,7 @@ import hsu.hanseomate.domain.course.repository.SemesterRepository;
 import hsu.hanseomate.domain.courseimport.dto.AcademicUnitRequest;
 import hsu.hanseomate.domain.courseimport.dto.ClassroomRequest;
 import hsu.hanseomate.domain.courseimport.dto.CourseImportResponse;
+import hsu.hanseomate.domain.courseimport.dto.CourseImportIssueResponse;
 import hsu.hanseomate.domain.courseimport.dto.GeneralCategoryNodeRequest;
 import hsu.hanseomate.domain.courseimport.dto.GeneralEducationContextRequest;
 import hsu.hanseomate.domain.courseimport.dto.LectureRequest;
@@ -46,13 +47,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -82,16 +81,8 @@ public class CourseImportService {
     private final CourseImportHistoryRepository courseImportHistoryRepository;
 
     @Transactional
-    public CourseImportResponse importCourses(
-            TimetableParseResultRequest request,
-            CurriculumType routeType,
-            String headerImportId,
-            String headerSchemaVersion,
-            String idempotencyKey
-    ) {
-        validator.validateTransport(
-                request, routeType, headerImportId, headerSchemaVersion, idempotencyKey
-        );
+    public CourseImportResponse importCourses(TimetableParseResultRequest request) {
+        String idempotencyKey = idempotencyKey(request);
 
         CourseImportHistory reusedImportId = courseImportHistoryRepository
                 .findByImportId(request.importId())
@@ -100,7 +91,7 @@ public class CourseImportService {
             if (idempotencyKey.equals(reusedImportId.getSuccessfulDedupKey())) {
                 return new CourseImportResponse(
                         request.importId(), StorageStatus.DUPLICATE, false,
-                        reusedImportId.getOfferingCount(), "이미 반영된 파일입니다."
+                        reusedImportId.getOfferingCount(), "이미 반영된 파일입니다.", List.of()
                 );
             }
             throw new hsu.hanseomate.domain.courseimport.exception.CourseImportContractException(
@@ -108,30 +99,49 @@ public class CourseImportService {
             );
         }
 
-        if (validator.requiresReview(request)) {
-            persistReviewHistory(request, idempotencyKey);
+        List<CourseImportIssueResponse> reviewIssues = validator.reviewIssues(request);
+        if (!reviewIssues.isEmpty()) {
+            persistReviewHistory(request, idempotencyKey, reviewIssues);
             return new CourseImportResponse(
                     request.importId(),
                     StorageStatus.REVIEW_REQUIRED,
                     false,
                     0,
-                    "검토가 필요한 오류가 있어 반영하지 않았습니다."
+                    "검토가 필요한 항목이 %d개 있어 저장하지 않았습니다."
+                            .formatted(reviewIssues.size()),
+                    reviewIssues
             );
         }
 
         Semester semester = findOrCreateLockedSemester(request.academicYear(), request.semester());
-        CourseImportHistory duplicate = courseImportHistoryRepository
-                .findBySuccessfulDedupKey(idempotencyKey)
-                .orElse(null);
-        if (duplicate != null) {
+        List<CourseImportHistory> currentHistories = courseOfferingRepository
+                .findImportHistoriesByScope(semester.getId(), request.curriculumType());
+        if (currentHistories.size() > 1) {
+            throw new IllegalStateException("현재 강좌 스냅샷에 서로 다른 수입 이력이 연결되어 있습니다.");
+        }
+        CourseImportHistory currentHistory = currentHistories.stream().findFirst().orElse(null);
+        if (currentHistory != null
+                && idempotencyKey.equals(currentHistory.getIdempotencyKey())) {
             return new CourseImportResponse(
                     request.importId(),
                     StorageStatus.DUPLICATE,
                     false,
-                    duplicate.getOfferingCount(),
-                    "이미 반영된 파일입니다."
+                    currentHistory.getOfferingCount(),
+                    "이미 반영된 파일입니다.",
+                    List.of()
             );
         }
+
+        CourseImportHistory previousSameFile = courseImportHistoryRepository
+                .findBySuccessfulDedupKey(idempotencyKey)
+                .orElse(null);
+        if (previousSameFile != null && previousSameFile != currentHistory) {
+            previousSameFile.markSuperseded();
+        }
+        if (currentHistory != null) {
+            currentHistory.markSuperseded();
+        }
+        entityManager.flush();
 
         Map<String, AcademicUnit> academicUnits = resolveAcademicUnits(request);
         Map<String, Course> courses = resolveCourses(request);
@@ -172,13 +182,15 @@ public class CourseImportService {
                 StorageStatus.STORED,
                 true,
                 request.lectures().size(),
-                successMessage(request)
+                successMessage(request),
+                List.of()
         );
     }
 
     private void persistReviewHistory(
             TimetableParseResultRequest request,
-            String idempotencyKey
+            String idempotencyKey,
+            List<CourseImportIssueResponse> reviewIssues
     ) {
         CourseImportHistory history = CourseImportHistory.reviewRequired(
                 request.importId(),
@@ -195,7 +207,7 @@ public class CourseImportService {
                 serialize(request)
         );
         entityManager.persist(history);
-        persistImportIssues(request.issues(), history);
+        persistImportIssueResponses(reviewIssues, history);
         entityManager.flush();
     }
 
@@ -435,6 +447,25 @@ public class CourseImportService {
 
     private void persistImportIssues(List<ParseIssueRequest> issues, CourseImportHistory history) {
         issues.stream()
+                .limit(CourseImportContractValidator.MAX_REVIEW_ISSUES)
+                .map(issue -> CourseImportIssue.create(
+                        history,
+                        issue.severity(),
+                        issue.code(),
+                        issue.message(),
+                        issue.sheetName(),
+                        issue.rowNumber(),
+                        issue.field(),
+                        issue.rawValue()
+                ))
+                .forEach(entityManager::persist);
+    }
+
+    private void persistImportIssueResponses(
+            List<CourseImportIssueResponse> issues,
+            CourseImportHistory history
+    ) {
+        issues.stream()
                 .map(issue -> CourseImportIssue.create(
                         history,
                         issue.severity(),
@@ -452,6 +483,15 @@ public class CourseImportService {
         String typeName = request.curriculumType() == CurriculumType.MAJOR ? "전공" : "교양";
         return "%d학년도 %d학기 %s 강좌 저장 완료".formatted(
                 request.academicYear(), request.semester(), typeName
+        );
+    }
+
+    private String idempotencyKey(TimetableParseResultRequest request) {
+        return "%d:%d:%s:%s".formatted(
+                request.academicYear(),
+                request.semester(),
+                request.curriculumType(),
+                request.fileSha256()
         );
     }
 

@@ -15,7 +15,7 @@ public final class StrictNullableStringDeserializer extends ValueDeserializer<St
     @Override
     public String deserialize(JsonParser parser, DeserializationContext context) throws JacksonException {
         if (parser.currentToken() == JsonToken.VALUE_STRING) {
-            return parser.getText();
+            return parser.getString();
         }
         if (parser.currentToken() == JsonToken.VALUE_NULL) {
             return null;
