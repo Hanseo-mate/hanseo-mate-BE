@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -15,15 +16,22 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
-@Table(name = "semester_academic_units", uniqueConstraints = {
-        @UniqueConstraint(
+@Table(
+        name = "semester_academic_units",
+        indexes = @Index(
+                name = "ix_semester_unit_scope",
+                columnList = "semester_id,curriculum_type"
+        ),
+        uniqueConstraints = @UniqueConstraint(
                 name = "uk_semester_unit_curriculum",
                 columnNames = {"semester_id", "academic_unit_id", "curriculum_type"}
         )
-})
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SemesterAcademicUnit {
 
@@ -39,6 +47,7 @@ public class SemesterAcademicUnit {
     private AcademicUnit academicUnit;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "curriculum_type", nullable = false, length = 30)
     private CurriculumType curriculumType;
 

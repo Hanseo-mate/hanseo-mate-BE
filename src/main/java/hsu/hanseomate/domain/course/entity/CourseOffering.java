@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
@@ -17,10 +18,19 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
-@Table(name = "course_offerings")
+@Table(
+        name = "course_offerings",
+        indexes = {
+                @Index(name = "ix_offering_scope", columnList = "semester_id,curriculum_type"),
+                @Index(name = "ix_offering_course_name", columnList = "course_name_snapshot"),
+                @Index(name = "ix_offering_instructor", columnList = "instructor_name")
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseOffering {
 
@@ -44,6 +54,7 @@ public class CourseOffering {
     private CourseImportHistory importHistory;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "curriculum_type", nullable = false, length = 30)
     private CurriculumType curriculumType;
 

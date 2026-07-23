@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -15,10 +16,18 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
-@Table(name = "course_import_histories")
+@Table(
+        name = "course_import_histories",
+        indexes = @Index(
+                name = "ix_course_import_scope",
+                columnList = "academic_year,semester,curriculum_type"
+        )
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseImportHistory extends BaseTimeEntity {
 
@@ -53,10 +62,12 @@ public class CourseImportHistory extends BaseTimeEntity {
     private int semester;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "curriculum_type", nullable = false, length = 30)
     private CurriculumType curriculumType;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "storage_status", nullable = false, length = 30)
     private StorageStatus storageStatus;
 
