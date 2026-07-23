@@ -2,7 +2,8 @@
 
 한서대학교 학생들이 학교생활에 필요한 정보를 한곳에서 확인할 수 있도록 제공하는 REST API 서버입니다.
 
-현재 구현된 기능은 학교생활 필수 링크 관리와 학기별 강좌 일괄 수입·조회입니다.
+현재 구현된 기능은 학교생활 필수 링크 관리, 학기별 강좌 일괄 수입·조회,
+중앙동아리 정보 관리, 익명 요청 기반 좋아요와 선택형 활동 후기, 동아리 이미지 업로드입니다.
 
 ## 기술 스택
 
@@ -27,7 +28,8 @@ CREATE DATABASE hanseo_mate
     COLLATE utf8mb4_unicode_ci;
 ```
 
-로컬 환경에서는 JPA가 엔티티 변경사항을 데이터베이스 스키마에 반영하도록 `ddl-auto=update`를 사용합니다. 운영 환경은 스키마가 임의로 변경되지 않도록 `ddl-auto=validate`를 사용합니다.
+로컬과 운영 환경 모두 `ddl-auto=validate`를 사용합니다. JPA가 테이블을 임의로 변경하지 않으며,
+애플리케이션 시작 시 엔티티와 실제 DB 구조가 일치하는지만 확인합니다.
 
 로컬 프로필은 기본적으로 다음 접속 정보를 사용합니다.
 
@@ -53,33 +55,33 @@ DB_PASSWORD
 
 운영 환경에서는 `SPRING_PROFILES_ACTIVE=prod`를 사용하며 세 가지 DB 환경변수가 모두 필요합니다.
 
-운영 프로필은 `ddl-auto=validate`이므로 최초 배포 전에 아래 스키마를 MySQL에 적용해야 합니다.
+동아리 이미지 파일 저장 위치와 반환 URL은 다음 환경변수로 설정합니다.
+
+```text
+UPLOAD_DIRECTORY=uploads
+UPLOAD_PUBLIC_BASE_URL=http://localhost:8080
+UPLOAD_MAX_IMAGE_BYTES=5242880
+```
+
+운영 환경에서는 `UPLOAD_DIRECTORY`를 영속 디스크나 Docker 볼륨에 연결해야 합니다.
+
+새 DB에는 전체 엔티티를 기준으로 정리한 단일 스키마 파일을 한 번 적용합니다.
+이 파일은 기존 테이블을 변경하거나 삭제하지 않는 **빈 데이터베이스 전용** 파일입니다.
 
 ```powershell
-mysql -u 사용자명 -p hanseo_mate < docs/course-import-schema-mysql.sql
+mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="source docs/database-schema-mysql.sql"
 ```
 
-이미 테이블이 존재하는 운영 DB에서는 `CREATE TABLE IF NOT EXISTS`가 기존 구조를 변경하지 않으므로, 엔티티와 컬럼 구조가 일치하는지 먼저 확인해야 합니다.
-
-기존 DB에서 강좌 전체 원본 JSON 저장 시 `raw_payload_json` 용량 오류가 발생하면 다음 SQL을 1회 적용합니다.
-
-```sql
-ALTER TABLE course_import_histories
-    MODIFY COLUMN raw_payload_json LONGTEXT NOT NULL;
-```
-
-기존 `course_import_issues.row_number` 컬럼은 MySQL 예약어와 충돌하므로 다음 SQL로 이름을 변경합니다.
-
-```sql
-ALTER TABLE course_import_issues
-    CHANGE COLUMN `row_number` issue_row_number INT NULL;
-```
+테이블이 하나라도 남아 있으면 스키마 실행이 중단되도록 구성했습니다. 기존 DB를 백업하고
+완전히 비운 뒤 실행해야 구버전 컬럼이 섞이지 않습니다.
 
 ## API
 
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
 강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
+
+동아리 기능의 Postman 테스트 순서와 요청·응답 계약은 [동아리 API 명세서](docs/club-api.md)에서 확인할 수 있습니다.
 
 | Method | Endpoint | 설명 |
 |---|---|---|
@@ -92,6 +94,20 @@ ALTER TABLE course_import_issues
 | `POST` | `/api/v1/timetables/major` | 전공 시간표 엑셀 분석 및 일괄 저장 |
 | `POST` | `/api/v1/timetables/general-education` | 교양 시간표 엑셀 분석 및 일괄 저장 |
 | `GET` | `/api/courses` | 학기·분류·학과·과목·교수 조건으로 강좌 조회 |
+| `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
+| `GET` | `/api/clubs/{clubId}` | 동아리 상단 상세와 상위 활동 후기 3개 조회 |
+| `GET` | `/api/clubs/information/{clubId}` | 동아리 소개·활동 내용·문의 링크 조회 |
+| `GET` | `/api/clubs/recruitments/{clubId}` | 동아리 모집공고 조회 |
+| `PUT` | `/api/clubs/likes/{clubId}` | 익명 요청 단위 좋아요 수 변경 |
+| `GET` | `/api/clubs/reviews/{clubId}` | 후기 요청 수와 전체 키워드별 선택 비율 조회 |
+| `PUT` | `/api/clubs/reviews/{clubId}` | 익명 후기 등록 또는 최근 후기 제거 |
+| `POST` | `/api/admin/clubs` | 동아리 등록 |
+| `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
+| `PUT` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 파일 업로드 |
+| `PUT` | `/api/admin/clubs/basic-info/{clubId}` | 동아리명·한 줄 소개 수정 |
+| `PUT` | `/api/admin/clubs/information/{clubId}` | 동아리 소개·활동 내용·문의 링크 수정 |
+| `PUT` | `/api/admin/clubs/recruitments/{clubId}` | 모집공고 수정 |
+| `DELETE` | `/api/admin/clubs/{clubId}` | 동아리와 좋아요·후기 데이터 삭제 |
 
 링크 데이터는 `id`, `name`, `url`, `category`, `created_at`, `updated_at` 여섯 컬럼만 사용합니다.
 
@@ -123,6 +139,11 @@ SWAGGER_API_DOCS_ENABLED=true
 
 ## 현재 보안 주의사항
 
-로그인, 관리자 계정, JWT, 권한 검사는 아직 구현하지 않았습니다. 링크 관리 API와 강좌 엑셀 수입 API를 포함한 모든 API는 현재 인증 없이 접근할 수 있습니다.
+로그인, 관리자 계정, JWT, 권한 검사는 아직 구현하지 않았습니다. 링크 관리 API,
+강좌 엑셀 수입 API, 동아리 관리 API를 포함한 모든 API는 현재 인증 없이 접근할 수 있습니다.
+
+동아리 좋아요와 선택형 후기는 현재 사용자 식별 없이 요청 건수 단위로 누적합니다.
+빈 활동 후기 요청은 해당 동아리의 최근 후기 한 건을 제거합니다.
+이는 로그인 기능을 구현하기 전 기능 검증을 위한 임시 방식입니다.
 
 이 상태의 서버는 기능 검증용으로만 사용해야 하며, 인터넷에 정식 공개하기 전에 별도의 인증·권한 기능을 구현해야 합니다.

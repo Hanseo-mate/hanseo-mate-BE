@@ -1,7 +1,5 @@
 package hsu.hanseomate.global.exception;
 
-import hsu.hanseomate.domain.essentiallink.exception.EssentialLinkNotFoundException;
-import hsu.hanseomate.domain.essentiallink.exception.InvalidCategoryException;
 import hsu.hanseomate.domain.courseimport.exception.CourseImportContractException;
 import hsu.hanseomate.domain.courseimport.parser.common.CourseWorkbookParseException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,15 +8,18 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -39,20 +40,28 @@ public class GlobalExceptionHandler {
             "CURRICULUM_TYPE_MISMATCH"
     );
 
-    @ExceptionHandler(EssentialLinkNotFoundException.class)
+    @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(
-            EssentialLinkNotFoundException exception,
+            ResourceNotFoundException exception,
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
-    @ExceptionHandler(InvalidCategoryException.class)
-    public ResponseEntity<ApiErrorResponse> handleInvalidCategory(
-            InvalidCategoryException exception,
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiErrorResponse> handleBadRequest(
+            BadRequestException exception,
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
+            NoResourceFoundException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다.", request);
     }
 
     @ExceptionHandler(CourseImportContractException.class)
@@ -86,11 +95,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<CourseWorkbookErrorResponse> handleMaxUploadSize(
+    public ResponseEntity<?> handleMaxUploadSize(
             MaxUploadSizeExceededException exception,
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.CONTENT_TOO_LARGE;
+        if (isClubImageRequest(request)) {
+            return errorResponse(status, "이미지 파일이 허용 크기를 초과했습니다.", request);
+        }
         return ResponseEntity.status(status).body(CourseWorkbookErrorResponse.of(
                 status,
                 "FILE_TOO_LARGE",
@@ -101,11 +113,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
-    public ResponseEntity<CourseWorkbookErrorResponse> handleMissingMultipartFile(
+    public ResponseEntity<?> handleMissingMultipartFile(
             MissingServletRequestPartException exception,
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
+        if (isClubImageRequest(request)) {
+            return errorResponse(status, "업로드할 이미지 파일이 없습니다.", request);
+        }
         return ResponseEntity.status(status).body(CourseWorkbookErrorResponse.of(
                 status,
                 "FILE_MISSING",
@@ -152,6 +167,30 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", request);
     }
 
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "지원하지 않는 HTTP 메서드입니다.",
+                request
+        );
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "지원하지 않는 Content-Type입니다.",
+                request
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
             Exception exception,
@@ -168,5 +207,11 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(status)
                 .body(ApiErrorResponse.of(status, message, request.getRequestURI()));
+    }
+
+    private boolean isClubImageRequest(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/api/admin/clubs/background-images/")
+                || path.startsWith("/api/admin/clubs/profile-images/");
     }
 }
