@@ -43,6 +43,7 @@ out/
 **/application-secret.properties
 **/application-secret.yml
 **/application-secret.yaml
+**/application-prod.properties
 *.pem
 *.key
 *.p12
