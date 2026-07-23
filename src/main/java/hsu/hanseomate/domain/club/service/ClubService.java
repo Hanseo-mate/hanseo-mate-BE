@@ -104,13 +104,7 @@ public class ClubService {
 
         Club club = Club.create(
                 name,
-                normalizeCategory(request.category()),
-                required(request.shortDescription()),
-                content(request.introduction()),
-                content(request.activityContent()),
-                content(request.recruitmentContent()),
-                optional(request.instagramUrl()),
-                optional(request.kakaoTalkUrl())
+                normalizeCategory(request.category())
         );
 
         try {

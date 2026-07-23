@@ -271,13 +271,7 @@ Content-Type: application/json
 ```json
 {
   "name": "멋쟁이사자처럼 한서대학교",
-  "category": "ACADEMIC",
-  "shortDescription": "함께 서비스를 만드는 IT 동아리",
-  "introduction": "동아리 소개 장문 내용 🎉",
-  "activityContent": "동아리 활동 장문 내용 🚀",
-  "recruitmentContent": "모집공고 장문 내용 🙌",
-  "instagramUrl": "https://instagram.com/example",
-  "kakaoTalkUrl": "https://open.kakao.com/o/example"
+  "category": "ACADEMIC"
 }
 ```
 
@@ -294,7 +288,10 @@ Location: /api/clubs/1
 }
 ```
 
-동아리 등록 후 반환받은 ID로 프로필과 배경 이미지를 각각 업로드한다.
+동아리 등록 단계에서는 이름과 분과만 저장한다. 등록 후 반환받은 ID로
+한 줄 소개, 상세 정보, 모집공고, 프로필 이미지와 배경 이미지를 각각 수정한다.
+따라서 생성 직후에는 `shortDescription`, 소개·활동·모집공고, SNS URL과
+이미지 URL이 모두 `null`이다.
 
 ---
 

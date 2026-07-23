@@ -47,7 +47,7 @@ public class Club extends BaseTimeEntity {
     @Column(name = "background_image_url", length = 2048)
     private String backgroundImageUrl;
 
-    @Column(name = "short_description", nullable = false, length = 255)
+    @Column(name = "short_description", length = 255)
     private String shortDescription;
 
     @Lob
@@ -70,44 +70,17 @@ public class Club extends BaseTimeEntity {
 
     private Club(
             String name,
-            ClubCategory category,
-            String shortDescription,
-            String introduction,
-            String activityContent,
-            String recruitmentContent,
-            String instagramUrl,
-            String kakaoTalkUrl
+            ClubCategory category
     ) {
         this.name = name;
         this.category = category;
-        this.shortDescription = shortDescription;
-        this.introduction = introduction;
-        this.activityContent = activityContent;
-        this.recruitmentContent = recruitmentContent;
-        this.instagramUrl = instagramUrl;
-        this.kakaoTalkUrl = kakaoTalkUrl;
     }
 
     public static Club create(
             String name,
-            ClubCategory category,
-            String shortDescription,
-            String introduction,
-            String activityContent,
-            String recruitmentContent,
-            String instagramUrl,
-            String kakaoTalkUrl
+            ClubCategory category
     ) {
-        return new Club(
-                name,
-                category,
-                shortDescription,
-                introduction,
-                activityContent,
-                recruitmentContent,
-                instagramUrl,
-                kakaoTalkUrl
-        );
+        return new Club(name, category);
     }
 
     public void updateBasicInfo(String name, String shortDescription) {

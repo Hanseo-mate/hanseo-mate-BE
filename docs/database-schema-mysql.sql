@@ -247,7 +247,7 @@ CREATE TABLE clubs (
     category VARCHAR(30) NOT NULL,
     profile_image_url VARCHAR(2048) NULL,
     background_image_url VARCHAR(2048) NULL,
-    short_description VARCHAR(255) NOT NULL,
+    short_description VARCHAR(255) NULL,
     introduction LONGTEXT NULL,
     activity_content LONGTEXT NULL,
     recruitment_content LONGTEXT NULL,
