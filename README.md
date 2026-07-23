@@ -2,7 +2,7 @@
 
 한서대학교 학생들이 학교생활에 필요한 정보를 한곳에서 확인할 수 있도록 제공하는 REST API 서버입니다.
 
-현재 구현된 기능은 학교생활 필수 링크 조회 및 관리입니다.
+현재 구현된 기능은 학교생활 필수 링크 관리와 학기별 강좌 일괄 수입·조회입니다.
 
 ## 기술 스택
 
@@ -12,6 +12,7 @@
 - Spring Web MVC
 - Spring Data JPA
 - MySQL
+- Apache POI
 - Bean Validation
 - Springdoc OpenAPI
 - H2 테스트 데이터베이스
@@ -52,9 +53,33 @@ DB_PASSWORD
 
 운영 환경에서는 `SPRING_PROFILES_ACTIVE=prod`를 사용하며 세 가지 DB 환경변수가 모두 필요합니다.
 
+운영 프로필은 `ddl-auto=validate`이므로 최초 배포 전에 아래 스키마를 MySQL에 적용해야 합니다.
+
+```powershell
+mysql -u 사용자명 -p hanseo_mate < docs/course-import-schema-mysql.sql
+```
+
+이미 테이블이 존재하는 운영 DB에서는 `CREATE TABLE IF NOT EXISTS`가 기존 구조를 변경하지 않으므로, 엔티티와 컬럼 구조가 일치하는지 먼저 확인해야 합니다.
+
+기존 DB에서 강좌 전체 원본 JSON 저장 시 `raw_payload_json` 용량 오류가 발생하면 다음 SQL을 1회 적용합니다.
+
+```sql
+ALTER TABLE course_import_histories
+    MODIFY COLUMN raw_payload_json LONGTEXT NOT NULL;
+```
+
+기존 `course_import_issues.row_number` 컬럼은 MySQL 예약어와 충돌하므로 다음 SQL로 이름을 변경합니다.
+
+```sql
+ALTER TABLE course_import_issues
+    CHANGE COLUMN `row_number` issue_row_number INT NULL;
+```
+
 ## API
 
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
+
+강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
 
 | Method | Endpoint | 설명 |
 |---|---|---|
@@ -64,6 +89,9 @@ DB_PASSWORD
 | `POST` | `/api/admin/links` | 링크 등록 |
 | `PUT` | `/api/admin/links/{linkId}` | 링크 전체 수정 |
 | `DELETE` | `/api/admin/links/{linkId}` | 링크 삭제 |
+| `POST` | `/api/v1/timetables/major` | 전공 시간표 엑셀 분석 및 일괄 저장 |
+| `POST` | `/api/v1/timetables/general-education` | 교양 시간표 엑셀 분석 및 일괄 저장 |
+| `GET` | `/api/courses` | 학기·분류·학과·과목·교수 조건으로 강좌 조회 |
 
 링크 데이터는 `id`, `name`, `url`, `category`, `created_at`, `updated_at` 여섯 컬럼만 사용합니다.
 
@@ -95,6 +123,6 @@ SWAGGER_API_DOCS_ENABLED=true
 
 ## 현재 보안 주의사항
 
-로그인과 관리자 권한은 아직 구현되지 않았습니다. 따라서 `/api/admin/**` API는 현재 인증 없이 접근할 수 있습니다.
+로그인, 관리자 계정, JWT, 권한 검사는 아직 구현하지 않았습니다. 링크 관리 API와 강좌 엑셀 수입 API를 포함한 모든 API는 현재 인증 없이 접근할 수 있습니다.
 
-이 상태의 서버는 기능 검증용으로만 사용해야 하며, 인터넷에 정식 공개하기 전에 Spring Security 기반 관리자 인증과 권한 검사를 반드시 추가해야 합니다.
+이 상태의 서버는 기능 검증용으로만 사용해야 하며, 인터넷에 정식 공개하기 전에 별도의 인증·권한 기능을 구현해야 합니다.
