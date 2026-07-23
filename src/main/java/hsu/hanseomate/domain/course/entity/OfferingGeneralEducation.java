@@ -9,6 +9,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.OneToOne;
@@ -17,10 +18,18 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
-@Table(name = "offering_general_education")
+@Table(
+        name = "offering_general_education",
+        indexes = @Index(
+                name = "ix_general_context_filter",
+                columnList = "classification,area,delivery_provider"
+        )
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OfferingGeneralEducation {
 
@@ -32,6 +41,7 @@ public class OfferingGeneralEducation {
     private CourseOffering offering;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private GeneralClassification classification;
 
@@ -45,10 +55,12 @@ public class OfferingGeneralEducation {
     private String categoryName;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 30)
     private GeneralArea area;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "delivery_provider", nullable = false, length = 50)
     private DeliveryProvider deliveryProvider;
 
@@ -56,7 +68,7 @@ public class OfferingGeneralEducation {
     private String deliveryProviderName;
 
     @Lob
-    @Column(name = "source_path_json", nullable = false)
+    @Column(name = "source_path_json", nullable = false, columnDefinition = "LONGTEXT")
     private String sourcePathJson;
 
     private OfferingGeneralEducation(
