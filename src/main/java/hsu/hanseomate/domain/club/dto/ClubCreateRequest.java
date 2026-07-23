@@ -1,6 +1,5 @@
 package hsu.hanseomate.domain.club.dto;
 
-import hsu.hanseomate.global.validation.HttpUrl;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -11,24 +10,6 @@ public record ClubCreateRequest(
 
         @NotBlank(message = "분과는 필수입니다.")
         @Size(max = 30, message = "분과는 30자 이하여야 합니다.")
-        String category,
-
-        @NotBlank(message = "한 줄 소개는 필수입니다.")
-        @Size(max = 255, message = "한 줄 소개는 255자 이하여야 합니다.")
-        String shortDescription,
-
-        String introduction,
-
-        String activityContent,
-
-        String recruitmentContent,
-
-        @Size(max = 2048, message = "인스타그램 URL은 2048자 이하여야 합니다.")
-        @HttpUrl
-        String instagramUrl,
-
-        @Size(max = 2048, message = "카카오톡 URL은 2048자 이하여야 합니다.")
-        @HttpUrl
-        String kakaoTalkUrl
+        String category
 ) {
 }

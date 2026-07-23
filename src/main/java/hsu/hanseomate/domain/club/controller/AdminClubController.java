@@ -43,7 +43,10 @@ public class AdminClubController {
 
     private final ClubService clubService;
 
-    @Operation(summary = "동아리 등록")
+    @Operation(
+            summary = "동아리 등록",
+            description = "동아리 이름과 분과만 먼저 등록합니다. 나머지 정보와 이미지는 등록 후 별도 API로 수정합니다."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공"),
             @ApiResponse(

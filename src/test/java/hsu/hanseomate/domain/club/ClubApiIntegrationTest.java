@@ -110,18 +110,11 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void createsClubWithLongUnicodeContentAndNullableContactUrls() throws Exception {
-        String longIntroduction = "동아리 소개와 줄바꿈, 이모지 🦁\n".repeat(700);
-        String longActivityContent = "HTML · CSS · Java · Spring Boot 프로젝트 활동 🚀\n".repeat(700);
-        String longRecruitmentContent = "신입 부원을 모집합니다 🙌 지원을 기다립니다.\n".repeat(700);
+    void createsClubWithOnlyNameAndCategoryAndInitializesOptionalFieldsAsNull()
+            throws Exception {
         Map<String, Object> request = clubRequest("  멋쟁이사자처럼 한서대학교  ", " academic ");
-        request.put("introduction", longIntroduction);
-        request.put("activityContent", longActivityContent);
-        request.put("recruitmentContent", longRecruitmentContent);
-        request.put("instagramUrl", null);
-        request.put("kakaoTalkUrl", null);
 
-        assertThat(request).doesNotContainKeys("profileImageUrl", "backgroundImageUrl");
+        assertThat(request).containsOnlyKeys("name", "category");
 
         MvcResult result = mockMvc.perform(post("/api/admin/clubs")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -137,30 +130,25 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("멋쟁이사자처럼 한서대학교"))
+                .andExpect(jsonPath("$.shortDescription").value((Object) null))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.introduction").doesNotExist())
                 .andExpect(jsonPath("$.activityContent").doesNotExist())
                 .andExpect(jsonPath("$.recruitmentContent").doesNotExist());
 
-        MvcResult informationResult = mockMvc.perform(
-                        get("/api/clubs/information/{clubId}", clubId)
-                )
+        mockMvc.perform(get("/api/clubs/information/{clubId}", clubId))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(4)))
+                .andExpect(jsonPath("$.introduction").value((Object) null))
+                .andExpect(jsonPath("$.activityContent").value((Object) null))
                 .andExpect(jsonPath("$.instagramUrl").value((Object) null))
-                .andExpect(jsonPath("$.kakaoTalkUrl").value((Object) null))
-                .andReturn();
-        Map<String, Object> information = responseBody(informationResult);
-        assertThat(information.get("introduction")).isEqualTo(longIntroduction.strip());
-        assertThat(information.get("activityContent")).isEqualTo(longActivityContent.strip());
+                .andExpect(jsonPath("$.kakaoTalkUrl").value((Object) null));
 
-        MvcResult recruitmentResult = mockMvc.perform(
-                        get("/api/clubs/recruitments/{clubId}", clubId)
-                )
+        mockMvc.perform(get("/api/clubs/recruitments/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andReturn();
-        assertThat(responseBody(recruitmentResult).get("recruitmentContent"))
-                .isEqualTo(longRecruitmentContent.strip());
+                .andExpect(jsonPath("$.recruitmentContent").value((Object) null));
     }
 
     @Test
@@ -575,11 +563,14 @@ class ClubApiIntegrationTest {
                         .content(json(blankName)))
                 .andExpect(status().isBadRequest());
 
-        Map<String, Object> invalidUrl = clubRequest("잘못된 URL 동아리", "ACADEMIC");
-        invalidUrl.put("instagramUrl", "javascript:alert(1)");
-        mockMvc.perform(post("/api/admin/clubs")
+        long invalidUrlClubId = createClub("잘못된 URL 동아리", "ACADEMIC");
+        mockMvc.perform(put("/api/admin/clubs/information/{clubId}", invalidUrlClubId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(invalidUrl)))
+                        .content(json(Map.of(
+                                "introduction", "동아리 소개",
+                                "activityContent", "동아리 활동",
+                                "instagramUrl", "javascript:alert(1)"
+                        ))))
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(get("/api/clubs").param("category", "ALL"))
@@ -679,6 +670,15 @@ class ClubApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath("$.paths['/api/admin/clubs'].post.responses['201']")
                         .exists())
+                .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties",
+                        aMapWithSize(2)))
+                .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.name")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.category")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubCreateRequest.properties.shortDescription"
+                ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/clubs/{clubId}'].put").doesNotExist())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/background-images/{clubId}']"
@@ -726,7 +726,36 @@ class ClubApiIntegrationTest {
                         .content(json(clubRequest(name, category))))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return responseId(result);
+        long clubId = responseId(result);
+        populateClubFixture(clubId, name.strip());
+        return clubId;
+    }
+
+    private void populateClubFixture(long clubId, String name) throws Exception {
+        mockMvc.perform(put("/api/admin/clubs/basic-info/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "name", name,
+                                "shortDescription", "  함께 서비스를 만드는 IT 동아리  "
+                        ))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(put("/api/admin/clubs/information/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "introduction", "  동아리 상세 소개 🦁  ",
+                                "activityContent", "  프로젝트와 스터디 활동 🚀  ",
+                                "instagramUrl", "https://instagram.com/example",
+                                "kakaoTalkUrl", "https://open.kakao.com/o/example"
+                        ))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(put("/api/admin/clubs/recruitments/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "recruitmentContent", "  현재 신입 부원을 모집합니다 🙌  "
+                        ))))
+                .andExpect(status().isNoContent());
     }
 
     private void setLike(long clubId, boolean liked) throws Exception {
@@ -800,12 +829,6 @@ class ClubApiIntegrationTest {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("name", name);
         request.put("category", category);
-        request.put("shortDescription", "  함께 서비스를 만드는 IT 동아리  ");
-        request.put("introduction", "  동아리 상세 소개 🦁  ");
-        request.put("activityContent", "  프로젝트와 스터디 활동 🚀  ");
-        request.put("recruitmentContent", "  현재 신입 부원을 모집합니다 🙌  ");
-        request.put("instagramUrl", "https://instagram.com/example");
-        request.put("kakaoTalkUrl", "https://open.kakao.com/o/example");
         return request;
     }
 
