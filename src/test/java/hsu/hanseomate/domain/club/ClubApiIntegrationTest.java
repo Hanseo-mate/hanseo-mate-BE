@@ -130,25 +130,21 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(12)))
                 .andExpect(jsonPath("$.name").value("멋쟁이사자처럼 한서대학교"))
                 .andExpect(jsonPath("$.shortDescription").value((Object) null))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
-                .andExpect(jsonPath("$.introduction").doesNotExist())
-                .andExpect(jsonPath("$.activityContent").doesNotExist())
-                .andExpect(jsonPath("$.recruitmentContent").doesNotExist());
-
-        mockMvc.perform(get("/api/clubs/information/{clubId}", clubId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(4)))
+                .andExpect(jsonPath("$.likeCount").value(0))
+                .andExpect(jsonPath("$.topReviewTags").isEmpty())
                 .andExpect(jsonPath("$.introduction").value((Object) null))
                 .andExpect(jsonPath("$.activityContent").value((Object) null))
                 .andExpect(jsonPath("$.instagramUrl").value((Object) null))
-                .andExpect(jsonPath("$.kakaoTalkUrl").value((Object) null));
-
-        mockMvc.perform(get("/api/clubs/recruitments/{clubId}", clubId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.recruitmentContent").value((Object) null));
+                .andExpect(jsonPath("$.kakaoTalkUrl").value((Object) null))
+                .andExpect(jsonPath("$.recruitmentContent").value((Object) null))
+                .andExpect(jsonPath("$.reviewerCount").value(0))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andExpect(jsonPath("$.category").doesNotExist());
     }
 
     @Test
@@ -181,43 +177,36 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void returnsClubDetailWithSeparatedInformationAndRecruitment() throws Exception {
+    void returnsUnifiedClubDetailWithInformationRecruitmentAndReviewerCount()
+            throws Exception {
         long clubId = createClub("상세 조회 동아리", "HOBBY");
+        setLike(clubId, true);
+        putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION"));
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(7)))
-                .andExpect(jsonPath("$.id").value(clubId))
+                .andExpect(jsonPath("$", aMapWithSize(12)))
+                .andExpect(jsonPath("$.name").value("상세 조회 동아리"))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.shortDescription")
                         .value("함께 서비스를 만드는 IT 동아리"))
                 .andExpect(jsonPath("$.liked").doesNotExist())
-                .andExpect(jsonPath("$.likeCount").value(0))
-                .andExpect(jsonPath("$.topReviewTags").isEmpty())
-                .andExpect(jsonPath("$.category").doesNotExist())
-                .andExpect(jsonPath("$.introduction").doesNotExist())
-                .andExpect(jsonPath("$.activityContent").doesNotExist())
-                .andExpect(jsonPath("$.recruitmentContent").doesNotExist())
-                .andExpect(jsonPath("$.instagramUrl").doesNotExist())
-                .andExpect(jsonPath("$.kakaoTalkUrl").doesNotExist())
-                .andExpect(jsonPath("$.createdAt").doesNotExist())
-                .andExpect(jsonPath("$.updatedAt").doesNotExist());
-
-        mockMvc.perform(get("/api/clubs/information/{clubId}", clubId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.clubId").doesNotExist())
+                .andExpect(jsonPath("$.likeCount").value(1))
+                .andExpect(jsonPath("$.topReviewTags.length()").value(2))
+                .andExpect(jsonPath("$.topReviewTags[0]").value("BUILD_RESUME"))
+                .andExpect(jsonPath("$.topReviewTags[1]").value("ACADEMIC_PASSION"))
                 .andExpect(jsonPath("$.introduction").value("동아리 상세 소개 🦁"))
                 .andExpect(jsonPath("$.activityContent").value("프로젝트와 스터디 활동 🚀"))
                 .andExpect(jsonPath("$.instagramUrl").value("https://instagram.com/example"))
                 .andExpect(jsonPath("$.kakaoTalkUrl").value("https://open.kakao.com/o/example"))
-                .andExpect(jsonPath("$.name").doesNotExist());
-
-        mockMvc.perform(get("/api/clubs/recruitments/{clubId}", clubId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(1)))
                 .andExpect(jsonPath("$.recruitmentContent")
-                        .value("현재 신입 부원을 모집합니다 🙌"));
+                        .value("현재 신입 부원을 모집합니다 🙌"))
+                .andExpect(jsonPath("$.reviewerCount").value(1))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andExpect(jsonPath("$.category").doesNotExist())
+                .andExpect(jsonPath("$.createdAt").doesNotExist())
+                .andExpect(jsonPath("$.updatedAt").doesNotExist());
     }
 
     @Test
@@ -284,58 +273,39 @@ class ClubApiIntegrationTest {
         setLike(clubId, true);
         putReview(clubId, List.of("BUILD_RESUME"));
 
-        mockMvc.perform(put("/api/admin/clubs/basic-info/{clubId}", clubId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "name", "수정된 동아리",
-                                "shortDescription", "수정된 한 줄 소개"
-                        ))))
-                .andExpect(status().isNoContent());
-
         String longIntroduction = "아주 긴 동아리 소개와 이모지 🦁\n".repeat(700);
         String longActivityContent = "아주 긴 활동 내용과 이모지 🚀\n".repeat(700);
-        Map<String, Object> informationRequest = new LinkedHashMap<>();
-        informationRequest.put("introduction", longIntroduction);
-        informationRequest.put("activityContent", longActivityContent);
-        informationRequest.put("instagramUrl", "https://instagram.com/updated");
-        informationRequest.put("kakaoTalkUrl", null);
-        mockMvc.perform(put("/api/admin/clubs/information/{clubId}", clubId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(informationRequest)))
-                .andExpect(status().isNoContent());
-
         String longRecruitment = "아주 긴 모집공고와 이모지 🙌\n".repeat(700);
-        mockMvc.perform(put("/api/admin/clubs/recruitments/{clubId}", clubId)
+        Map<String, Object> updateRequest = clubUpdateRequest(
+                "수정된 동아리",
+                "수정된 한 줄 소개",
+                longIntroduction,
+                longActivityContent,
+                "https://instagram.com/updated",
+                null,
+                longRecruitment
+        );
+
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("recruitmentContent", longRecruitment))))
+                        .content(json(updateRequest)))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/clubs/{clubId}", clubId))
+        MvcResult detailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("수정된 동아리"))
                 .andExpect(jsonPath("$.shortDescription").value("수정된 한 줄 소개"))
                 .andExpect(jsonPath("$.likeCount").value(1))
                 .andExpect(jsonPath("$.liked").doesNotExist())
-                .andExpect(jsonPath("$.topReviewTags[0]").value("BUILD_RESUME"));
-
-        MvcResult informationResult = mockMvc.perform(
-                        get("/api/clubs/information/{clubId}", clubId)
-                )
-                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topReviewTags[0]").value("BUILD_RESUME"))
+                .andExpect(jsonPath("$.reviewerCount").value(1))
                 .andExpect(jsonPath("$.instagramUrl").value("https://instagram.com/updated"))
                 .andExpect(jsonPath("$.kakaoTalkUrl").value((Object) null))
                 .andReturn();
-        Map<String, Object> information = responseBody(informationResult);
-        assertThat(information.get("introduction")).isEqualTo(longIntroduction.strip());
-        assertThat(information.get("activityContent")).isEqualTo(longActivityContent.strip());
-
-        MvcResult recruitmentResult = mockMvc.perform(
-                        get("/api/clubs/recruitments/{clubId}", clubId)
-                )
-                .andExpect(status().isOk())
-                .andReturn();
-        assertThat(responseBody(recruitmentResult).get("recruitmentContent"))
-                .isEqualTo(longRecruitment.strip());
+        Map<String, Object> detail = responseBody(detailResult);
+        assertThat(detail.get("introduction")).isEqualTo(longIntroduction.strip());
+        assertThat(detail.get("activityContent")).isEqualTo(longActivityContent.strip());
+        assertThat(detail.get("recruitmentContent")).isEqualTo(longRecruitment.strip());
     }
 
     @Test
@@ -372,9 +342,9 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(3)))
-                .andExpect(jsonPath("$.clubId").value(clubId))
-                .andExpect(jsonPath("$.reviewerCount").value(1))
+                .andExpect(jsonPath("$", aMapWithSize(1)))
+                .andExpect(jsonPath("$.clubId").doesNotExist())
+                .andExpect(jsonPath("$.reviewerCount").doesNotExist())
                 .andExpect(jsonPath("$.selectedReviewTags").doesNotExist())
                 .andExpect(jsonPath("$.options.length()").value(26))
                 .andExpect(jsonPath("$.options[0]", aMapWithSize(2)))
@@ -386,6 +356,7 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.options[0].emoji").doesNotExist())
                 .andExpect(jsonPath("$.options[25].reviewTag").value("INTERVIEW_IMPORTANT"))
                 .andExpect(jsonPath("$.options[25].percentage").value(0.0));
+        expectReviewerCount(clubId, 1);
     }
 
     @Test
@@ -397,7 +368,8 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewerCount").value(3))
+                .andExpect(jsonPath("$", aMapWithSize(1)))
+                .andExpect(jsonPath("$.reviewerCount").doesNotExist())
                 .andExpect(jsonPath("$.options.length()").value(26))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'BUILD_RESUME')].percentage"
@@ -410,7 +382,8 @@ class ClubApiIntegrationTest {
                 ).value(hasItem(16.67)))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'INTERVIEW_IMPORTANT')].percentage"
-                ).value(hasItem(0.0)));
+                        ).value(hasItem(0.0)));
+        expectReviewerCount(clubId, 3);
     }
 
     @Test
@@ -444,10 +417,10 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewerCount").value(3))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'ENJOY_HOBBY')].percentage"
-                ).value(hasItem(50.0)));
+                        ).value(hasItem(50.0)));
+        expectReviewerCount(clubId, 3);
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -458,10 +431,10 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewerCount").value(2))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'ENJOY_HOBBY')].percentage"
-                ).value(hasItem(33.33)));
+                        ).value(hasItem(33.33)));
+        expectReviewerCount(clubId, 2);
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
@@ -470,13 +443,13 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewerCount").value(1))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'ENJOY_HOBBY')].percentage"
-                ).value(hasItem(0.0)))
+                        ).value(hasItem(0.0)))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'BUILD_RESUME')].percentage"
-                ).value(hasItem(50.0)));
+                        ).value(hasItem(50.0)));
+        expectReviewerCount(clubId, 1);
 
         mockMvc.perform(delete("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isMethodNotAllowed());
@@ -564,12 +537,16 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         long invalidUrlClubId = createClub("잘못된 URL 동아리", "ACADEMIC");
-        mockMvc.perform(put("/api/admin/clubs/information/{clubId}", invalidUrlClubId)
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", invalidUrlClubId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "introduction", "동아리 소개",
-                                "activityContent", "동아리 활동",
-                                "instagramUrl", "javascript:alert(1)"
+                        .content(json(clubUpdateRequest(
+                                "잘못된 URL 동아리",
+                                "한 줄 소개",
+                                "동아리 소개",
+                                "동아리 활동",
+                                "javascript:alert(1)",
+                                "https://open.kakao.com/o/example",
+                                "모집공고"
                         ))))
                 .andExpect(status().isBadRequest());
 
@@ -578,10 +555,6 @@ class ClubApiIntegrationTest {
         mockMvc.perform(get("/api/clubs/{clubId}", 999999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
-        mockMvc.perform(get("/api/clubs/information/{clubId}", 999999L))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/clubs/recruitments/{clubId}", 999999L))
-                .andExpect(status().isNotFound());
         mockMvc.perform(put("/api/clubs/likes/{clubId}", 999999L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("liked", true))))
@@ -606,23 +579,17 @@ class ClubApiIntegrationTest {
                             return request;
                         }))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(put("/api/admin/clubs/basic-info/{clubId}", 999999L)
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", 999999L)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "name", "없는 동아리",
-                                "shortDescription", "한 줄 소개"
+                        .content(json(clubUpdateRequest(
+                                "없는 동아리",
+                                "한 줄 소개",
+                                "소개",
+                                "활동",
+                                null,
+                                null,
+                                "모집공고"
                         ))))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(put("/api/admin/clubs/information/{clubId}", 999999L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "introduction", "소개",
-                                "activityContent", "활동"
-                        ))))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(put("/api/admin/clubs/recruitments/{clubId}", 999999L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("recruitmentContent", "모집공고"))))
                 .andExpect(status().isNotFound());
 
         long clubId = createClub("이미지 검증 동아리", "ACADEMIC");
@@ -642,15 +609,20 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void rejectsDuplicateNameInBasicInfoUpdate() throws Exception {
+    void rejectsDuplicateNameInUnifiedUpdate() throws Exception {
         createClub("이미 존재하는 동아리", "ACADEMIC");
         long targetClubId = createClub("수정 대상 동아리", "SPORTS");
 
-        mockMvc.perform(put("/api/admin/clubs/basic-info/{clubId}", targetClubId)
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", targetClubId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "name", "이미 존재하는 동아리",
-                                "shortDescription", "중복 이름으로 변경"
+                        .content(json(clubUpdateRequest(
+                                "이미 존재하는 동아리",
+                                "중복 이름으로 변경",
+                                "소개",
+                                "활동",
+                                null,
+                                null,
+                                "모집공고"
                         ))))
                 .andExpect(status().isBadRequest());
     }
@@ -663,11 +635,11 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/clubs/{clubId}'].get.responses['404']")
                         .exists())
                 .andExpect(jsonPath(
-                        "$.paths['/api/clubs/information/{clubId}'].get.responses['200']"
-                ).exists())
+                        "$.paths['/api/clubs/information/{clubId}']"
+                ).doesNotExist())
                 .andExpect(jsonPath(
-                        "$.paths['/api/clubs/recruitments/{clubId}'].get.responses['200']"
-                ).exists())
+                        "$.paths['/api/clubs/recruitments/{clubId}']"
+                ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/clubs'].post.responses['201']")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties",
@@ -679,7 +651,40 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.components.schemas.ClubCreateRequest.properties.shortDescription"
                 ).doesNotExist())
-                .andExpect(jsonPath("$.paths['/api/admin/clubs/{clubId}'].put").doesNotExist())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/{clubId}'].put.responses['204']"
+                ).exists())
+                .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties",
+                        aMapWithSize(7)))
+                .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.name")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.shortDescription"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.introduction"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.activityContent"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.instagramUrl"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.kakaoTalkUrl"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.recruitmentContent"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.category"
+                ).doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.profileImageUrl"
+                ).doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubUpdateRequest.properties.backgroundImageUrl"
+                ).doesNotExist())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/background-images/{clubId}']"
                                 + ".put.responses['200']"
@@ -698,20 +703,30 @@ class ClubApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/basic-info/{clubId}']"
-                                + ".put.responses['204']"
-                ).exists())
+                ).doesNotExist())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/information/{clubId}']"
-                                + ".put.responses['204']"
-                ).exists())
+                ).doesNotExist())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/recruitments/{clubId}']"
-                                + ".put.responses['204']"
-                ).exists())
+                ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].put.responses['200']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/clubs/reviews/{clubId}'].get.responses['200']")
                         .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewStatisticsResponse.properties",
+                        aMapWithSize(1)
+                ))
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewStatisticsResponse.properties.options"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewStatisticsResponse.properties.clubId"
+                ).doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewStatisticsResponse.properties.reviewerCount"
+                ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/clubs/reviews/{clubId}'].put.responses['200']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/clubs/reviews/{clubId}'].delete")
@@ -732,28 +747,16 @@ class ClubApiIntegrationTest {
     }
 
     private void populateClubFixture(long clubId, String name) throws Exception {
-        mockMvc.perform(put("/api/admin/clubs/basic-info/{clubId}", clubId)
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "name", name,
-                                "shortDescription", "  함께 서비스를 만드는 IT 동아리  "
-                        ))))
-                .andExpect(status().isNoContent());
-
-        mockMvc.perform(put("/api/admin/clubs/information/{clubId}", clubId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "introduction", "  동아리 상세 소개 🦁  ",
-                                "activityContent", "  프로젝트와 스터디 활동 🚀  ",
-                                "instagramUrl", "https://instagram.com/example",
-                                "kakaoTalkUrl", "https://open.kakao.com/o/example"
-                        ))))
-                .andExpect(status().isNoContent());
-
-        mockMvc.perform(put("/api/admin/clubs/recruitments/{clubId}", clubId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "recruitmentContent", "  현재 신입 부원을 모집합니다 🙌  "
+                        .content(json(clubUpdateRequest(
+                                name,
+                                "  함께 서비스를 만드는 IT 동아리  ",
+                                "  동아리 상세 소개 🦁  ",
+                                "  프로젝트와 스터디 활동 🚀  ",
+                                "https://instagram.com/example",
+                                "https://open.kakao.com/o/example",
+                                "  현재 신입 부원을 모집합니다 🙌  "
                         ))))
                 .andExpect(status().isNoContent());
     }
@@ -787,6 +790,12 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", aMapWithSize(1)))
                 .andExpect(jsonPath("$.message").value("활동 후기가 등록되었습니다."));
+    }
+
+    private void expectReviewerCount(long clubId, long expectedCount) throws Exception {
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewerCount").value(expectedCount));
     }
 
     private void expectInvalidReview(long clubId, List<String> tags) throws Exception {
@@ -829,6 +838,26 @@ class ClubApiIntegrationTest {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("name", name);
         request.put("category", category);
+        return request;
+    }
+
+    private Map<String, Object> clubUpdateRequest(
+            String name,
+            String shortDescription,
+            String introduction,
+            String activityContent,
+            String instagramUrl,
+            String kakaoTalkUrl,
+            String recruitmentContent
+    ) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("name", name);
+        request.put("shortDescription", shortDescription);
+        request.put("introduction", introduction);
+        request.put("activityContent", activityContent);
+        request.put("instagramUrl", instagramUrl);
+        request.put("kakaoTalkUrl", kakaoTalkUrl);
+        request.put("recruitmentContent", recruitmentContent);
         return request;
     }
 

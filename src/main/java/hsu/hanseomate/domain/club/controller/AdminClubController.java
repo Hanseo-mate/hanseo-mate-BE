@@ -1,11 +1,9 @@
 package hsu.hanseomate.domain.club.controller;
 
-import hsu.hanseomate.domain.club.dto.ClubBasicInfoUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
-import hsu.hanseomate.domain.club.dto.ClubInformationUpdateRequest;
-import hsu.hanseomate.domain.club.dto.ClubRecruitmentUpdateRequest;
+import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,7 +43,8 @@ public class AdminClubController {
 
     @Operation(
             summary = "동아리 등록",
-            description = "동아리 이름과 분과만 먼저 등록합니다. 나머지 정보와 이미지는 등록 후 별도 API로 수정합니다."
+            description = "동아리 이름과 분과만 먼저 등록합니다. 나머지 텍스트 정보는 통합 수정 API로, "
+                    + "이미지는 각각의 업로드 API로 등록합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공"),
@@ -124,7 +123,10 @@ public class AdminClubController {
         return clubService.updateProfileImage(clubId, file);
     }
 
-    @Operation(summary = "동아리명과 한 줄 소개 수정")
+    @Operation(
+            summary = "동아리 정보 통합 수정",
+            description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),
             @ApiResponse(
@@ -138,58 +140,12 @@ public class AdminClubController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    @PutMapping("/basic-info/{clubId}")
-    public ResponseEntity<Void> updateBasicInfo(
+    @PutMapping("/{clubId}")
+    public ResponseEntity<Void> updateClub(
             @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
-            @Valid @RequestBody ClubBasicInfoUpdateRequest request
+            @Valid @RequestBody ClubUpdateRequest request
     ) {
-        clubService.updateBasicInfo(clubId, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "동아리 소개·활동 내용·문의 링크 수정")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "수정 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 동아리 ID 또는 URL",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "동아리 없음",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            )
-    })
-    @PutMapping("/information/{clubId}")
-    public ResponseEntity<Void> updateInformation(
-            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
-            @Valid @RequestBody ClubInformationUpdateRequest request
-    ) {
-        clubService.updateInformation(clubId, request);
-        return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "모집공고 수정")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "수정 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 동아리 ID",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "동아리 없음",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            )
-    })
-    @PutMapping("/recruitments/{clubId}")
-    public ResponseEntity<Void> updateRecruitment(
-            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
-            @Valid @RequestBody ClubRecruitmentUpdateRequest request
-    ) {
-        clubService.updateRecruitment(clubId, request);
+        clubService.updateClub(clubId, request);
         return ResponseEntity.noContent().build();
     }
 

@@ -2,13 +2,11 @@ package hsu.hanseomate.domain.club.dto;
 
 import java.util.List;
 
-public record ClubReviewStateResponse(
-        Long clubId,
-        long reviewerCount,
+public record ClubReviewStatisticsResponse(
         List<ClubReviewOptionResponse> options
 ) {
 
-    public ClubReviewStateResponse {
+    public ClubReviewStatisticsResponse {
         options = List.copyOf(options);
     }
 }
