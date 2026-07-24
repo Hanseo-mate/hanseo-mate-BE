@@ -22,7 +22,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -266,6 +265,62 @@ class ClubApiIntegrationTest {
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profileImageUrl").value(replacedProfileUrl));
+    }
+
+    @Test
+    void deletesProfileAndBackgroundImagesIndependentlyAndIdempotently() throws Exception {
+        long clubId = createClub("이미지 삭제 동아리", "ACADEMIC");
+        String backgroundUrl = uploadImage(
+                "/api/admin/clubs/background-images/{clubId}",
+                clubId,
+                "background.png"
+        );
+        String profileUrl = uploadImage(
+                "/api/admin/clubs/profile-images/{clubId}",
+                clubId,
+                "profile.png"
+        );
+
+        mockMvc.perform(delete("/api/admin/clubs/profile-images/{clubId}", clubId))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT profile_image_url FROM clubs WHERE id = ?",
+                String.class,
+                clubId
+        )).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT background_image_url FROM clubs WHERE id = ?",
+                String.class,
+                clubId
+        )).isEqualTo(backgroundUrl);
+        mockMvc.perform(get(URI.create(profileUrl).getPath()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(URI.create(backgroundUrl).getPath()))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
+                .andExpect(jsonPath("$.backgroundImageUrl").value(backgroundUrl));
+
+        // 같은 삭제 요청을 반복해도 이미 삭제된 상태를 성공으로 처리한다.
+        mockMvc.perform(delete("/api/admin/clubs/profile-images/{clubId}", clubId))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/admin/clubs/background-images/{clubId}", clubId))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT background_image_url FROM clubs WHERE id = ?",
+                String.class,
+                clubId
+        )).isNull();
+        mockMvc.perform(get(URI.create(backgroundUrl).getPath()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
+                .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null));
     }
 
     @Test
@@ -580,6 +635,12 @@ class ClubApiIntegrationTest {
                             return request;
                         }))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/admin/clubs/background-images/{clubId}", 999999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+        mockMvc.perform(delete("/api/admin/clubs/profile-images/{clubId}", 999999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
         mockMvc.perform(put("/api/admin/clubs/{clubId}", 999999L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(clubUpdateRequest(
@@ -700,6 +761,18 @@ class ClubApiIntegrationTest {
                                 + ".put.requestBody.content['multipart/form-data']"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/background-images/{clubId}']"
+                                + ".delete.responses['204']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/background-images/{clubId}']"
+                                + ".delete.responses['404']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/background-images/{clubId}']"
+                                + ".delete.requestBody"
+                ).doesNotExist())
+                .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/profile-images/{clubId}']"
                                 + ".put.responses['200']"
                 ).exists())
@@ -713,12 +786,24 @@ class ClubApiIntegrationTest {
                                 + ".put.requestBody.content['multipart/form-data']"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/profile-images/{clubId}']"
+                                + ".delete.responses['204']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/profile-images/{clubId}']"
+                                + ".delete.responses['404']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/profile-images/{clubId}']"
+                                + ".delete.requestBody"
+                ).doesNotExist())
+                .andExpect(jsonPath(
                         "$.components.schemas.ClubImageUploadResponse.properties",
-                        aMapWithSize(2)
+                        aMapWithSize(1)
                 ))
                 .andExpect(jsonPath(
                         "$.components.schemas.ClubImageUploadResponse.properties.imageId"
-                ).exists())
+                ).doesNotExist())
                 .andExpect(jsonPath(
                         "$.components.schemas.ClubImageUploadResponse.properties.imageUrl"
                 ).exists())
@@ -836,17 +921,15 @@ class ClubApiIntegrationTest {
                             return request;
                         }))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(2)))
-                .andExpect(jsonPath("$.imageId").isString())
+                .andExpect(jsonPath("$", aMapWithSize(1)))
+                .andExpect(jsonPath("$.imageId").doesNotExist())
                 .andExpect(jsonPath("$.imageUrl").isString())
                 .andReturn();
         Map<String, Object> response = responseBody(result);
-        String imageId = (String) response.get("imageId");
         String imageUrl = (String) response.get("imageUrl");
 
-        assertThat(imageId).isEqualTo(UUID.fromString(imageId).toString());
         assertThat(Path.of(URI.create(imageUrl).getPath()).getFileName().toString())
-                .contains(imageId);
+                .isNotBlank();
         return imageUrl;
     }
 

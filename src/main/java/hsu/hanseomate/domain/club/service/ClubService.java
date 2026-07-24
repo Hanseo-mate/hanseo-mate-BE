@@ -132,6 +132,18 @@ public class ClubService {
     }
 
     @Transactional
+    public void deleteBackgroundImage(Long clubId) {
+        Club club = findClubForUpdate(clubId);
+        deleteClubImage(club.getBackgroundImageUrl(), club::updateBackgroundImage);
+    }
+
+    @Transactional
+    public void deleteProfileImage(Long clubId) {
+        Club club = findClubForUpdate(clubId);
+        deleteClubImage(club.getProfileImageUrl(), club::updateProfileImage);
+    }
+
+    @Transactional
     public void updateClub(Long clubId, ClubUpdateRequest request) {
         Club club = findClubForUpdate(clubId);
         String name = required(request.name());
@@ -274,11 +286,20 @@ public class ClubService {
             imageUpdater.accept(storedImage.url());
             clubRepository.flush();
             registerImageCleanup(storedImage, previousImageUrl);
-            return new ClubImageUploadResponse(storedImage.id(), storedImage.url());
+            return new ClubImageUploadResponse(storedImage.url());
         } catch (RuntimeException exception) {
             imageStorageService.delete(storedImage);
             throw exception;
         }
+    }
+
+    private void deleteClubImage(
+            String previousImageUrl,
+            Consumer<String> imageUpdater
+    ) {
+        imageUpdater.accept(null);
+        clubRepository.flush();
+        registerDeletedClubImageCleanup(previousImageUrl);
     }
 
     private void registerImageCleanup(StoredImage storedImage, String previousImageUrl) {
@@ -305,12 +326,12 @@ public class ClubService {
     }
 
     private void registerDeletedClubImageCleanup(
-            String profileImageUrl,
-            String backgroundImageUrl
+            String... imageUrls
     ) {
         Runnable cleanup = () -> {
-            imageStorageService.deleteIfManaged(profileImageUrl);
-            imageStorageService.deleteIfManaged(backgroundImageUrl);
+            for (String imageUrl : imageUrls) {
+                imageStorageService.deleteIfManaged(imageUrl);
+            }
         };
 
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {

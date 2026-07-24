@@ -24,7 +24,9 @@ Image Content-Type: multipart/form-data
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 익명 활동 후기 등록 또는 최근 후기 제거 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | 관리자 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
+| 관리자 | `DELETE` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 삭제 |
 | 관리자 | `PUT` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 파일 업로드 |
+| 관리자 | `DELETE` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 삭제 |
 | 관리자 | `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | 관리자 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리 삭제 |
 
@@ -275,12 +277,9 @@ Content-Type: multipart/form-data
 
 ```json
 {
-  "imageId": "550e8400-e29b-41d4-a716-446655440000",
   "imageUrl": "http://localhost:8080/uploads/clubs/background/uuid.png"
 }
 ```
-
-`imageId`는 저장 파일명에 사용되는 UUID이며 이미지가 교체될 때 새로 발급된다.
 
 ---
 
@@ -299,17 +298,37 @@ Content-Type: multipart/form-data
 
 ```json
 {
-  "imageId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   "imageUrl": "http://localhost:8080/uploads/clubs/profile/uuid.png"
 }
 ```
 
-`imageId`는 저장 파일명에 사용되는 UUID이며 이미지가 교체될 때 새로 발급된다.
 업로드된 URL은 동아리 데이터에 저장되며 URL로 파일을 바로 조회할 수 있다.
 
 ---
 
-## 4. 동아리 정보 통합 수정
+## 4. 배경 이미지 삭제
+
+```http
+DELETE /api/admin/clubs/background-images/{clubId}
+```
+
+동아리의 배경 이미지 URL을 `null`로 변경하고 서버가 관리하는 기존 이미지 파일을 삭제한다.
+정상적으로 삭제했거나 이미 배경 이미지가 없는 경우 모두 `204 No Content`를 반환한다.
+
+---
+
+## 5. 프로필 이미지 삭제
+
+```http
+DELETE /api/admin/clubs/profile-images/{clubId}
+```
+
+동아리의 프로필 이미지 URL을 `null`로 변경하고 서버가 관리하는 기존 이미지 파일을 삭제한다.
+정상적으로 삭제했거나 이미 프로필 이미지가 없는 경우 모두 `204 No Content`를 반환한다.
+
+---
+
+## 6. 동아리 정보 통합 수정
 
 ```http
 PUT /api/admin/clubs/{clubId}
@@ -334,7 +353,7 @@ Content-Type: application/json
 
 ---
 
-## 5. 동아리 삭제
+## 7. 동아리 삭제
 
 ```http
 DELETE /api/admin/clubs/{clubId}

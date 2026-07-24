@@ -69,7 +69,7 @@ public class AdminClubController {
 
     @Operation(
             summary = "배경 이미지 업로드",
-            description = "JPG, PNG 또는 GIF 파일을 업로드하고 이미지 UUID와 접근 가능한 URL을 반환합니다."
+            description = "JPG, PNG 또는 GIF 파일을 업로드하고 접근 가능한 이미지 URL을 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "업로드 성공"),
@@ -96,8 +96,33 @@ public class AdminClubController {
     }
 
     @Operation(
+            summary = "배경 이미지 삭제",
+            description = "동아리의 배경 이미지 URL을 초기화하고 서버가 관리하는 기존 이미지 파일을 삭제합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공 또는 삭제할 이미지 없음"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 동아리 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "동아리 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @DeleteMapping("/background-images/{clubId}")
+    public ResponseEntity<Void> deleteBackgroundImage(
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
+    ) {
+        clubService.deleteBackgroundImage(clubId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
             summary = "프로필 이미지 업로드",
-            description = "JPG, PNG 또는 GIF 파일을 업로드하고 이미지 UUID와 접근 가능한 URL을 반환합니다."
+            description = "JPG, PNG 또는 GIF 파일을 업로드하고 접근 가능한 이미지 URL을 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "업로드 성공"),
@@ -121,6 +146,31 @@ public class AdminClubController {
             @RequestPart("file") MultipartFile file
     ) {
         return clubService.updateProfileImage(clubId, file);
+    }
+
+    @Operation(
+            summary = "프로필 이미지 삭제",
+            description = "동아리의 프로필 이미지 URL을 초기화하고 서버가 관리하는 기존 이미지 파일을 삭제합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공 또는 삭제할 이미지 없음"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 동아리 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "동아리 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @DeleteMapping("/profile-images/{clubId}")
+    public ResponseEntity<Void> deleteProfileImage(
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
+    ) {
+        clubService.deleteProfileImage(clubId);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
