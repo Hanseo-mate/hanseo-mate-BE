@@ -83,9 +83,22 @@ public class Club extends BaseTimeEntity {
         return new Club(name, category);
     }
 
-    public void updateBasicInfo(String name, String shortDescription) {
+    public void update(
+            String name,
+            String shortDescription,
+            String introduction,
+            String activityContent,
+            String instagramUrl,
+            String kakaoTalkUrl,
+            String recruitmentContent
+    ) {
         this.name = name;
         this.shortDescription = shortDescription;
+        this.introduction = introduction;
+        this.activityContent = activityContent;
+        this.instagramUrl = instagramUrl;
+        this.kakaoTalkUrl = kakaoTalkUrl;
+        this.recruitmentContent = recruitmentContent;
     }
 
     public void updateProfileImage(String profileImageUrl) {
@@ -96,19 +109,4 @@ public class Club extends BaseTimeEntity {
         this.backgroundImageUrl = backgroundImageUrl;
     }
 
-    public void updateInformation(
-            String introduction,
-            String activityContent,
-            String instagramUrl,
-            String kakaoTalkUrl
-    ) {
-        this.introduction = introduction;
-        this.activityContent = activityContent;
-        this.instagramUrl = instagramUrl;
-        this.kakaoTalkUrl = kakaoTalkUrl;
-    }
-
-    public void updateRecruitment(String recruitmentContent) {
-        this.recruitmentContent = recruitmentContent;
-    }
 }

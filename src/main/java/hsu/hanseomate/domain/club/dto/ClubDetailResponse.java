@@ -5,13 +5,18 @@ import hsu.hanseomate.domain.club.type.ClubReviewOption;
 import java.util.List;
 
 public record ClubDetailResponse(
-        Long id,
-        String name,
-        String profileImageUrl,
         String backgroundImageUrl,
-        String shortDescription,
+        String profileImageUrl,
         long likeCount,
-        List<ClubReviewOption> topReviewTags
+        String name,
+        String shortDescription,
+        List<ClubReviewOption> topReviewTags,
+        String introduction,
+        String activityContent,
+        String instagramUrl,
+        String kakaoTalkUrl,
+        String recruitmentContent,
+        long reviewerCount
 ) {
 
     public ClubDetailResponse {
@@ -21,16 +26,22 @@ public record ClubDetailResponse(
     public static ClubDetailResponse from(
             Club club,
             long likeCount,
-            List<ClubReviewOption> topReviewTags
+            List<ClubReviewOption> topReviewTags,
+            long reviewerCount
     ) {
         return new ClubDetailResponse(
-                club.getId(),
-                club.getName(),
-                club.getProfileImageUrl(),
                 club.getBackgroundImageUrl(),
-                club.getShortDescription(),
+                club.getProfileImageUrl(),
                 likeCount,
-                topReviewTags
+                club.getName(),
+                club.getShortDescription(),
+                topReviewTags,
+                club.getIntroduction(),
+                club.getActivityContent(),
+                club.getInstagramUrl(),
+                club.getKakaoTalkUrl(),
+                club.getRecruitmentContent(),
+                reviewerCount
         );
     }
 }

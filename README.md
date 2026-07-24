@@ -95,18 +95,14 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `POST` | `/api/v1/timetables/general-education` | 교양 시간표 엑셀 분석 및 일괄 저장 |
 | `GET` | `/api/courses` | 학기·분류·학과·과목·교수 조건으로 강좌 조회 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
-| `GET` | `/api/clubs/{clubId}` | 동아리 상단 상세와 상위 활동 후기 3개 조회 |
-| `GET` | `/api/clubs/information/{clubId}` | 동아리 소개·활동 내용·문의 링크 조회 |
-| `GET` | `/api/clubs/recruitments/{clubId}` | 동아리 모집공고 조회 |
+| `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |
 | `PUT` | `/api/clubs/likes/{clubId}` | 익명 요청 단위 좋아요 수 변경 |
-| `GET` | `/api/clubs/reviews/{clubId}` | 후기 요청 수와 전체 키워드별 선택 비율 조회 |
+| `GET` | `/api/clubs/reviews/{clubId}` | 전체 활동 후기 키워드별 선택 비율 조회 |
 | `PUT` | `/api/clubs/reviews/{clubId}` | 익명 후기 등록 또는 최근 후기 제거 |
 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
 | `PUT` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 파일 업로드 |
-| `PUT` | `/api/admin/clubs/basic-info/{clubId}` | 동아리명·한 줄 소개 수정 |
-| `PUT` | `/api/admin/clubs/information/{clubId}` | 동아리 소개·활동 내용·문의 링크 수정 |
-| `PUT` | `/api/admin/clubs/recruitments/{clubId}` | 모집공고 수정 |
+| `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리와 좋아요·후기 데이터 삭제 |
 
 링크 데이터는 `id`, `name`, `url`, `category`, `created_at`, `updated_at` 여섯 컬럼만 사용합니다.

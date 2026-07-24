@@ -1,21 +1,17 @@
 package hsu.hanseomate.domain.club.service;
 
-import hsu.hanseomate.domain.club.dto.ClubBasicInfoUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
-import hsu.hanseomate.domain.club.dto.ClubInformationResponse;
-import hsu.hanseomate.domain.club.dto.ClubInformationUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
-import hsu.hanseomate.domain.club.dto.ClubRecruitmentResponse;
-import hsu.hanseomate.domain.club.dto.ClubRecruitmentUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewOptionResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
-import hsu.hanseomate.domain.club.dto.ClubReviewStateResponse;
+import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
 import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
+import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.entity.Club;
 import hsu.hanseomate.domain.club.entity.ClubLike;
 import hsu.hanseomate.domain.club.entity.ClubReview;
@@ -86,15 +82,11 @@ public class ClubService {
     public ClubDetailResponse getClub(Long clubId) {
         Club club = findClub(clubId);
         EngagementSnapshot snapshot = loadEngagement(List.of(clubId));
-        return detailResponse(club, snapshot);
-    }
-
-    public ClubInformationResponse getClubInformation(Long clubId) {
-        return ClubInformationResponse.from(findClub(clubId));
-    }
-
-    public ClubRecruitmentResponse getClubRecruitment(Long clubId) {
-        return ClubRecruitmentResponse.from(findClub(clubId));
+        return detailResponse(
+                club,
+                snapshot,
+                clubReviewRepository.countByClubId(clubId)
+        );
     }
 
     @Transactional
@@ -140,37 +132,26 @@ public class ClubService {
     }
 
     @Transactional
-    public void updateBasicInfo(Long clubId, ClubBasicInfoUpdateRequest request) {
+    public void updateClub(Long clubId, ClubUpdateRequest request) {
         Club club = findClubForUpdate(clubId);
         String name = required(request.name());
         validateUniqueName(name, clubId);
 
-        club.updateBasicInfo(name, required(request.shortDescription()));
+        club.update(
+                name,
+                required(request.shortDescription()),
+                content(request.introduction()),
+                content(request.activityContent()),
+                optional(request.instagramUrl()),
+                optional(request.kakaoTalkUrl()),
+                content(request.recruitmentContent())
+        );
 
         try {
             clubRepository.flush();
         } catch (DataIntegrityViolationException exception) {
             throw duplicateClubName(name);
         }
-    }
-
-    @Transactional
-    public void updateInformation(Long clubId, ClubInformationUpdateRequest request) {
-        Club club = findClubForUpdate(clubId);
-        club.updateInformation(
-                content(request.introduction()),
-                content(request.activityContent()),
-                optional(request.instagramUrl()),
-                optional(request.kakaoTalkUrl())
-        );
-        clubRepository.flush();
-    }
-
-    @Transactional
-    public void updateRecruitment(Long clubId, ClubRecruitmentUpdateRequest request) {
-        Club club = findClubForUpdate(clubId);
-        club.updateRecruitment(content(request.recruitmentContent()));
-        clubRepository.flush();
     }
 
     @Transactional
@@ -203,9 +184,9 @@ public class ClubService {
         return new ClubLikeResponse(clubId, requestedLike, clubLikeRepository.countByClubId(clubId));
     }
 
-    public ClubReviewStateResponse getReview(Long clubId) {
+    public ClubReviewStatisticsResponse getReview(Long clubId) {
         findClub(clubId);
-        return reviewState(clubId);
+        return reviewStatistics(clubId);
     }
 
     @Transactional
@@ -228,8 +209,7 @@ public class ClubService {
         return new ClubReviewSaveResponse("활동 후기가 등록되었습니다.");
     }
 
-    private ClubReviewStateResponse reviewState(Long clubId) {
-        long reviewerCount = clubReviewRepository.countByClubId(clubId);
+    private ClubReviewStatisticsResponse reviewStatistics(Long clubId) {
         EnumMap<ClubReviewOption, Long> counts = reviewCounts(List.of(clubId))
                 .getOrDefault(clubId, new EnumMap<>(ClubReviewOption.class));
         long totalSelectionCount = counts.values().stream().mapToLong(Long::longValue).sum();
@@ -241,11 +221,7 @@ public class ClubService {
                 ))
                 .toList();
 
-        return new ClubReviewStateResponse(
-                clubId,
-                reviewerCount,
-                options
-        );
+        return new ClubReviewStatisticsResponse(options);
     }
 
     private EngagementSnapshot loadEngagement(Collection<Long> clubIds) {
@@ -269,11 +245,16 @@ public class ClubService {
         return counts;
     }
 
-    private ClubDetailResponse detailResponse(Club club, EngagementSnapshot snapshot) {
+    private ClubDetailResponse detailResponse(
+            Club club,
+            EngagementSnapshot snapshot,
+            long reviewerCount
+    ) {
         return ClubDetailResponse.from(
                 club,
                 snapshot.likeCount(club.getId()),
-                snapshot.topReviews(club.getId(), DETAIL_TOP_REVIEW_LIMIT)
+                snapshot.topReviews(club.getId(), DETAIL_TOP_REVIEW_LIMIT),
+                reviewerCount
         );
     }
 
@@ -293,7 +274,7 @@ public class ClubService {
             imageUpdater.accept(storedImage.url());
             clubRepository.flush();
             registerImageCleanup(storedImage, previousImageUrl);
-            return new ClubImageUploadResponse(storedImage.url());
+            return new ClubImageUploadResponse(storedImage.id(), storedImage.url());
         } catch (RuntimeException exception) {
             imageStorageService.delete(storedImage);
             throw exception;

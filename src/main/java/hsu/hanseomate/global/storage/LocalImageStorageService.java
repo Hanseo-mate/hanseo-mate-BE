@@ -53,7 +53,8 @@ public class LocalImageStorageService {
             }
 
             String extension = detectExtension(temporaryFile);
-            String fileName = UUID.randomUUID() + "." + extension;
+            UUID imageId = UUID.randomUUID();
+            String fileName = imageId + "." + extension;
             Path storedPath = targetDirectory.resolve(fileName).normalize();
             move(temporaryFile, storedPath);
 
@@ -61,7 +62,7 @@ public class LocalImageStorageService {
                     .toString()
                     .replace('\\', '/');
             String imageUrl = publicBaseUrl + "/uploads/" + relativePath;
-            return new StoredImage(imageUrl, storedPath);
+            return new StoredImage(imageId, imageUrl, storedPath);
         } catch (IOException exception) {
             deleteQuietly(temporaryFile);
             throw new IllegalStateException("이미지 파일을 저장할 수 없습니다.", exception);
@@ -179,6 +180,6 @@ public class LocalImageStorageService {
         return baseUrl.replaceAll("/+$", "");
     }
 
-    public record StoredImage(String url, Path path) {
+    public record StoredImage(UUID id, String url, Path path) {
     }
 }
