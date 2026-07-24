@@ -275,9 +275,12 @@ Content-Type: multipart/form-data
 
 ```json
 {
+  "imageId": "550e8400-e29b-41d4-a716-446655440000",
   "imageUrl": "http://localhost:8080/uploads/clubs/background/uuid.png"
 }
 ```
+
+`imageId`는 저장 파일명에 사용되는 UUID이며 이미지가 교체될 때 새로 발급된다.
 
 ---
 
@@ -296,10 +299,12 @@ Content-Type: multipart/form-data
 
 ```json
 {
+  "imageId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   "imageUrl": "http://localhost:8080/uploads/clubs/profile/uuid.png"
 }
 ```
 
+`imageId`는 저장 파일명에 사용되는 UUID이며 이미지가 교체될 때 새로 발급된다.
 업로드된 URL은 동아리 데이터에 저장되며 URL로 파일을 바로 조회할 수 있다.
 
 ---

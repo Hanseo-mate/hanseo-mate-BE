@@ -69,7 +69,7 @@ public class AdminClubController {
 
     @Operation(
             summary = "배경 이미지 업로드",
-            description = "JPG, PNG 또는 GIF 파일을 업로드하고 접근 가능한 이미지 URL을 반환합니다."
+            description = "JPG, PNG 또는 GIF 파일을 업로드하고 이미지 UUID와 접근 가능한 URL을 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "업로드 성공"),
@@ -97,7 +97,7 @@ public class AdminClubController {
 
     @Operation(
             summary = "프로필 이미지 업로드",
-            description = "JPG, PNG 또는 GIF 파일을 업로드하고 접근 가능한 이미지 URL을 반환합니다."
+            description = "JPG, PNG 또는 GIF 파일을 업로드하고 이미지 UUID와 접근 가능한 URL을 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "업로드 성공"),

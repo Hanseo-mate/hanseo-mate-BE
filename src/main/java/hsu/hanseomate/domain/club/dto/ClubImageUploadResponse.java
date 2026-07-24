@@ -1,4 +1,9 @@
 package hsu.hanseomate.domain.club.dto;
 
-public record ClubImageUploadResponse(String imageUrl) {
+import java.util.UUID;
+
+public record ClubImageUploadResponse(
+        UUID imageId,
+        String imageUrl
+) {
 }

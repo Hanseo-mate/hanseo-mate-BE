@@ -274,7 +274,7 @@ public class ClubService {
             imageUpdater.accept(storedImage.url());
             clubRepository.flush();
             registerImageCleanup(storedImage, previousImageUrl);
-            return new ClubImageUploadResponse(storedImage.url());
+            return new ClubImageUploadResponse(storedImage.id(), storedImage.url());
         } catch (RuntimeException exception) {
             imageStorageService.delete(storedImage);
             throw exception;

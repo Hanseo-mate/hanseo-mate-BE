@@ -22,6 +22,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -691,6 +692,11 @@ class ClubApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/background-images/{clubId}']"
+                                + ".put.responses['200'].content['*/*']"
+                                + ".schema['$ref']"
+                ).value("#/components/schemas/ClubImageUploadResponse"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/background-images/{clubId}']"
                                 + ".put.requestBody.content['multipart/form-data']"
                 ).exists())
                 .andExpect(jsonPath(
@@ -699,7 +705,22 @@ class ClubApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/profile-images/{clubId}']"
+                                + ".put.responses['200'].content['*/*']"
+                                + ".schema['$ref']"
+                ).value("#/components/schemas/ClubImageUploadResponse"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/profile-images/{clubId}']"
                                 + ".put.requestBody.content['multipart/form-data']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubImageUploadResponse.properties",
+                        aMapWithSize(2)
+                ))
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubImageUploadResponse.properties.imageId"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubImageUploadResponse.properties.imageUrl"
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/basic-info/{clubId}']"
@@ -815,10 +836,18 @@ class ClubApiIntegrationTest {
                             return request;
                         }))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(1)))
+                .andExpect(jsonPath("$", aMapWithSize(2)))
+                .andExpect(jsonPath("$.imageId").isString())
                 .andExpect(jsonPath("$.imageUrl").isString())
                 .andReturn();
-        return (String) responseBody(result).get("imageUrl");
+        Map<String, Object> response = responseBody(result);
+        String imageId = (String) response.get("imageId");
+        String imageUrl = (String) response.get("imageUrl");
+
+        assertThat(imageId).isEqualTo(UUID.fromString(imageId).toString());
+        assertThat(Path.of(URI.create(imageUrl).getPath()).getFileName().toString())
+                .contains(imageId);
+        return imageUrl;
     }
 
     private MockMultipartFile pngFile(String originalFileName) {
