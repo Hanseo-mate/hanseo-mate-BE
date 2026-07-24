@@ -101,7 +101,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `PUT` | `/api/clubs/reviews/{clubId}` | 익명 후기 등록 또는 최근 후기 제거 |
 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
+| `DELETE` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 삭제 |
 | `PUT` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 파일 업로드 |
+| `DELETE` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 삭제 |
 | `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리와 좋아요·후기 데이터 삭제 |
 
