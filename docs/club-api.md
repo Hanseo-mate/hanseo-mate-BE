@@ -18,18 +18,14 @@ Image Content-Type: multipart/form-data
 | 구분 | Method | URL | 기능 |
 |---|---|---|---|
 | 사용자 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
-| 사용자 | `GET` | `/api/clubs/{clubId}` | 동아리 상단 상세 조회 |
-| 사용자 | `GET` | `/api/clubs/information/{clubId}` | 동아리 소개·활동 내용·문의 링크 조회 |
-| 사용자 | `GET` | `/api/clubs/recruitments/{clubId}` | 모집공고 조회 |
+| 사용자 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 사용자 | `PUT` | `/api/clubs/likes/{clubId}` | 익명 요청 단위 좋아요 수 변경 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 익명 활동 후기 등록 또는 최근 후기 제거 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | 관리자 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
 | 관리자 | `PUT` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 파일 업로드 |
-| 관리자 | `PUT` | `/api/admin/clubs/basic-info/{clubId}` | 동아리명·한 줄 소개 수정 |
-| 관리자 | `PUT` | `/api/admin/clubs/information/{clubId}` | 동아리 소개·활동 내용·문의 링크 수정 |
-| 관리자 | `PUT` | `/api/admin/clubs/recruitments/{clubId}` | 모집공고 수정 |
+| 관리자 | `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | 관리자 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리 삭제 |
 
 ---
@@ -76,60 +72,31 @@ GET /api/clubs/{clubId}
 
 ```json
 {
-  "id": 1,
-  "name": "멋쟁이사자처럼 한서대학교",
-  "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
   "backgroundImageUrl": "http://localhost:8080/uploads/clubs/background/example.png",
-  "shortDescription": "함께 서비스를 만드는 IT 동아리",
+  "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
   "likeCount": 20,
+  "name": "멋쟁이사자처럼 한서대학교",
+  "shortDescription": "함께 서비스를 만드는 IT 동아리",
   "topReviewTags": [
     "BUILD_RESUME",
     "ACADEMIC_PASSION",
     "SOCIALIZING"
-  ]
+  ],
+  "introduction": "동아리 소개 장문 내용 🎉",
+  "activityContent": "동아리 활동 장문 내용 🚀",
+  "instagramUrl": "https://instagram.com/example",
+  "kakaoTalkUrl": "https://open.kakao.com/o/example",
+  "recruitmentContent": "현재 신입 부원을 모집합니다 🙌",
+  "reviewerCount": 3
 }
 ```
 
 `topReviewTags`는 누적 선택 수가 많은 순서대로 최대 3개를 반환한다.
+`reviewerCount`는 현재 인증 전 구조에서 고유 사용자 수가 아닌 등록된 후기 수다.
 
 ---
 
-## 3. 동아리 정보 조회
-
-```http
-GET /api/clubs/information/{clubId}
-```
-
-### 응답
-
-```json
-{
-  "introduction": "동아리 소개 장문 내용 🎉",
-  "activityContent": "동아리 활동 장문 내용 🚀",
-  "instagramUrl": "https://instagram.com/example",
-  "kakaoTalkUrl": "https://open.kakao.com/o/example"
-}
-```
-
----
-
-## 4. 모집공고 조회
-
-```http
-GET /api/clubs/recruitments/{clubId}
-```
-
-### 응답
-
-```json
-{
-  "recruitmentContent": "현재 신입 부원을 모집합니다 🙌"
-}
-```
-
----
-
-## 5. 좋아요 수 변경
+## 3. 좋아요 수 변경
 
 ```http
 PUT /api/clubs/likes/{clubId}
@@ -166,7 +133,7 @@ Content-Type: application/json
 
 ---
 
-## 6. 활동 후기 조회
+## 4. 활동 후기 통계 조회
 
 ```http
 GET /api/clubs/reviews/{clubId}
@@ -176,8 +143,6 @@ GET /api/clubs/reviews/{clubId}
 
 ```json
 {
-  "clubId": 1,
-  "reviewerCount": 3,
   "options": [
     {
       "reviewTag": "BUILD_RESUME",
@@ -207,7 +172,7 @@ percentage = 해당 태그 선택 수 ÷ 전체 태그 선택 수 × 100
 
 ---
 
-## 7. 활동 후기 등록 또는 최근 후기 제거
+## 5. 활동 후기 등록 또는 최근 후기 제거
 
 ```http
 PUT /api/clubs/reviews/{clubId}
@@ -289,7 +254,7 @@ Location: /api/clubs/1
 ```
 
 동아리 등록 단계에서는 이름과 분과만 저장한다. 등록 후 반환받은 ID로
-한 줄 소개, 상세 정보, 모집공고, 프로필 이미지와 배경 이미지를 각각 수정한다.
+나머지 텍스트 정보를 한 번에 수정하고, 프로필 이미지와 배경 이미지는 각각 업로드한다.
 따라서 생성 직후에는 `shortDescription`, 소개·활동·모집공고, SNS URL과
 이미지 URL이 모두 `null`이다.
 
@@ -310,9 +275,12 @@ Content-Type: multipart/form-data
 
 ```json
 {
+  "imageId": "550e8400-e29b-41d4-a716-446655440000",
   "imageUrl": "http://localhost:8080/uploads/clubs/background/uuid.png"
 }
 ```
+
+`imageId`는 저장 파일명에 사용되는 UUID이며 이미지가 교체될 때 새로 발급된다.
 
 ---
 
@@ -331,67 +299,42 @@ Content-Type: multipart/form-data
 
 ```json
 {
+  "imageId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   "imageUrl": "http://localhost:8080/uploads/clubs/profile/uuid.png"
 }
 ```
 
+`imageId`는 저장 파일명에 사용되는 UUID이며 이미지가 교체될 때 새로 발급된다.
 업로드된 URL은 동아리 데이터에 저장되며 URL로 파일을 바로 조회할 수 있다.
 
 ---
 
-## 4. 동아리명과 한 줄 소개 수정
+## 4. 동아리 정보 통합 수정
 
 ```http
-PUT /api/admin/clubs/basic-info/{clubId}
+PUT /api/admin/clubs/{clubId}
+Content-Type: application/json
 ```
 
 ```json
 {
   "name": "수정된 동아리명",
-  "shortDescription": "수정된 한 줄 소개"
-}
-```
-
-성공 시 `204 No Content`를 반환한다.
-
----
-
-## 5. 동아리 정보 수정
-
-```http
-PUT /api/admin/clubs/information/{clubId}
-```
-
-```json
-{
+  "shortDescription": "수정된 한 줄 소개",
   "introduction": "수정된 동아리 소개 🎉",
   "activityContent": "수정된 활동 내용 🚀",
   "instagramUrl": "https://instagram.com/updated",
-  "kakaoTalkUrl": null
-}
-```
-
-성공 시 `204 No Content`를 반환한다.
-
----
-
-## 6. 모집공고 수정
-
-```http
-PUT /api/admin/clubs/recruitments/{clubId}
-```
-
-```json
-{
+  "kakaoTalkUrl": null,
   "recruitmentContent": "수정된 모집공고 내용 🙌"
 }
 ```
 
+동아리명, 한 줄 소개, 동아리 소개, 활동 내용, 문의 URL과 모집공고를 한 번에 수정한다.
+이미지는 각각의 이미지 업로드 API를 사용한다.
 성공 시 `204 No Content`를 반환한다.
 
 ---
 
-## 7. 동아리 삭제
+## 5. 동아리 삭제
 
 ```http
 DELETE /api/admin/clubs/{clubId}

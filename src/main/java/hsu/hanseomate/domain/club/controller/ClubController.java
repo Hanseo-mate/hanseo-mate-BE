@@ -1,13 +1,11 @@
 package hsu.hanseomate.domain.club.controller;
 
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
-import hsu.hanseomate.domain.club.dto.ClubInformationResponse;
 import hsu.hanseomate.domain.club.dto.ClubLikeRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
-import hsu.hanseomate.domain.club.dto.ClubRecruitmentResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
-import hsu.hanseomate.domain.club.dto.ClubReviewStateResponse;
+import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
 import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
@@ -62,7 +60,8 @@ public class ClubController {
 
     @Operation(
             summary = "동아리 상세 조회",
-            description = "상단 화면에 필요한 이미지, 이름, 한 줄 소개, 좋아요와 상위 활동 후기 3개를 조회합니다."
+            description = "이미지, 이름, 한 줄 소개, 좋아요, 상위 활동 후기 3개, "
+                    + "동아리 소개, 활동 내용, 문의 링크, 모집공고와 후기 작성 수를 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -82,51 +81,6 @@ public class ClubController {
             @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
     ) {
         return clubService.getClub(clubId);
-    }
-
-    @Operation(
-            summary = "동아리 정보 조회",
-            description = "동아리 소개, 활동 내용, 인스타그램과 카카오톡 URL을 조회합니다."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 동아리 ID",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "동아리 없음",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            )
-    })
-    @GetMapping("/information/{clubId}")
-    public ClubInformationResponse getClubInformation(
-            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
-    ) {
-        return clubService.getClubInformation(clubId);
-    }
-
-    @Operation(summary = "동아리 모집공고 조회")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 동아리 ID",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "동아리 없음",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            )
-    })
-    @GetMapping("/recruitments/{clubId}")
-    public ClubRecruitmentResponse getClubRecruitment(
-            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
-    ) {
-        return clubService.getClubRecruitment(clubId);
     }
 
     @Operation(
@@ -156,7 +110,7 @@ public class ClubController {
 
     @Operation(
             summary = "활동 후기 통계 조회",
-            description = "후기 요청 수와 26개 키워드별 전체 선택표 대비 비율을 반환합니다."
+            description = "26개 키워드별 전체 선택표 대비 비율만 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -172,7 +126,7 @@ public class ClubController {
             )
     })
     @GetMapping("/reviews/{clubId}")
-    public ClubReviewStateResponse getReview(
+    public ClubReviewStatisticsResponse getReview(
             @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
     ) {
         return clubService.getReview(clubId);
