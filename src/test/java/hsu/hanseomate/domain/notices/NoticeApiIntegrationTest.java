@@ -80,6 +80,16 @@ class NoticeApiIntegrationTest {
     }
 
     @Test
+    void returnsNotFoundForMissingNotice() throws Exception {
+        mockMvc.perform(get("/api/notices/{noticeId}", 1L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("해당 공지를 찾을 수 없습니다. noticeId=1"))
+                .andExpect(jsonPath("$.path").value("/api/notices/1"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
     void rejectsUnknownNoticeType() throws Exception {
         mockMvc.perform(get("/api/notices/categories/{noticeType}", "unknown"))
                 .andExpect(status().isBadRequest())
