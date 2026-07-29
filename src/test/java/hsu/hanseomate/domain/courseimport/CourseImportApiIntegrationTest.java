@@ -111,20 +111,20 @@ class CourseImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].courseCode").value("001234"))
-                .andExpect(jsonPath("$[0].sectionNo").value("01"))
-                .andExpect(jsonPath("$[0].courseName").value("웹프로그래밍"))
-                .andExpect(jsonPath("$[0].academicUnit.departmentName")
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseCode").value("001234"))
+                .andExpect(jsonPath("$.items[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].academicUnit.departmentName")
                         .value("항공소프트웨어공학과"))
-                .andExpect(jsonPath("$[0].schedules[0].dayOfWeek").value("MONDAY"))
-                .andExpect(jsonPath("$[0].schedules[0].periods[0]").value(1))
-                .andExpect(jsonPath("$[0].schedules[0].periods[1]").value(2))
-                .andExpect(jsonPath("$[0].schedules[0].periods[2]").value(3))
-                .andExpect(jsonPath("$[0].schedules[0].classroom.originalValue")
+                .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek").value("MONDAY"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(1))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[1]").value(2))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[2]").value(3))
+                .andExpect(jsonPath("$.items[0].schedules[0].classroom.originalValue")
                         .value("본관 101호"))
-                .andExpect(jsonPath("$[0].sourceCells").doesNotExist())
-                .andExpect(jsonPath("$[0].fileSha256").doesNotExist());
+                .andExpect(jsonPath("$.items[0].sourceCells").doesNotExist())
+                .andExpect(jsonPath("$.items[0].fileSha256").doesNotExist());
 
         CourseOffering offering = courseOfferingRepository.findAll().get(0);
         assertThat(offering.getSectionNo()).isEqualTo("01");
@@ -299,8 +299,8 @@ class CourseImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].courseName").value("웹프로그래밍"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"));
     }
 
     @Test
@@ -373,8 +373,8 @@ class CourseImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].courseName").value("웹프로그래밍"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"));
     }
 
     @Test
@@ -388,18 +388,18 @@ class CourseImportApiIntegrationTest {
                         .param("academicYear", "2026")
                         .param("semester", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[?(@.courseName == '웹프로그래밍')]").isEmpty())
-                .andExpect(jsonPath("$[?(@.courseName == '서버프로그래밍')]").isNotEmpty())
-                .andExpect(jsonPath("$[?(@.courseName == 'OCU디지털리터러시')]").isNotEmpty());
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[?(@.courseName == '웹프로그래밍')]").isEmpty())
+                .andExpect(jsonPath("$.items[?(@.courseName == '서버프로그래밍')]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.courseName == 'OCU디지털리터러시')]").isNotEmpty());
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2025")
                         .param("semester", "2")
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].courseName").value("이전학기강좌"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("이전학기강좌"));
 
         assertThat(courseOfferingRepository.count()).isEqualTo(3);
     }
@@ -434,52 +434,349 @@ class CourseImportApiIntegrationTest {
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
                         .param("semester", "1")
-                        .param("deliveryProvider", "OCU"))
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "OCU"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.items.length()").value(0));
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
                         .param("semester", "1")
-                        .param("deliveryProvider", "SDU"))
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "SDU"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].courseName").value("SDU미래사회"))
-                .andExpect(jsonPath("$[0].generalEducation.deliveryProviderName").value("SDU"));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("SDU미래사회"))
+                .andExpect(jsonPath("$.items[0].generalEducation.deliveryProviderName").value("SDU"));
     }
 
     @Test
-    void userCourseQuerySupportsMajorAndGeneralEducationFilters() throws Exception {
-        performImport(fixture("major-ready-2026-1-a.json"));
-        performImport(fixture("general-ready-2026-1-sdu.json"));
+    void academicUnitsAreOrWithinGroupAndDifferentFilterGroupsAreAnded() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
                         .param("semester", "1")
                         .param("curriculumType", "MAJOR")
-                        .param("academicUnit", "소프트웨어")
-                        .param("courseName", "웹")
-                        .param("instructorName", "홍"))
+                        .param("academicUnits", "항공소프트웨어공학과", "항공운항학과")
+                        .param("searchField", "INSTRUCTOR_NAME")
+                        .param("keyword", "교수")
+                        .param("sort", "COURSE_CODE")
+                        .param("startPeriod", "2")
+                        .param("endPeriod", "5")
+                        .param("grades", "GRADE_2", "GRADE_3")
+                        .param("credits", "CREDIT_2", "CREDIT_3"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].courseCode").value("001234"))
-                .andExpect(jsonPath("$[0].schedules[0].periods.length()").value(3));
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].courseName").value("찰리실습"))
+                .andExpect(jsonPath("$.items[1].courseName").value("베타연구"))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void academicYearSemesterAndSingleAcademicUnitFilterAreAppliedTogether() throws Exception {
+        performImport(fixture("major-ready-2025-2.json"));
+        String targetSemester = fixture("course-search-major-2026-1.json")
+                .replace("course-search-major-2026-1", "course-search-major-2026-2")
+                .replace(
+                        "1111111111111111111111111111111111111111111111111111111111111111",
+                        "2222222222222222222222222222222222222222222222222222222222222222"
+                )
+                .replace("\"semester\": 1", "\"semester\": 2");
+        performImport(targetSemester);
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "2")
+                        .param("curriculumType", "MAJOR")
+                        .param("academicUnits", "항공소프트웨어공학과"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath(
+                        "$.items[?(@.academicUnit.originalName != '항공소프트웨어공학과')]"
+                ).isEmpty());
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "2")
+                        .param("curriculumType", "MAJOR")
+                        .param("academicUnits", "존재하지않는학과"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void keywordSearchTargetsOnlyTheSelectedCourseField() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+
+        assertFieldSearch("COURSE_NAME", "알파", "알파개론");
+        assertFieldSearch("INSTRUCTOR_NAME", "김교수", "알파개론");
+        assertFieldSearch("COURSE_CODE", "003000", "알파개론");
+        assertFieldSearch("LOCATION", "본관 101", "알파개론");
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("keyword", "김교수"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void courseSearchSupportsDefaultCourseCodeAndCourseNameSorts() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+
+        assertSortedCourseNames(
+                "DEFAULT",
+                "알파개론", "찰리실습", "베타연구", "델타프로젝트", "기타세미나"
+        );
+        assertSortedCourseNames(
+                "COURSE_CODE",
+                "찰리실습", "베타연구", "알파개론", "델타프로젝트", "기타세미나"
+        );
+        assertSortedCourseNames(
+                "COURSE_NAME",
+                "기타세미나", "델타프로젝트", "베타연구", "알파개론", "찰리실습"
+        );
+    }
+
+    @Test
+    void timeRangeIncludesOnlyCoursesWhoseEveryScheduleIsFullyInsideTheRange() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("startPeriod", "0")
+                        .param("endPeriod", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(0));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("startPeriod", "1")
+                        .param("endPeriod", "5")
+                        .param("sort", "COURSE_CODE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].courseName").value("찰리실습"))
+                .andExpect(jsonPath("$.items[1].courseName").value("베타연구"))
+                .andExpect(jsonPath(
+                        "$.items[?(@.courseName == '기타세미나')]"
+                ).isEmpty());
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("startPeriod", "0")
+                        .param("endPeriod", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(5))
+                .andExpect(jsonPath("$.totalElements").value(5));
+    }
+
+    @Test
+    void gradesAndCreditsAreOrWithinEachGroupAndAndedBetweenGroups() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("grades", "GRADE_1", "GRADE_3")
+                        .param("credits", "CREDIT_1", "CREDIT_3")
+                        .param("sort", "DEFAULT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.items[1].courseName").value("베타연구"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("grades", "OTHER")
+                        .param("credits", "CREDIT_4_OR_MORE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("기타세미나"));
+    }
+
+    @Test
+    void selectingAllGradesAndCreditsIsEquivalentToNotSelectingThoseFilters() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param(
+                                "grades",
+                                "GRADE_1", "GRADE_2", "GRADE_3", "GRADE_4", "OTHER"
+                        )
+                        .param(
+                                "credits",
+                                "CREDIT_1", "CREDIT_2", "CREDIT_3", "CREDIT_4_OR_MORE"
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(5))
+                .andExpect(jsonPath("$.totalElements").value(5));
+    }
+
+    @Test
+    void generalEducationCategoriesAreOrWithinTheSameFilterGroup() throws Exception {
+        performImport(fixture("course-search-general-2026-1.json"));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
                         .param("semester", "1")
                         .param("curriculumType", "GENERAL_EDUCATION")
-                        .param("classification", "ELECTIVE")
-                        .param("area", "OTHER")
-                        .param("deliveryProvider", "SDU")
-                        .param("courseName", "미래")
-                        .param("instructorName", "이교수"))
+                        .param("generalCategories", "REQUIRED", "AREA_1", "OCU")
+                        .param("sort", "COURSE_CODE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].curriculumType").value("GENERAL_EDUCATION"))
-                .andExpect(jsonPath("$[0].generalEducation.classification").value("ELECTIVE"))
-                .andExpect(jsonPath("$[0].generalEducation.deliveryProvider").value("SDU"))
-                .andExpect(jsonPath("$[0].schedules[0].periods[0]").value(7))
-                .andExpect(jsonPath("$[0].schedules[0].periods[1]").value(8));
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].courseName").value("필수인성"))
+                .andExpect(jsonPath("$.items[1].courseName").value("탐구사고"))
+                .andExpect(jsonPath("$.items[2].courseName").value("OCU디지털"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param(
+                                "generalCategories",
+                                "REQUIRED", "AREA_1", "AREA_2", "AREA_3", "E_CLASS",
+                                "HSU_CYBER", "OCU", "CHUNGNAM_ELEARNING", "SDU", "OTHER"
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(7))
+                .andExpect(jsonPath("$.totalElements").value(7));
+    }
+
+    @Test
+    void courseSearchWithoutConditionsReturnsEveryStoredCourse() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+        performImport(fixture("course-search-general-2026-1.json"));
+
+        mockMvc.perform(get("/api/courses"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(12))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.totalElements").value(12))
+                .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void courseSearchPaginationKeepsStableSortAndMetadata() throws Exception {
+        performImport(fixture("course-search-major-2026-1.json"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("sort", "COURSE_CODE")
+                        .param("page", "0")
+                        .param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].courseName").value("찰리실습"))
+                .andExpect(jsonPath("$.items[1].courseName").value("베타연구"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.hasNext").value(true));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("sort", "COURSE_CODE")
+                        .param("page", "1")
+                        .param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.items[1].courseName").value("델타프로젝트"))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void invalidEverytimeCourseSearchParametersReturnBadRequest() throws Exception {
+        mockMvc.perform(get("/api/courses").param("page", "-1"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("size", "0"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses")
+                        .param("startPeriod", "1"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses")
+                        .param("startPeriod", "3")
+                        .param("endPeriod", "2"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses")
+                        .param("startPeriod", "-1")
+                        .param("endPeriod", "2"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses")
+                        .param("startPeriod", "0")
+                        .param("endPeriod", "31"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("searchField", "UNKNOWN"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("sort", "UNKNOWN"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("grades", "GRADE_5"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("credits", "CREDIT_5"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/courses").param("generalCategories", "AREA_4"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private void assertFieldSearch(
+            String searchField,
+            String keyword,
+            String expectedCourseName
+    ) throws Exception {
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("searchField", searchField)
+                        .param("keyword", keyword))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value(expectedCourseName));
+    }
+
+    private void assertSortedCourseNames(String sort, String... expectedNames) throws Exception {
+        var result = mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("sort", sort))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode items = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("items");
+        assertThat(items.size()).isEqualTo(expectedNames.length);
+        for (int index = 0; index < expectedNames.length; index++) {
+            assertThat(items.get(index).path("courseName").stringValue())
+                    .isEqualTo(expectedNames[index]);
+        }
     }
 
     private CourseImportResponse performImport(String payload) {

@@ -1,4 +1,4 @@
-package hsu.hanseomate.domain.course.dto;
+package hsu.hanseomate.domain.timetable.search.dto;
 
 import tools.jackson.databind.ObjectMapper;
 import hsu.hanseomate.domain.course.entity.CourseOffering;

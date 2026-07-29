@@ -1,4 +1,4 @@
-package hsu.hanseomate.domain.course.dto;
+package hsu.hanseomate.domain.timetable.search.dto;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;

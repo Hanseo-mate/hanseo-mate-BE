@@ -8,6 +8,20 @@ import org.junit.jupiter.api.Test;
 class ScheduleParserTest {
 
     @Test
+    void zeroPeriodIsParsedAsAValidCoursePeriod() {
+        ScheduleParser.ScheduleParseResult result = ScheduleParser.parse(
+                "월0,1",
+                "본관101",
+                "전공",
+                5
+        );
+
+        assertThat(result.issues()).isEmpty();
+        assertThat(result.schedules()).hasSize(1);
+        assertThat(result.schedules().get(0).periods()).containsExactly(0, 1);
+    }
+
+    @Test
     void mismatchedScheduleAndClassroomCountsRequireReview() {
         ScheduleParser.ScheduleParseResult result = ScheduleParser.parse(
                 "월1,2 / 화3,4 / 수5,6",

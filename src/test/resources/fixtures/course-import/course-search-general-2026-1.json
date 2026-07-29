@@ -1,0 +1,413 @@
+{
+  "schemaVersion": "1.2",
+  "importId": "course-search-general-2026-1",
+  "fileName": "course-search-general-2026-1.xlsx",
+  "fileSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "curriculumType": "GENERAL_EDUCATION",
+  "parserVersion": "test-parser-1.2",
+  "academicYear": 2026,
+  "semester": 1,
+  "displayName": "강좌 검색 테스트 교양",
+  "status": "READY",
+  "confidence": 1.0,
+  "statistics": {
+    "sheetCount": 1,
+    "totalRowCount": 7,
+    "parsedLectureCount": 7,
+    "failedRowCount": 0,
+    "warningCount": 0,
+    "errorCount": 0,
+    "academicUnitCount": 0,
+    "generalCategoryCount": 7,
+    "generalCategoryNodeCount": 0,
+    "scheduleCount": 7,
+    "periodCount": 14,
+    "missingScheduleCount": 0,
+    "missingClassroomCount": 0
+  },
+  "academicUnits": [],
+  "generalCategories": [
+    {
+      "classification": "REQUIRED",
+      "classificationName": "교양필수",
+      "categoryCode": "REQUIRED",
+      "categoryName": "교양필수",
+      "area": null,
+      "deliveryProvider": "ON_CAMPUS",
+      "deliveryProviderName": "교내",
+      "sourcePath": ["교양필수"]
+    },
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "AREA_1",
+      "categoryName": "1영역",
+      "area": "EXPLORATION",
+      "deliveryProvider": "ON_CAMPUS",
+      "deliveryProviderName": "교내",
+      "sourcePath": ["교양선택", "1영역"]
+    },
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "AREA_2",
+      "categoryName": "2영역",
+      "area": "COEXISTENCE",
+      "deliveryProvider": "ON_CAMPUS",
+      "deliveryProviderName": "교내",
+      "sourcePath": ["교양선택", "2영역"]
+    },
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "AREA_3",
+      "categoryName": "3영역",
+      "area": "INITIATIVE",
+      "deliveryProvider": "ON_CAMPUS",
+      "deliveryProviderName": "교내",
+      "sourcePath": ["교양선택", "3영역"]
+    },
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "REMOTE",
+      "categoryName": "원격수업",
+      "area": "OTHER",
+      "deliveryProvider": "OCU",
+      "deliveryProviderName": "OCU",
+      "sourcePath": ["교양선택", "원격수업", "OCU"]
+    },
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "REMOTE",
+      "categoryName": "원격수업",
+      "area": "OTHER",
+      "deliveryProvider": "SDU",
+      "deliveryProviderName": "SDU",
+      "sourcePath": ["교양선택", "원격수업", "SDU"]
+    },
+    {
+      "classification": "ELECTIVE",
+      "classificationName": "교양선택",
+      "categoryCode": "REMOTE",
+      "categoryName": "원격수업",
+      "area": "OTHER",
+      "deliveryProvider": "OTHER",
+      "deliveryProviderName": "기타",
+      "sourcePath": ["교양선택", "원격수업", "기타"]
+    }
+  ],
+  "generalCategoryNodes": [],
+  "lectures": [
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 10,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "REQUIRED",
+        "classificationName": "교양필수",
+        "categoryCode": "REQUIRED",
+        "categoryName": "교양필수",
+        "area": null,
+        "deliveryProvider": "ON_CAMPUS",
+        "deliveryProviderName": "교내",
+        "sourcePath": ["교양필수"]
+      },
+      "courseCode": "101000",
+      "courseName": "필수인성",
+      "sectionNo": "01",
+      "credit": 1.0,
+      "classHours": 2.0,
+      "instructorName": "한교수",
+      "targetGrade": 1,
+      "commonGrade": false,
+      "allowedGrades": [1],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "월0,1",
+      "classroomText": "인문관 101호",
+      "schedules": [
+        {
+          "dayOfWeek": "MONDAY",
+          "periods": [0, 1],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "인문관",
+            "roomNumber": "101",
+            "originalValue": "인문관 101호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 11,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "AREA_1",
+        "categoryName": "1영역",
+        "area": "EXPLORATION",
+        "deliveryProvider": "ON_CAMPUS",
+        "deliveryProviderName": "교내",
+        "sourcePath": ["교양선택", "1영역"]
+      },
+      "courseCode": "102000",
+      "courseName": "탐구사고",
+      "sectionNo": "01",
+      "credit": 2.0,
+      "classHours": 2.0,
+      "instructorName": "탐구교수",
+      "targetGrade": 2,
+      "commonGrade": false,
+      "allowedGrades": [2],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "화2,3",
+      "classroomText": "인문관 201호",
+      "schedules": [
+        {
+          "dayOfWeek": "TUESDAY",
+          "periods": [2, 3],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "인문관",
+            "roomNumber": "201",
+            "originalValue": "인문관 201호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 12,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "AREA_2",
+        "categoryName": "2영역",
+        "area": "COEXISTENCE",
+        "deliveryProvider": "ON_CAMPUS",
+        "deliveryProviderName": "교내",
+        "sourcePath": ["교양선택", "2영역"]
+      },
+      "courseCode": "103000",
+      "courseName": "상생협력",
+      "sectionNo": "01",
+      "credit": 3.0,
+      "classHours": 2.0,
+      "instructorName": "상생교수",
+      "targetGrade": 3,
+      "commonGrade": false,
+      "allowedGrades": [3],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "수4,5",
+      "classroomText": "인문관 301호",
+      "schedules": [
+        {
+          "dayOfWeek": "WEDNESDAY",
+          "periods": [4, 5],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "인문관",
+            "roomNumber": "301",
+            "originalValue": "인문관 301호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 13,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "AREA_3",
+        "categoryName": "3영역",
+        "area": "INITIATIVE",
+        "deliveryProvider": "ON_CAMPUS",
+        "deliveryProviderName": "교내",
+        "sourcePath": ["교양선택", "3영역"]
+      },
+      "courseCode": "104000",
+      "courseName": "진취도전",
+      "sectionNo": "01",
+      "credit": 4.0,
+      "classHours": 2.0,
+      "instructorName": "진취교수",
+      "targetGrade": 4,
+      "commonGrade": false,
+      "allowedGrades": [4],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "목6,7",
+      "classroomText": "인문관 401호",
+      "schedules": [
+        {
+          "dayOfWeek": "THURSDAY",
+          "periods": [6, 7],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "인문관",
+            "roomNumber": "401",
+            "originalValue": "인문관 401호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 14,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "REMOTE",
+        "categoryName": "원격수업",
+        "area": "OTHER",
+        "deliveryProvider": "OCU",
+        "deliveryProviderName": "OCU",
+        "sourcePath": ["교양선택", "원격수업", "OCU"]
+      },
+      "courseCode": "105000",
+      "courseName": "OCU디지털",
+      "sectionNo": "01",
+      "credit": 3.0,
+      "classHours": 2.0,
+      "instructorName": "원격교수",
+      "targetGrade": null,
+      "commonGrade": true,
+      "allowedGrades": [1, 2, 3, 4],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "금8,9",
+      "classroomText": "온라인",
+      "schedules": [
+        {
+          "dayOfWeek": "FRIDAY",
+          "periods": [8, 9],
+          "classroom": {
+            "campusCode": null,
+            "buildingName": null,
+            "roomNumber": null,
+            "originalValue": "온라인"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 15,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "REMOTE",
+        "categoryName": "원격수업",
+        "area": "OTHER",
+        "deliveryProvider": "SDU",
+        "deliveryProviderName": "SDU",
+        "sourcePath": ["교양선택", "원격수업", "SDU"]
+      },
+      "courseCode": "106000",
+      "courseName": "SDU미래",
+      "sectionNo": "01",
+      "credit": 3.0,
+      "classHours": 2.0,
+      "instructorName": "미래교수",
+      "targetGrade": null,
+      "commonGrade": true,
+      "allowedGrades": [1, 2, 3, 4],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "토10,11",
+      "classroomText": "온라인",
+      "schedules": [
+        {
+          "dayOfWeek": "SATURDAY",
+          "periods": [10, 11],
+          "classroom": {
+            "campusCode": null,
+            "buildingName": null,
+            "roomNumber": null,
+            "originalValue": "온라인"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "교양검색",
+      "sourceRow": 16,
+      "curriculumType": "GENERAL_EDUCATION",
+      "academicUnit": null,
+      "generalEducation": {
+        "classification": "ELECTIVE",
+        "classificationName": "교양선택",
+        "categoryCode": "REMOTE",
+        "categoryName": "원격수업",
+        "area": "OTHER",
+        "deliveryProvider": "OTHER",
+        "deliveryProviderName": "기타",
+        "sourcePath": ["교양선택", "원격수업", "기타"]
+      },
+      "courseCode": "107000",
+      "courseName": "기타원격",
+      "sectionNo": "01",
+      "credit": 3.0,
+      "classHours": 2.0,
+      "instructorName": "기타교수",
+      "targetGrade": null,
+      "commonGrade": true,
+      "allowedGrades": [1, 2, 3, 4],
+      "eligibleDepartmentNames": [],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "일12,13",
+      "classroomText": "온라인",
+      "schedules": [
+        {
+          "dayOfWeek": "SUNDAY",
+          "periods": [12, 13],
+          "classroom": {
+            "campusCode": null,
+            "buildingName": null,
+            "roomNumber": null,
+            "originalValue": "온라인"
+          }
+        }
+      ],
+      "sourceCells": []
+    }
+  ],
+  "issues": []
+}
