@@ -337,6 +337,7 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
       "credit": 3.000,
       "instructorName": "홍길동",
       "curriculumType": "MAJOR",
+      "cyber": false,
       "academicUnit": {
         "originalName": "항공소프트웨어공학과",
         "departmentName": "항공소프트웨어공학과",
@@ -366,6 +367,10 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
   "hasNext": false
 }
 ```
+
+`cyber`는 교양 제공기관이 `OCU`, `SDU`, `HSU_CYBER`,
+`CHUNGNAM_ELEARNING` 중 하나이면 `true`이다. 전공, 교내 교양, e-Class,
+기타 교양은 `false`이다.
 
 검색 결과가 없으면 `items`가 빈 배열로 반환되며 페이지 정보는 유지된다.
 

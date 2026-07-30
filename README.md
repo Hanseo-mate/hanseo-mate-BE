@@ -163,6 +163,7 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
       "credit": 3.000,
       "instructorName": "홍길동",
       "curriculumType": "MAJOR",
+      "cyber": false,
       "academicUnit": {
         "originalName": "항공소프트웨어공학과",
         "departmentName": "항공소프트웨어공학과",

@@ -115,6 +115,7 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].courseCode").value("001234"))
                 .andExpect(jsonPath("$.items[0].sectionNo").value("01"))
                 .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].cyber").value(false))
                 .andExpect(jsonPath("$.items[0].academicUnit.departmentName")
                         .value("항공소프트웨어공학과"))
                 .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek").value("MONDAY"))
@@ -446,6 +447,7 @@ class CourseImportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].courseName").value("SDU미래사회"))
+                .andExpect(jsonPath("$.items[0].cyber").value(true))
                 .andExpect(jsonPath("$.items[0].generalEducation.deliveryProviderName").value("SDU"));
     }
 
@@ -643,8 +645,21 @@ class CourseImportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(3))
                 .andExpect(jsonPath("$.items[0].courseName").value("필수인성"))
+                .andExpect(jsonPath("$.items[0].cyber").value(false))
                 .andExpect(jsonPath("$.items[1].courseName").value("탐구사고"))
-                .andExpect(jsonPath("$.items[2].courseName").value("OCU디지털"));
+                .andExpect(jsonPath("$.items[1].cyber").value(false))
+                .andExpect(jsonPath("$.items[2].courseName").value("OCU디지털"))
+                .andExpect(jsonPath("$.items[2].cyber").value(true));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "OTHER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("기타원격"))
+                .andExpect(jsonPath("$.items[0].cyber").value(false));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
