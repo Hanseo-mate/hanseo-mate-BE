@@ -5,6 +5,7 @@ import hsu.hanseomate.domain.notices.dto.NoticePageResponse;
 import hsu.hanseomate.domain.notices.entity.NoticeType;
 import hsu.hanseomate.domain.notices.exception.NoticeNotFoundException;
 import hsu.hanseomate.domain.notices.repository.NoticeRepository;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,10 +38,29 @@ public class NoticeService {
         );
     }
 
+    public NoticePageResponse searchNotices(String keyword, int page) {
+        Pageable pageable = createPageable(page);
+        String normalizedKeyword = normalizeKeyword(keyword);
+        return NoticePageResponse.from(
+                noticeRepository.searchWithoutTypeByKeyword(NoticeType.GRADUATE, normalizedKeyword, pageable)
+        );
+    }
+
+    @Transactional
     public NoticeDetailResponse getNoticeDetail(Long noticeId) {
+        int updatedRows = noticeRepository.incrementViewCount(noticeId);
+        if (updatedRows == 0) {
+            throw new NoticeNotFoundException(noticeId);
+        }
+
         return noticeRepository.findDetailById(noticeId)
                 .map(NoticeDetailResponse::from)
                 .orElseThrow(() -> new NoticeNotFoundException(noticeId));
+    }
+
+    private String normalizeKeyword(String keyword) {
+        return keyword.replaceAll("\\s+", "")
+                .toLowerCase(Locale.ROOT);
     }
 
     private Pageable createPageable(int page) {

@@ -9,7 +9,6 @@ public record NoticeListItemResponse(
         String originNoticeId,
         String title,
         String sourceUrl,
-        String changeSummary,
         String author,
         LocalDate postDate,
         boolean isHot
@@ -22,7 +21,6 @@ public record NoticeListItemResponse(
                 notice.getOriginNoticeId(),
                 notice.getTitle(),
                 notice.getSourceUrl(),
-                notice.getChangeSummary(),
                 notice.getAuthor(),
                 notice.getPostDate(),
                 notice.isHot()

@@ -11,10 +11,10 @@ public record NoticeDetailResponse(
         String title,
         String sourceUrl,
         String contentHtml,
-        String changeSummary,
         String author,
         LocalDate postDate,
         boolean isHot,
+        long viewCount,
         List<NoticeFileResponse> attachments
 ) {
 
@@ -26,10 +26,10 @@ public record NoticeDetailResponse(
                 notice.getTitle(),
                 notice.getSourceUrl(),
                 notice.getContentHtml(),
-                notice.getChangeSummary(),
                 notice.getAuthor(),
                 notice.getPostDate(),
                 notice.isHot(),
+                notice.getViewCount(),
                 notice.getAttachments().stream()
                         .map(NoticeFileResponse::from)
                         .toList()

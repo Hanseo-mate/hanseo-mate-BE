@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -68,6 +69,29 @@ public class NoticeController {
             int page
     ) {
         return noticeService.getAllNotices(page);
+    }
+
+    @Operation(summary = "공지 통합 검색", description = "검색어 하나로 제목, 내용, 작성자를 통합 검색하며 띄어쓰기를 무시합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @GetMapping("/search")
+    public NoticePageResponse searchNotices(
+            @Parameter(description = "띄어쓰기를 무시하는 검색어", required = true)
+            @RequestParam
+            @NotBlank(message = "검색어는 비어 있을 수 없습니다.")
+            String keyword,
+            @Parameter(description = "0부터 시작하는 페이지 번호")
+            @RequestParam(defaultValue = "0")
+            @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.")
+            int page
+    ) {
+        return noticeService.searchNotices(keyword, page);
     }
 
     @Operation(summary = "공지 상세 조회", description = "공지 본문과 첨부파일 목록을 함께 조회합니다.")

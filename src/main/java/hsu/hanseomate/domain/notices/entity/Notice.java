@@ -41,9 +41,6 @@ public class Notice {
     @Column(name = "content_html", nullable = false, columnDefinition = "LONGTEXT")
     private String contentHtml;
 
-    @Column(name = "change_summary", columnDefinition = "TEXT")
-    private String changeSummary;
-
     @Column(nullable = false, length = 100)
     private String author;
 
@@ -52,6 +49,9 @@ public class Notice {
 
     @Column(name = "is_hot", nullable = false)
     private boolean isHot;
+
+    @Column(name = "view_count", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    private long viewCount = 0L;
 
     @OneToMany(mappedBy = "notice")
     private final List<NoticeFile> attachments = new ArrayList<>();

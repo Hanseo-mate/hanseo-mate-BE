@@ -34,7 +34,7 @@ class NoticeApiIntegrationTest {
 
     @Test
     void returnsCategoryNoticesWithHotFirstAndPaginationSizeTen() throws Exception {
-        insertNotice("academic", "n-hot", "HOT 공지", LocalDate.of(2026, 7, 20), true, "HOT 해제");
+        insertNotice("academic", "n-hot", "HOT 공지", LocalDate.of(2026, 7, 20), true);
         insertNotice("academic", "n-normal", "일반 공지", LocalDate.of(2026, 7, 21), false);
 
         for (int i = 0; i < 9; i++) {
@@ -46,7 +46,6 @@ class NoticeApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(10))
                 .andExpect(jsonPath("$.items[0].originNoticeId").value("n-hot"))
-                .andExpect(jsonPath("$.items[0].changeSummary").value("HOT 해제"))
                 .andExpect(jsonPath("$.size").value(10))
                 .andExpect(jsonPath("$.totalElements").value(11))
                 .andExpect(jsonPath("$.hasNext").value(true));
@@ -74,8 +73,7 @@ class NoticeApiIntegrationTest {
                 "detail-1",
                 "상세 공지",
                 LocalDate.of(2026, 7, 21),
-                false,
-                "본문 변경"
+                false
         );
         insertAttachment(noticeId, "첨부1.pdf", "https://example.com/attach1");
         insertAttachment(noticeId, "첨부2.pdf", "https://example.com/attach2");
@@ -83,7 +81,6 @@ class NoticeApiIntegrationTest {
         mockMvc.perform(get("/api/notices/{noticeId}", noticeId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.originNoticeId").value("detail-1"))
-                .andExpect(jsonPath("$.changeSummary").value("본문 변경"))
                 .andExpect(jsonPath("$.attachments.length()").value(2))
                 .andExpect(jsonPath("$.attachments[0].fileName").value("첨부1.pdf"));
     }
@@ -112,17 +109,6 @@ class NoticeApiIntegrationTest {
             LocalDate postDate,
             boolean isHot
     ) {
-        return insertNotice(noticeType, originNoticeId, title, postDate, isHot, null);
-    }
-
-    private Long insertNotice(
-            String noticeType,
-            String originNoticeId,
-            String title,
-            LocalDate postDate,
-            boolean isHot,
-            String changeSummary
-    ) {
         jdbcTemplate.update("""
                 INSERT INTO notices (
                     notice_type,
@@ -130,18 +116,16 @@ class NoticeApiIntegrationTest {
                     title,
                     source_url,
                     content_html,
-                    change_summary,
                     author,
                     post_date,
                     is_hot
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 noticeType,
                 originNoticeId,
                 title,
                 "https://www.hanseo.ac.kr/detail/" + originNoticeId,
                 "<p>content</p>",
-                changeSummary,
                 "관리자",
                 Date.valueOf(postDate),
                 isHot
