@@ -41,6 +41,9 @@ public class Notice {
     @Column(name = "content_html", nullable = false, columnDefinition = "LONGTEXT")
     private String contentHtml;
 
+    @Column(name = "change_summary", columnDefinition = "TEXT")
+    private String changeSummary;
+
     @Column(nullable = false, length = 100)
     private String author;
 
