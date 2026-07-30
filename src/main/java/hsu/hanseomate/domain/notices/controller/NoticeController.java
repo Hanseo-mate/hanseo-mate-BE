@@ -2,7 +2,9 @@ package hsu.hanseomate.domain.notices.controller;
 
 import hsu.hanseomate.domain.notices.dto.NoticeDetailResponse;
 import hsu.hanseomate.domain.notices.dto.NoticePageResponse;
+import hsu.hanseomate.domain.notices.dto.UnifiedNoticeListItemResponse;
 import hsu.hanseomate.domain.notices.service.NoticeService;
+import hsu.hanseomate.domain.notices.service.UnifiedNoticeService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,12 +17,15 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Tag(name = "공지 조회", description = "공지 목록 및 상세를 조회합니다.")
 @Validated
@@ -30,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class NoticeController {
 
     private final NoticeService noticeService;
+    private final UnifiedNoticeService unifiedNoticeService;
 
     @Operation(summary = "카테고리별 공지 목록 조회", description = "공지 타입별로 HOT 우선 정렬 후 최신순으로 페이지 조회합니다.")
     @ApiResponses({
@@ -115,5 +121,19 @@ public class NoticeController {
             @PathVariable Long noticeId
     ) {
         return noticeService.getNoticeDetail(noticeId);
+    }
+
+    @Operation(summary = "일반/학생회 공지 통합 검색 및 목록", description = "학생회 공지를 포함하여 띄어쓰기를 무시하고 제목을 검색합니다.")
+    @GetMapping("/unified")
+    public ResponseEntity<List<UnifiedNoticeListItemResponse>> getUnifiedNotices(
+            @Parameter(description = "검색어 (없으면 전체 최신순 조회)")
+            @RequestParam(required = false, defaultValue = "") String keyword,
+            @Parameter(description = "페이지 번호 (0부터 시작)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지당 데이터 수")
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        List<UnifiedNoticeListItemResponse> responses = unifiedNoticeService.getUnifiedNotices(keyword, page, size);
+        return ResponseEntity.ok(responses);
     }
 }

@@ -27,6 +27,9 @@ public class StudentCouncilNotice extends BaseTimeEntity {
     @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String content;
 
+    @Column(name = "view_count", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    private long viewCount = 0L;
+
     private StudentCouncilNotice(String title, String content) {
         this.title = title;
         this.content = content;

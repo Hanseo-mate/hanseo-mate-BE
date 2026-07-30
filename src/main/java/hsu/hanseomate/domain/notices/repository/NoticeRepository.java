@@ -2,6 +2,8 @@ package hsu.hanseomate.domain.notices.repository;
 
 import hsu.hanseomate.domain.notices.entity.Notice;
 import hsu.hanseomate.domain.notices.entity.NoticeType;
+
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +12,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 
 public interface NoticeRepository extends JpaRepository<Notice, Long> {
 
@@ -72,4 +75,8 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
             @Param("normalizedKeyword") String normalizedKeyword,
             Pageable pageable
     );
+
+    // 2. 띄어쓰기 무시 제목 검색
+    @Query("SELECT n FROM Notice n WHERE REPLACE(n.title, ' ', '') LIKE %:keyword%")
+    List<Notice> searchByTitleIgnoringSpaces(@Param("keyword") String keyword, Pageable pageable);
 }
