@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.courseimport.parser.common;
 
+import hsu.hanseomate.domain.course.support.CoursePeriodPolicy;
 import hsu.hanseomate.domain.courseimport.dto.ClassroomRequest;
 import hsu.hanseomate.domain.courseimport.dto.CourseScheduleRequest;
 import hsu.hanseomate.domain.courseimport.dto.ParseIssueRequest;
@@ -14,8 +15,8 @@ import java.util.regex.Pattern;
 
 public final class ScheduleParser {
 
-    public static final int MIN_PERIOD = 1;
-    public static final int MAX_PERIOD = 30;
+    public static final int MIN_PERIOD = CoursePeriodPolicy.MIN_PERIOD;
+    public static final int MAX_PERIOD = CoursePeriodPolicy.MAX_PERIOD;
 
     private static final Map<String, DayOfWeek> DAYS = Map.of(
             "월", DayOfWeek.MONDAY,

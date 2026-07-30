@@ -1,0 +1,260 @@
+{
+  "schemaVersion": "1.2",
+  "importId": "course-search-major-2026-1",
+  "fileName": "course-search-major-2026-1.xlsx",
+  "fileSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "curriculumType": "MAJOR",
+  "parserVersion": "test-parser-1.2",
+  "academicYear": 2026,
+  "semester": 1,
+  "displayName": "강좌 검색 테스트 전공",
+  "status": "READY",
+  "confidence": 1.0,
+  "statistics": {
+    "sheetCount": 1,
+    "totalRowCount": 5,
+    "parsedLectureCount": 5,
+    "failedRowCount": 0,
+    "warningCount": 0,
+    "errorCount": 0,
+    "academicUnitCount": 4,
+    "generalCategoryCount": 0,
+    "generalCategoryNodeCount": 0,
+    "scheduleCount": 6,
+    "periodCount": 12,
+    "missingScheduleCount": 0,
+    "missingClassroomCount": 0
+  },
+  "academicUnits": [
+    {
+      "originalName": "항공소프트웨어공학과",
+      "departmentName": "항공소프트웨어공학과",
+      "majorName": null
+    },
+    {
+      "originalName": "항공운항학과",
+      "departmentName": "항공운항학과",
+      "majorName": null
+    },
+    {
+      "originalName": "디자인융합학과",
+      "departmentName": "디자인융합학과",
+      "majorName": null
+    },
+    {
+      "originalName": "자유전공학부",
+      "departmentName": "자유전공학부",
+      "majorName": null
+    }
+  ],
+  "generalCategories": [],
+  "generalCategoryNodes": [],
+  "lectures": [
+    {
+      "sourceSheet": "전공검색",
+      "sourceRow": 5,
+      "curriculumType": "MAJOR",
+      "academicUnit": {
+        "originalName": "항공소프트웨어공학과",
+        "departmentName": "항공소프트웨어공학과",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "courseCode": "003000",
+      "courseName": "알파개론",
+      "sectionNo": "01",
+      "credit": 1.0,
+      "classHours": 2.0,
+      "instructorName": "김교수",
+      "targetGrade": 1,
+      "commonGrade": false,
+      "allowedGrades": [1],
+      "eligibleDepartmentNames": ["항공소프트웨어공학과"],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "월0,1",
+      "classroomText": "본관 101호",
+      "schedules": [
+        {
+          "dayOfWeek": "MONDAY",
+          "periods": [0, 1],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "본관",
+            "roomNumber": "101",
+            "originalValue": "본관 101호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "전공검색",
+      "sourceRow": 6,
+      "curriculumType": "MAJOR",
+      "academicUnit": {
+        "originalName": "항공소프트웨어공학과",
+        "departmentName": "항공소프트웨어공학과",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "courseCode": "001000",
+      "courseName": "찰리실습",
+      "sectionNo": "01",
+      "credit": 2.0,
+      "classHours": 2.0,
+      "instructorName": "박교수",
+      "targetGrade": 2,
+      "commonGrade": false,
+      "allowedGrades": [2],
+      "eligibleDepartmentNames": ["항공소프트웨어공학과"],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "화2,3",
+      "classroomText": "공학관 302호",
+      "schedules": [
+        {
+          "dayOfWeek": "TUESDAY",
+          "periods": [2, 3],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "공학관",
+            "roomNumber": "302",
+            "originalValue": "공학관 302호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "전공검색",
+      "sourceRow": 7,
+      "curriculumType": "MAJOR",
+      "academicUnit": {
+        "originalName": "항공운항학과",
+        "departmentName": "항공운항학과",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "courseCode": "002000",
+      "courseName": "베타연구",
+      "sectionNo": "01",
+      "credit": 3.0,
+      "classHours": 2.0,
+      "instructorName": "이교수",
+      "targetGrade": 3,
+      "commonGrade": false,
+      "allowedGrades": [3],
+      "eligibleDepartmentNames": ["항공운항학과"],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "수4,5",
+      "classroomText": "비행교육원 201호",
+      "schedules": [
+        {
+          "dayOfWeek": "WEDNESDAY",
+          "periods": [4, 5],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "비행교육원",
+            "roomNumber": "201",
+            "originalValue": "비행교육원 201호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "전공검색",
+      "sourceRow": 8,
+      "curriculumType": "MAJOR",
+      "academicUnit": {
+        "originalName": "디자인융합학과",
+        "departmentName": "디자인융합학과",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "courseCode": "004000",
+      "courseName": "델타프로젝트",
+      "sectionNo": "01",
+      "credit": 4.0,
+      "classHours": 2.0,
+      "instructorName": "최교수",
+      "targetGrade": 4,
+      "commonGrade": false,
+      "allowedGrades": [4],
+      "eligibleDepartmentNames": ["디자인융합학과"],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "목6,7",
+      "classroomText": "디자인관 401호",
+      "schedules": [
+        {
+          "dayOfWeek": "THURSDAY",
+          "periods": [6, 7],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "디자인관",
+            "roomNumber": "401",
+            "originalValue": "디자인관 401호"
+          }
+        }
+      ],
+      "sourceCells": []
+    },
+    {
+      "sourceSheet": "전공검색",
+      "sourceRow": 9,
+      "curriculumType": "MAJOR",
+      "academicUnit": {
+        "originalName": "자유전공학부",
+        "departmentName": "자유전공학부",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "courseCode": "005000",
+      "courseName": "기타세미나",
+      "sectionNo": "01",
+      "credit": 5.0,
+      "classHours": 4.0,
+      "instructorName": "윤교수",
+      "targetGrade": 5,
+      "commonGrade": false,
+      "allowedGrades": [5],
+      "eligibleDepartmentNames": ["자유전공학부"],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "월1,2 / 금8,9",
+      "classroomText": "미래관 501호",
+      "schedules": [
+        {
+          "dayOfWeek": "MONDAY",
+          "periods": [1, 2],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "미래관",
+            "roomNumber": "501",
+            "originalValue": "미래관 501호"
+          }
+        },
+        {
+          "dayOfWeek": "FRIDAY",
+          "periods": [8, 9],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "미래관",
+            "roomNumber": "501",
+            "originalValue": "미래관 501호"
+          }
+        }
+      ],
+      "sourceCells": []
+    }
+  ],
+  "issues": []
+}
