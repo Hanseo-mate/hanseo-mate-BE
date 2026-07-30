@@ -78,10 +78,35 @@ class CourseExcelImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].courseName").value("웹프로그래밍"))
-                .andExpect(jsonPath("$[0].courseCode").value("0012345"))
-                .andExpect(jsonPath("$[0].schedules[0].periods", hasSize(3)));
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].courseCode").value("0012345"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods", hasSize(3)));
+    }
+
+    @Test
+    void zeroPeriodFromWorkbookIsStoredAndSearchable() throws Exception {
+        MockMultipartFile file = workbookFile(
+                "2026학년도 1학기 전공강좌 강의시간표.xlsx",
+                majorWorkbook("0교시강좌", "월0,1")
+        );
+
+        mockMvc.perform(multipart("/api/v1/timetables/major").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storageStatus").value("STORED"))
+                .andExpect(jsonPath("$.offeringCount").value(1));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "MAJOR")
+                        .param("startPeriod", "0")
+                        .param("endPeriod", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].courseName").value("0교시강좌"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(0))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[1]").value(1));
     }
 
     @Test
@@ -129,8 +154,8 @@ class CourseExcelImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "GENERAL_EDUCATION"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].courseName").value("기존교양"));
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].courseName").value("기존교양"));
     }
 
     @Test
@@ -218,8 +243,8 @@ class CourseExcelImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "GENERAL_EDUCATION"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].courseCode").value("12345"));
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].courseCode").value("12345"));
     }
 
     @Test
@@ -322,8 +347,8 @@ class CourseExcelImportApiIntegrationTest {
                         .param("semester", "1")
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].courseName").value("알파과목"));
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].courseName").value("알파과목"));
     }
 
     @Test

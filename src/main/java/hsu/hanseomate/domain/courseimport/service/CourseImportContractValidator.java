@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.courseimport.service;
 
+import hsu.hanseomate.domain.course.support.CoursePeriodPolicy;
 import hsu.hanseomate.domain.courseimport.dto.CourseScheduleRequest;
 import hsu.hanseomate.domain.courseimport.dto.CourseImportIssueResponse;
 import hsu.hanseomate.domain.courseimport.dto.GeneralCategoryNodeRequest;
@@ -27,8 +28,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class CourseImportContractValidator {
 
-    private static final int MIN_PERIOD = 1;
-    private static final int MAX_PERIOD = 30;
+    private static final int MIN_PERIOD = CoursePeriodPolicy.MIN_PERIOD;
+    private static final int MAX_PERIOD = CoursePeriodPolicy.MAX_PERIOD;
     static final int MAX_REVIEW_ISSUES = 1000;
     private static final Set<String> BLOCKING_ISSUE_CODES = Set.of(
             "AMBIGUOUS_GENERAL_HEADING_LEVEL",
@@ -409,7 +410,7 @@ public class CourseImportContractValidator {
                 if (period < MIN_PERIOD || period > MAX_PERIOD) {
                     reviewIssues.add(CourseImportIssueResponse.error(
                             "INVALID_PERIOD",
-                            "교시는 1~30 범위여야 합니다.",
+                            "교시는 0~30 범위여야 합니다.",
                             lecture.sourceSheet(),
                             lecture.sourceRow(),
                             "scheduleText",

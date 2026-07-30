@@ -19,6 +19,20 @@
 - Springdoc OpenAPI
 - H2 테스트 데이터베이스
 
+## 시간표 관련 패키지 구조
+
+```text
+domain
+├── course                  # 강좌·개설 강좌·수업 시간 등 공용 강좌 데이터
+├── courseimport            # 관리자용 전공·교양 엑셀 수입
+└── timetable
+    └── search              # 사용자용 강좌 검색 API·서비스·DTO·검색 조건
+```
+
+시간표 검색 기능은 `domain.timetable.search`에서 독립적으로 관리한다.
+향후 개인 시간표 편성, 시간 중복 검사 등은 `domain.timetable` 아래에 별도 기능 패키지로 추가하고,
+공용 강좌 정보는 `domain.course`를 참조한다.
+
 ## 로컬 실행 준비
 
 JDK 17과 MySQL 8 이상이 필요합니다. 데이터베이스는 한글 저장을 보장하도록 `utf8mb4`로 생성합니다.
@@ -96,7 +110,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `DELETE` | `/api/admin/links/{linkId}` | 링크 삭제 |
 | `POST` | `/api/v1/timetables/major` | 전공 시간표 엑셀 분석 및 일괄 저장 |
 | `POST` | `/api/v1/timetables/general-education` | 교양 시간표 엑셀 분석 및 일괄 저장 |
-| `GET` | `/api/courses` | 학기·분류·학과·과목·교수 조건으로 강좌 조회 |
+| `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |
 | `PUT` | `/api/clubs/likes/{clubId}` | 익명 요청 단위 좋아요 수 변경 |
@@ -116,6 +130,72 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `DELETE` | `/api/admin/notices/{noticeId}` | 학생회공지 삭제 |
 
 링크 데이터는 `id`, `name`, `url`, `category`, `created_at`, `updated_at` 여섯 컬럼만 사용합니다.
+
+### 사용자용 강좌 검색
+
+`GET /api/courses`는 에브리타임 형태의 검색 조건을 조합하여 강좌를 조회합니다.
+
+- 전공·영역: 전공 학과 또는 교양필수·1/2/3영역·원격수업 제공기관
+- 검색어: 과목명·교수명·과목코드·장소 중 하나
+- 정렬: 기본·과목코드·과목명
+- 시간: `0`~`30`교시 사이의 시작·종료 범위
+- 학년: 1·2·3·4학년·기타 다중 선택
+- 학점: 1·2·3·4학점 이상 다중 선택
+- 페이지: `page` 기본값 `0`, `size` 기본값 `20`·최댓값 `100`
+
+같은 필터 그룹에서 선택한 값은 `OR`, 서로 다른 필터 그룹은 `AND`로 적용합니다.
+선택값이 없거나 해당 그룹의 모든 값을 선택하면 그 그룹은 필터링하지 않습니다.
+
+```http
+GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits=항공소프트웨어공학과&searchField=COURSE_NAME&keyword=프로그래밍&sort=COURSE_NAME&startPeriod=0&endPeriod=6&grades=GRADE_1,GRADE_2&credits=CREDIT_3&page=0&size=20
+```
+
+응답은 다음 페이지 형식을 사용합니다.
+
+```json
+{
+  "items": [
+    {
+      "offeringId": "7da5b546-d431-4b4d-9992-0a50d97399d5",
+      "courseCode": "001234",
+      "courseName": "웹프로그래밍",
+      "sectionNo": "01",
+      "credit": 3.000,
+      "instructorName": "홍길동",
+      "curriculumType": "MAJOR",
+      "cyber": false,
+      "academicUnit": {
+        "originalName": "항공소프트웨어공학과",
+        "departmentName": "항공소프트웨어공학과",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "targetGrade": 2,
+      "commonGrade": false,
+      "schedules": [
+        {
+          "dayOfWeek": "MONDAY",
+          "periods": [1, 2, 3],
+          "classroom": {
+            "campusCode": "HSU",
+            "buildingName": "공학관",
+            "roomNumber": "302",
+            "originalValue": "공학관 302호"
+          }
+        }
+      ]
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalPages": 1,
+  "totalElements": 1,
+  "hasNext": false
+}
+```
+
+전체 Query parameter, Enum 값과 검색 조합 규칙은
+[강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
 
 ## API 문서
 

@@ -1,4 +1,4 @@
-package hsu.hanseomate.domain.course.dto;
+package hsu.hanseomate.domain.timetable.search.dto;
 
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
