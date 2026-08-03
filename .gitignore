@@ -37,6 +37,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### Codex ###
+.codex/
+
 ### Local secrets ###
 .env
 .env.*
