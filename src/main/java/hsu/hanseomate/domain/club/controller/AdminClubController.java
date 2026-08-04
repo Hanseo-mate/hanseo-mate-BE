@@ -3,10 +3,12 @@ package hsu.hanseomate.domain.club.controller;
 import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
+import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
 import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,23 +17,26 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.net.URI;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @Tag(
         name = "관리자 동아리 관리",
-        description = "동아리 기본 정보, 장문 소개, 활동 내용과 모집공고를 관리합니다. 현재는 인증을 적용하지 않습니다."
+        description = "ADMIN 권한으로 동아리 목록과 기본 정보, 장문 소개, 활동 내용 및 모집공고를 관리합니다."
 )
 @Validated
 @RestController
@@ -40,6 +45,36 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminClubController {
 
     private final ClubService clubService;
+
+    @Operation(
+            summary = "관리자용 동아리 목록 조회",
+            description = "일반 사용자용 동아리 목록 조회와 동일한 결과를 반환하며 ADMIN 권한이 필요합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "지원하지 않는 분과",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 권한 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @GetMapping
+    public List<ClubSummaryResponse> getClubs(
+            @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
+            @RequestParam(required = false) String category
+    ) {
+        return clubService.getClubs(category);
+    }
 
     @Operation(
             summary = "동아리 등록",

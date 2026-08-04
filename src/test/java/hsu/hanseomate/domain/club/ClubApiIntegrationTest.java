@@ -156,7 +156,7 @@ class ClubApiIntegrationTest {
         long second = createClub("운동 동아리", "SPORTS");
         long third = createClub("두 번째 학술 동아리", "ACADEMIC");
 
-        mockMvc.perform(get("/api/clubs"))
+        MvcResult publicListResult = mockMvc.perform(get("/api/clubs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].id").value(first))
@@ -169,9 +169,28 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$[0].likeCount").value(0))
                 .andExpect(jsonPath("$[0].topReviewTags").isEmpty())
                 .andExpect(jsonPath("$[0].backgroundImageUrl").doesNotExist())
-                .andExpect(jsonPath("$[0].introduction").doesNotExist());
+                .andExpect(jsonPath("$[0].introduction").doesNotExist())
+                .andReturn();
 
         mockMvc.perform(get("/api/clubs").param("category", " academic "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(first))
+                .andExpect(jsonPath("$[0].category").value("ACADEMIC"))
+                .andExpect(jsonPath("$[1].id").value(third));
+
+        MvcResult adminListResult = mockMvc.perform(get("/api/admin/clubs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].id").value(first))
+                .andExpect(jsonPath("$[1].id").value(second))
+                .andExpect(jsonPath("$[2].id").value(third))
+                .andReturn();
+
+        assertThat(adminListResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .isEqualTo(publicListResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        mockMvc.perform(get("/api/admin/clubs").param("category", " academic "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value(first))
@@ -706,6 +725,12 @@ class ClubApiIntegrationTest {
                         "$.paths['/api/clubs/recruitments/{clubId}']"
                 ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/admin/clubs'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/admin/clubs'].get.responses['200']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/admin/clubs'].get.responses['401']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/admin/clubs'].get.responses['403']")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties",
                         aMapWithSize(2)))

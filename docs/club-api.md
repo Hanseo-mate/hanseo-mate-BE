@@ -8,7 +8,7 @@ JSON Content-Type: application/json
 Image Content-Type: multipart/form-data
 ```
 
-현재 로그인, 사용자 인증과 관리자 권한 검사는 구현하지 않았다.
+JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/admin/**`는 ADMIN 역할만 접근할 수 있다.
 좋아요와 활동 후기 요청에 별도의 사용자 식별 헤더를 사용하지 않는다.
 
 ---
@@ -22,6 +22,7 @@ Image Content-Type: multipart/form-data
 | 사용자 | `PUT` | `/api/clubs/likes/{clubId}` | 익명 요청 단위 좋아요 수 변경 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 익명 활동 후기 등록 또는 최근 후기 제거 |
+| 관리자 | `GET` | `/api/admin/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | 관리자 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
 | 관리자 | `DELETE` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 삭제 |
@@ -226,7 +227,29 @@ Content-Type: application/json
 
 # 관리자 API
 
-## 1. 동아리 등록
+모든 관리자 API 요청에는 ADMIN 역할로 발급받은 JWT가 필요하다.
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+## 1. 관리자용 동아리 목록 조회
+
+```http
+GET /api/admin/clubs
+GET /api/admin/clubs?category=ACADEMIC
+Authorization: Bearer {accessToken}
+```
+
+일반 사용자용 `GET /api/clubs`와 동일한 목록과 필터 결과를 반환한다.
+
+- 토큰이 없거나 유효하지 않은 경우: `401 Unauthorized`
+- USER 역할인 경우: `403 Forbidden`
+- ADMIN 역할인 경우: `200 OK`
+
+---
+
+## 2. 동아리 등록
 
 ```http
 POST /api/admin/clubs
@@ -262,7 +285,7 @@ Location: /api/clubs/1
 
 ---
 
-## 2. 배경 이미지 업로드
+## 3. 배경 이미지 업로드
 
 ```http
 PUT /api/admin/clubs/background-images/{clubId}
@@ -283,7 +306,7 @@ Content-Type: multipart/form-data
 
 ---
 
-## 3. 프로필 이미지 업로드
+## 4. 프로필 이미지 업로드
 
 ```http
 PUT /api/admin/clubs/profile-images/{clubId}
@@ -306,7 +329,7 @@ Content-Type: multipart/form-data
 
 ---
 
-## 4. 배경 이미지 삭제
+## 5. 배경 이미지 삭제
 
 ```http
 DELETE /api/admin/clubs/background-images/{clubId}
@@ -317,7 +340,7 @@ DELETE /api/admin/clubs/background-images/{clubId}
 
 ---
 
-## 5. 프로필 이미지 삭제
+## 6. 프로필 이미지 삭제
 
 ```http
 DELETE /api/admin/clubs/profile-images/{clubId}
@@ -328,7 +351,7 @@ DELETE /api/admin/clubs/profile-images/{clubId}
 
 ---
 
-## 6. 동아리 정보 통합 수정
+## 7. 동아리 정보 통합 수정
 
 ```http
 PUT /api/admin/clubs/{clubId}
@@ -353,7 +376,7 @@ Content-Type: application/json
 
 ---
 
-## 7. 동아리 삭제
+## 8. 동아리 삭제
 
 ```http
 DELETE /api/admin/clubs/{clubId}
@@ -407,4 +430,4 @@ UPLOAD_MAX_IMAGE_BYTES=5242880
 
 - 로컬 파일 저장 방식이며 기본 최대 크기는 5 MiB이다.
 - 운영 환경에서는 업로드 디렉터리를 영속 볼륨에 연결해야 한다.
-- 로그인과 관리자 인증을 추가하기 전에는 인터넷에 공개하지 않는다.
+- 관리자 API는 ADMIN 역할의 JWT만 접근할 수 있다.
