@@ -27,6 +27,7 @@ public class JwtTokenProvider {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(jwtProperties.issuer())
                 .subject(userAccount.getId().toString())
+                .claim("role", userAccount.getRole().name())
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
                 .build();

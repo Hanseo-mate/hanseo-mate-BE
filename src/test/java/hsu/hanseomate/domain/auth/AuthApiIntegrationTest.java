@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
+import hsu.hanseomate.domain.user.type.UserRole;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -75,6 +76,7 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("$.expiresIn").value(3600))
                 .andExpect(jsonPath("$.userId").isNumber())
                 .andExpect(jsonPath("$.loginId").value("newuser"))
+                .andExpect(jsonPath("$.role").value("USER"))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andExpect(jsonPath("$.password").doesNotExist())
@@ -82,11 +84,13 @@ class AuthApiIntegrationTest {
                 .andReturn();
 
         UserAccount saved = userAccountRepository.findByLoginId("newuser").orElseThrow();
+        assertThat(saved.getRole()).isEqualTo(UserRole.USER);
         assertThat(saved.getPasswordHash()).isNotEqualTo("plain-password");
         assertThat(passwordEncoder.matches("plain-password", saved.getPasswordHash())).isTrue();
 
         Jwt jwt = jwtDecoder.decode(responseBody(result).path("accessToken").stringValue());
         assertThat(jwt.getSubject()).isEqualTo(saved.getId().toString());
+        assertThat(jwt.getClaimAsString("role")).isEqualTo("USER");
     }
 
     @Test
@@ -128,6 +132,7 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("$.expiresIn").value(3600))
                 .andExpect(jsonPath("$.userId").value(userId))
                 .andExpect(jsonPath("$.loginId").value("login-user"))
+                .andExpect(jsonPath("$.role").value("USER"))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andExpect(jsonPath("$.password").doesNotExist())
@@ -137,6 +142,66 @@ class AuthApiIntegrationTest {
         Jwt jwt = jwtDecoder.decode(responseBody(result).path("accessToken").stringValue());
         assertThat(jwt.getSubject()).isEqualTo(Long.toString(userId));
         assertThat(jwt.getIssuer().toString()).isEqualTo("https://hanseomate.test");
+        assertThat(jwt.getClaimAsString("role")).isEqualTo("USER");
+    }
+
+    @Test
+    void adminApiRequiresAdminRoleFromNewlyIssuedToken() throws Exception {
+        String adminLinkRequest = objectMapper.writeValueAsString(Map.of(
+                "name", "관리자 테스트 링크",
+                "url", "https://example.com/admin-test",
+                "category", "TEST"
+        ));
+
+        mockMvc.perform(post("/api/admin/links")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(adminLinkRequest))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+
+        long userId = signup("role-user", "password");
+        MvcResult userLoginResult = login("role-user", "password")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andReturn();
+        String userToken = responseBody(userLoginResult)
+                .path("accessToken")
+                .stringValue();
+
+        mockMvc.perform(post("/api/admin/links")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(adminLinkRequest))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("관리자 권한이 필요합니다."));
+
+        jdbcTemplate.update(
+                "UPDATE user_accounts SET role = 'ADMIN' WHERE id = ?",
+                userId
+        );
+
+        mockMvc.perform(post("/api/admin/links")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(adminLinkRequest))
+                .andExpect(status().isForbidden());
+
+        MvcResult adminLoginResult = login("role-user", "password")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andReturn();
+        String adminToken = responseBody(adminLoginResult)
+                .path("accessToken")
+                .stringValue();
+        Jwt adminJwt = jwtDecoder.decode(adminToken);
+        assertThat(adminJwt.getClaimAsString("role")).isEqualTo("ADMIN");
+
+        mockMvc.perform(post("/api/admin/links")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(adminLinkRequest))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -194,6 +259,12 @@ class AuthApiIntegrationTest {
         mockMvc.perform(get("/api/links"))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(get("/api/clubs"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/notices/categories/admin"))
+                .andExpect(status().isOk());
+
         mockMvc.perform(get("/api/links")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
                 .andExpect(status().isOk());
@@ -235,6 +306,7 @@ class AuthApiIntegrationTest {
         try {
             jdbcTemplate.execute("TRUNCATE TABLE timetable_courses");
             jdbcTemplate.execute("TRUNCATE TABLE timetables");
+            jdbcTemplate.execute("TRUNCATE TABLE essential_links");
             jdbcTemplate.execute("TRUNCATE TABLE user_accounts");
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
