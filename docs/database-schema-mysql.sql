@@ -28,12 +28,35 @@ CREATE TABLE student_council_notices (
     INDEX idx_student_council_notices_created_at (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE user_accounts (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    login_id VARCHAR(100) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'USER',
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_user_account_login_id UNIQUE (login_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE semesters (
     id BINARY(16) NOT NULL,
     academic_year INT NOT NULL,
     semester INT NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_semester_year_term UNIQUE (academic_year, semester)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE timetables (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    owner_id BIGINT NOT NULL,
+    academic_year INT NOT NULL,
+    semester INT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_timetable_owner_term
+        UNIQUE (owner_id, academic_year, semester)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE academic_units (
@@ -193,6 +216,22 @@ CREATE TABLE course_schedules (
         FOREIGN KEY (offering_id) REFERENCES course_offerings (id),
     CONSTRAINT fk_schedule_classroom
         FOREIGN KEY (classroom_id) REFERENCES classrooms (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE timetable_courses (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    timetable_id BIGINT NOT NULL,
+    course_offering_id BINARY(16) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_timetable_course_offering
+        UNIQUE (timetable_id, course_offering_id),
+    INDEX ix_timetable_course_timetable (timetable_id),
+    INDEX ix_timetable_course_offering (course_offering_id),
+    CONSTRAINT fk_timetable_course_timetable
+        FOREIGN KEY (timetable_id) REFERENCES timetables (id) ON DELETE CASCADE,
+    CONSTRAINT fk_timetable_course_offering
+        FOREIGN KEY (course_offering_id) REFERENCES course_offerings (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE course_source_cells (

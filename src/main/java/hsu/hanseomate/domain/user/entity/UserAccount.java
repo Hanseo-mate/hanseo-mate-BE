@@ -1,8 +1,11 @@
 package hsu.hanseomate.domain.user.entity;
 
+import hsu.hanseomate.domain.user.type.UserRole;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -34,9 +37,14 @@ public class UserAccount extends BaseTimeEntity {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role;
+
     private UserAccount(String loginId, String passwordHash) {
         this.loginId = loginId;
         this.passwordHash = passwordHash;
+        this.role = UserRole.USER;
     }
 
     public static UserAccount create(String loginId, String passwordHash) {
