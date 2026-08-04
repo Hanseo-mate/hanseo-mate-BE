@@ -35,6 +35,7 @@ public class SecurityConfig {
     ) throws Exception {
         http
                 .securityMatcher("/api/timetables/**")
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -54,6 +55,7 @@ public class SecurityConfig {
     public SecurityFilterChain publicApiSecurityFilterChain(HttpSecurity http)
             throws Exception {
         http
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
