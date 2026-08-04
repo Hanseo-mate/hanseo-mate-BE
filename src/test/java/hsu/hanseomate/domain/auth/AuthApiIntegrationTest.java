@@ -159,6 +159,10 @@ class AuthApiIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
 
+        mockMvc.perform(get("/api/admin/clubs"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+
         long userId = signup("role-user", "password");
         MvcResult userLoginResult = login("role-user", "password")
                 .andExpect(status().isOk())
@@ -175,6 +179,11 @@ class AuthApiIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.message").value("관리자 권한이 필요합니다."));
+
+        mockMvc.perform(get("/api/admin/clubs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
 
         jdbcTemplate.update(
                 "UPDATE user_accounts SET role = 'ADMIN' WHERE id = ?",
@@ -202,6 +211,11 @@ class AuthApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(adminLinkRequest))
                 .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/admin/clubs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
     }
 
     @Test
