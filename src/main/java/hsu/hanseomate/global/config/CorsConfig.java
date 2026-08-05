@@ -20,9 +20,9 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource(
             CorsProperties corsProperties
     ) {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(corsProperties.allowedOrigins());
-        configuration.setAllowedMethods(List.of(
+        CorsConfiguration adminConfiguration = new CorsConfiguration();
+        adminConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        adminConfiguration.setAllowedMethods(List.of(
                 HttpMethod.GET.name(),
                 HttpMethod.POST.name(),
                 HttpMethod.PUT.name(),
@@ -30,18 +30,32 @@ public class CorsConfig {
                 HttpMethod.DELETE.name(),
                 HttpMethod.OPTIONS.name()
         ));
-        configuration.setAllowedHeaders(List.of(
+        adminConfiguration.setAllowedHeaders(List.of(
                 HttpHeaders.AUTHORIZATION,
                 HttpHeaders.CONTENT_TYPE,
                 HttpHeaders.ACCEPT
         ));
-        configuration.setExposedHeaders(List.of(HttpHeaders.LOCATION));
-        configuration.setAllowCredentials(false);
-        configuration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+        adminConfiguration.setExposedHeaders(List.of(HttpHeaders.LOCATION));
+        adminConfiguration.setAllowCredentials(false);
+        adminConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+
+        CorsConfiguration loginConfiguration = new CorsConfiguration();
+        loginConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        loginConfiguration.setAllowedMethods(List.of(
+                HttpMethod.POST.name(),
+                HttpMethod.OPTIONS.name()
+        ));
+        loginConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.CONTENT_TYPE,
+                HttpHeaders.ACCEPT
+        ));
+        loginConfiguration.setAllowCredentials(false);
+        loginConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/admin/**", configuration);
+        source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
+        source.registerCorsConfiguration("/api/auth/login", loginConfiguration);
         return source;
     }
 }
