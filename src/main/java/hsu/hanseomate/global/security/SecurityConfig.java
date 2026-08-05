@@ -85,9 +85,37 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
+    public SecurityFilterChain clubReviewSecurityFilterChain(
+            HttpSecurity http,
+            RestAuthenticationEntryPoint authenticationEntryPoint,
+            JwtAuthenticationConverter jwtAuthenticationConverter
+    ) throws Exception {
+        http
+                .securityMatcher("/api/clubs/reviews/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/clubs/reviews/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/clubs/reviews/**").authenticated()
+                        .anyRequest().permitAll())
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(
+                                jwtAuthenticationConverter
+                        ))
+                        .authenticationEntryPoint(authenticationEntryPoint));
+        return http.build();
+    }
+
+    @Bean
+    @Order(4)
     public SecurityFilterChain publicApiSecurityFilterChain(HttpSecurity http)
             throws Exception {
         http
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))

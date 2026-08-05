@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.club.entity;
 
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
+import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -29,7 +30,14 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(
         name = "club_reviews",
-        indexes = @Index(name = "idx_club_reviews_club", columnList = "club_id")
+        indexes = {
+                @Index(name = "idx_club_reviews_club", columnList = "club_id"),
+                @Index(name = "idx_club_reviews_reviewer", columnList = "reviewer_id")
+        },
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_club_reviews_club_reviewer",
+                columnNames = {"club_id", "reviewer_id"}
+        )
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ClubReview extends BaseTimeEntity {
@@ -42,6 +50,11 @@ public class ClubReview extends BaseTimeEntity {
     @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "club_id", nullable = false)
     private Club club;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @JoinColumn(name = "reviewer_id", nullable = false)
+    private UserAccount reviewer;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @OnDelete(action = OnDeleteAction.CASCADE)
@@ -62,16 +75,27 @@ public class ClubReview extends BaseTimeEntity {
     @Column(name = "review_option", nullable = false, length = 50)
     private Set<ClubReviewOption> reviewTags = new LinkedHashSet<>();
 
-    private ClubReview(Club club, Set<ClubReviewOption> reviewTags) {
+    private ClubReview(
+            Club club,
+            UserAccount reviewer,
+            Set<ClubReviewOption> reviewTags
+    ) {
         this.club = club;
+        this.reviewer = reviewer;
         this.reviewTags.addAll(reviewTags);
     }
 
     public static ClubReview create(
             Club club,
+            UserAccount reviewer,
             Set<ClubReviewOption> reviewTags
     ) {
-        return new ClubReview(club, reviewTags);
+        return new ClubReview(club, reviewer, reviewTags);
+    }
+
+    public void replaceReviewTags(Set<ClubReviewOption> reviewTags) {
+        this.reviewTags.clear();
+        this.reviewTags.addAll(reviewTags);
     }
 
     public Long getId() {
@@ -80,6 +104,10 @@ public class ClubReview extends BaseTimeEntity {
 
     public Club getClub() {
         return club;
+    }
+
+    public UserAccount getReviewer() {
+        return reviewer;
     }
 
     public Set<ClubReviewOption> getReviewTags() {

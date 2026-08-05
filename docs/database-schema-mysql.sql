@@ -323,12 +323,17 @@ CREATE TABLE club_likes (
 CREATE TABLE club_reviews (
     id BIGINT NOT NULL AUTO_INCREMENT,
     club_id BIGINT NOT NULL,
+    reviewer_id BIGINT NOT NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
+    CONSTRAINT uk_club_reviews_club_reviewer UNIQUE (club_id, reviewer_id),
     INDEX idx_club_reviews_club (club_id),
+    INDEX idx_club_reviews_reviewer (reviewer_id),
     CONSTRAINT fk_club_reviews_club
-        FOREIGN KEY (club_id) REFERENCES clubs (id) ON DELETE CASCADE
+        FOREIGN KEY (club_id) REFERENCES clubs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_club_reviews_reviewer
+        FOREIGN KEY (reviewer_id) REFERENCES user_accounts (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE club_review_selections (
