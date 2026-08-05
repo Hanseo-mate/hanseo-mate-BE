@@ -23,6 +23,8 @@ import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
 import hsu.hanseomate.domain.club.type.ClubCategory;
 import hsu.hanseomate.domain.club.type.ClubImageType;
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
+import hsu.hanseomate.domain.user.entity.UserAccount;
+import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import hsu.hanseomate.global.exception.BadRequestException;
 import hsu.hanseomate.global.exception.ResourceNotFoundException;
 import hsu.hanseomate.global.storage.LocalImageStorageService;
@@ -35,11 +37,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -58,6 +62,7 @@ public class ClubService {
     private final ClubRepository clubRepository;
     private final ClubLikeRepository clubLikeRepository;
     private final ClubReviewRepository clubReviewRepository;
+    private final UserAccountRepository userAccountRepository;
     private final LocalImageStorageService imageStorageService;
 
     public List<ClubSummaryResponse> getClubs(String category) {
@@ -204,20 +209,30 @@ public class ClubService {
     @Transactional
     public ClubReviewSaveResponse saveReview(
             Long clubId,
+            Long reviewerId,
             ClubReviewSaveRequest request
     ) {
         Club club = findClubForUpdate(clubId);
+        UserAccount reviewer = findReviewer(reviewerId);
         List<ClubReviewOption> requestedTags = request == null ? null : request.reviewTags();
+        Optional<ClubReview> existingReview =
+                clubReviewRepository.findByClubIdAndReviewerId(clubId, reviewerId);
 
         if (requestedTags == null || requestedTags.isEmpty()) {
-            clubReviewRepository.findFirstByClubIdOrderByIdDesc(clubId)
-                    .ifPresent(clubReviewRepository::delete);
+            existingReview.ifPresent(clubReviewRepository::delete);
             clubReviewRepository.flush();
             return new ClubReviewSaveResponse("활동 후기가 삭제되었습니다.");
         }
 
         Set<ClubReviewOption> reviewTags = validateReviewTags(requestedTags);
-        clubReviewRepository.saveAndFlush(ClubReview.create(club, reviewTags));
+        if (existingReview.isPresent()) {
+            existingReview.get().replaceReviewTags(reviewTags);
+            clubReviewRepository.flush();
+        } else {
+            clubReviewRepository.saveAndFlush(
+                    ClubReview.create(club, reviewer, reviewTags)
+            );
+        }
         return new ClubReviewSaveResponse("활동 후기가 등록되었습니다.");
     }
 
@@ -361,6 +376,13 @@ public class ClubService {
     private Club findClubForUpdate(Long clubId) {
         return clubRepository.findByIdForUpdate(clubId)
                 .orElseThrow(() -> clubNotFound(clubId));
+    }
+
+    private UserAccount findReviewer(Long reviewerId) {
+        return userAccountRepository.findById(reviewerId)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
+                        "로그인이 필요합니다."
+                ));
     }
 
     private ResourceNotFoundException clubNotFound(Long clubId) {
