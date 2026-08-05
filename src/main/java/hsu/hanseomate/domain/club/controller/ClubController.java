@@ -20,6 +20,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -133,14 +135,20 @@ public class ClubController {
     }
 
     @Operation(
-            summary = "활동 후기 등록·제거",
-            description = "1~5개 태그는 익명 후기 1건으로 누적하고, 빈 요청이나 빈 배열은 최근 후기 1건을 제거합니다."
+            summary = "내 활동 후기 등록·수정·제거",
+            description = "로그인 사용자는 동아리별 후기 1건을 작성할 수 있습니다. "
+                    + "1~5개 태그는 본인 후기를 등록하거나 수정하고, 빈 요청이나 빈 배열은 본인 후기를 제거합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "후기 반영 성공"),
             @ApiResponse(
                     responseCode = "400",
                     description = "잘못된 선택 개수, 중복 선택 또는 요청값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -152,8 +160,23 @@ public class ClubController {
     @PutMapping("/reviews/{clubId}")
     public ClubReviewSaveResponse saveReview(
             @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
-            @Valid @RequestBody(required = false) ClubReviewSaveRequest request
+            @Valid @RequestBody(required = false) ClubReviewSaveRequest request,
+            Authentication authentication
     ) {
-        return clubService.saveReview(clubId, request);
+        return clubService.saveReview(clubId, currentUserId(authentication), request);
+    }
+
+    private Long currentUserId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AuthenticationCredentialsNotFoundException("로그인이 필요합니다.");
+        }
+        try {
+            return Long.valueOf(authentication.getName());
+        } catch (NumberFormatException exception) {
+            throw new AuthenticationCredentialsNotFoundException(
+                    "유효하지 않은 인증 정보입니다.",
+                    exception
+            );
+        }
     }
 }

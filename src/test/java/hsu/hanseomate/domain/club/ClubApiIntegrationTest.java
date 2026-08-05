@@ -12,9 +12,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import com.jayway.jsonpath.JsonPath;
 import hsu.hanseomate.support.AdminMockMvcConfiguration;
+import hsu.hanseomate.domain.user.entity.UserAccount;
+import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -36,6 +40,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -92,6 +97,9 @@ class ClubApiIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private UserAccountRepository userAccountRepository;
+
     @BeforeEach
     void cleanUp() throws Exception {
         cleanTestUploads();
@@ -109,6 +117,7 @@ class ClubApiIntegrationTest {
         for (String tableName : clubTables) {
             jdbcTemplate.execute("DELETE FROM " + tableName);
         }
+        jdbcTemplate.execute("DELETE FROM user_accounts");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
     }
 
@@ -407,8 +416,10 @@ class ClubApiIntegrationTest {
     @Test
     void returnsAllReviewOptionsUsingTotalSelectedTagCount() throws Exception {
         long clubId = createClub("활동 후기 동아리", "ACADEMIC");
+        long reviewerId = createReviewUser();
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(reviewerId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reviewRequest(List.of(
                                 "BUILD_RESUME",
@@ -438,7 +449,7 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void calculatesReviewPercentagesAcrossAllAnonymousSubmissions() throws Exception {
+    void calculatesReviewPercentagesAcrossLoggedInReviewers() throws Exception {
         long clubId = createClub("후기 비율 동아리", "ACADEMIC");
         putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION"));
         putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION", "ENJOY_HOBBY"));
@@ -467,17 +478,24 @@ class ClubApiIntegrationTest {
     @Test
     void rejectsInvalidReviewSelectionsButAcceptsEmptySelection() throws Exception {
         long clubId = createClub("후기 검증 동아리", "ACADEMIC");
+        long reviewerId = createReviewUser();
 
-        expectInvalidReview(clubId, ALL_REVIEW_TAGS.subList(0, 6));
-        expectInvalidReview(clubId, List.of("BUILD_RESUME", "BUILD_RESUME"));
-        expectInvalidReview(clubId, List.of("UNKNOWN_REVIEW_TAG"));
+        expectInvalidReview(clubId, reviewerId, ALL_REVIEW_TAGS.subList(0, 6));
+        expectInvalidReview(
+                clubId,
+                reviewerId,
+                List.of("BUILD_RESUME", "BUILD_RESUME")
+        );
+        expectInvalidReview(clubId, reviewerId, List.of("UNKNOWN_REVIEW_TAG"));
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(reviewerId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reviewTags\":[null]}"))
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(reviewerId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reviewRequest(List.of())))
                 .andExpect(status().isOk())
@@ -486,21 +504,31 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void emptyReviewRequestsRemoveOnlyTheMostRecentSubmissionAndDeleteIsNotSupported()
+    void sameReviewerUpdatesOneRecordAndEmptyRequestRemovesOnlyOwnReview()
             throws Exception {
         long clubId = createClub("후기 누적 동아리", "ACADEMIC");
-        putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION"));
-        putReview(clubId, List.of("ENJOY_HOBBY"));
-        putReview(clubId, List.of("ENJOY_HOBBY"));
+        long firstReviewerId = createReviewUser();
+        long secondReviewerId = createReviewUser();
+
+        putReviewAsUser(
+                clubId,
+                firstReviewerId,
+                List.of("BUILD_RESUME", "ACADEMIC_PASSION")
+        );
+        putReviewAsUser(clubId, secondReviewerId, List.of("ENJOY_HOBBY"));
+        expectReviewerCount(clubId, 2);
+
+        putReviewAsUser(clubId, firstReviewerId, List.of("ENJOY_HOBBY"));
 
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'ENJOY_HOBBY')].percentage"
-                        ).value(hasItem(50.0)));
-        expectReviewerCount(clubId, 3);
+                        ).value(hasItem(100.0)));
+        expectReviewerCount(clubId, 2);
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(firstReviewerId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reviewRequest(List.of())))
                 .andExpect(status().isOk())
@@ -511,10 +539,11 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'ENJOY_HOBBY')].percentage"
-                        ).value(hasItem(33.33)));
-        expectReviewerCount(clubId, 2);
+                        ).value(hasItem(100.0)));
+        expectReviewerCount(clubId, 1);
 
-        mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId))
+        mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(firstReviewerId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", aMapWithSize(1)))
                 .andExpect(jsonPath("$.message").value("활동 후기가 삭제되었습니다."));
@@ -523,14 +552,32 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'ENJOY_HOBBY')].percentage"
-                        ).value(hasItem(0.0)))
+                        ).value(hasItem(100.0)))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'BUILD_RESUME')].percentage"
-                        ).value(hasItem(50.0)));
+                        ).value(hasItem(0.0)));
         expectReviewerCount(clubId, 1);
 
         mockMvc.perform(delete("/api/clubs/reviews/{clubId}", clubId))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void reviewWritingRequiresAuthenticationButStatisticsRemainPublic()
+            throws Exception {
+        long clubId = createClub("로그인 후기 동아리", "ACADEMIC");
+
+        mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(anonymous())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reviewRequest(List.of("BUILD_RESUME"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId)
+                        .with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.options.length()").value(26));
     }
 
     @Test
@@ -637,7 +684,9 @@ class ClubApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("liked", true))))
                 .andExpect(status().isNotFound());
+        long reviewUserId = createReviewUser();
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", 999999L)
+                        .with(userJwt(reviewUserId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reviewRequest(List.of("BUILD_RESUME"))))
                 .andExpect(status().isNotFound());
@@ -918,7 +967,16 @@ class ClubApiIntegrationTest {
     }
 
     private void putReview(long clubId, List<String> tags) throws Exception {
+        putReviewAsUser(clubId, createReviewUser(), tags);
+    }
+
+    private void putReviewAsUser(
+            long clubId,
+            long reviewerId,
+            List<String> tags
+    ) throws Exception {
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(reviewerId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reviewRequest(tags)))
                 .andExpect(status().isOk())
@@ -932,12 +990,30 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.reviewerCount").value(expectedCount));
     }
 
-    private void expectInvalidReview(long clubId, List<String> tags) throws Exception {
+    private void expectInvalidReview(
+            long clubId,
+            long reviewerId,
+            List<String> tags
+    ) throws Exception {
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(reviewerId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reviewRequest(tags)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
+    }
+
+    private long createReviewUser() {
+        String loginId = "club-review-user-" + System.nanoTime();
+        return userAccountRepository.saveAndFlush(
+                UserAccount.create(loginId, "test-password-hash")
+        ).getId();
+    }
+
+    private RequestPostProcessor userJwt(long userId) {
+        return jwt().jwt(token -> token
+                .subject(Long.toString(userId))
+                .claim("role", "USER"));
     }
 
     private String uploadImage(String endpoint, long clubId, String originalFileName)

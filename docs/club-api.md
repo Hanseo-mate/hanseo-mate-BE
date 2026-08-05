@@ -9,7 +9,8 @@ Image Content-Type: multipart/form-data
 ```
 
 JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/admin/**`는 ADMIN 역할만 접근할 수 있다.
-좋아요와 활동 후기 요청에 별도의 사용자 식별 헤더를 사용하지 않는다.
+활동 후기 조회는 공개 API이고, 활동 후기 등록·수정·제거에는 로그인 JWT가 필요하다.
+좋아요 요청에는 아직 별도의 사용자 식별 정보를 사용하지 않는다.
 
 ---
 
@@ -21,7 +22,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 사용자 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 사용자 | `PUT` | `/api/clubs/likes/{clubId}` | 익명 요청 단위 좋아요 수 변경 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
-| 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 익명 활동 후기 등록 또는 최근 후기 제거 |
+| 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
 | 관리자 | `GET` | `/api/admin/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | 관리자 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
@@ -95,7 +96,7 @@ GET /api/clubs/{clubId}
 ```
 
 `topReviewTags`는 누적 선택 수가 많은 순서대로 최대 3개를 반환한다.
-`reviewerCount`는 현재 인증 전 구조에서 고유 사용자 수가 아닌 등록된 후기 수다.
+`reviewerCount`는 현재 해당 동아리에 활동 후기를 남긴 로그인 사용자 수다.
 
 ---
 
@@ -175,10 +176,11 @@ percentage = 해당 태그 선택 수 ÷ 전체 태그 선택 수 × 100
 
 ---
 
-## 5. 활동 후기 등록 또는 최근 후기 제거
+## 5. 내 활동 후기 등록·수정·제거
 
 ```http
 PUT /api/clubs/reviews/{clubId}
+Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
@@ -193,9 +195,10 @@ Content-Type: application/json
 }
 ```
 
-1개 이상 5개 이하의 태그를 보내면 익명 후기 1건으로 누적한다.
+1개 이상 5개 이하의 태그를 보내면 로그인한 사용자의 후기를 저장한다.
+같은 사용자가 같은 동아리에 다시 요청하면 새 후기를 누적하지 않고 기존 후기를 교체한다.
 
-### 최근 후기 제거 요청
+### 내 후기 제거 요청
 
 ```json
 {
@@ -203,7 +206,8 @@ Content-Type: application/json
 }
 ```
 
-빈 배열, 빈 객체 또는 요청 본문 없이 호출하면 해당 동아리의 최근 후기 1건을 제거한다.
+빈 배열, 빈 객체 또는 요청 본문 없이 호출하면 로그인한 사용자가 해당 동아리에 작성한 후기만 제거한다.
+다른 사용자의 후기는 변경되지 않는다.
 
 ### 등록 응답
 
@@ -222,6 +226,11 @@ Content-Type: application/json
 ```
 
 별도의 활동 후기 `DELETE` API는 제공하지 않는다.
+
+- 로그인하지 않거나 토큰이 유효하지 않은 경우: `401 Unauthorized`
+- 존재하지 않는 동아리인 경우: `404 Not Found`
+- 로그인 사용자별로 동아리당 현재 후기 1건만 저장한다.
+- 후기 통계와 동아리 상세의 `reviewerCount`는 저장된 로그인 사용자 후기 기준으로 즉시 다시 계산된다.
 
 ---
 
