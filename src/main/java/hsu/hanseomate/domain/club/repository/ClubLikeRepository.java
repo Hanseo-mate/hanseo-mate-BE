@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface ClubLikeRepository extends JpaRepository<ClubLike, Long> {
 
-    Optional<ClubLike> findFirstByClubIdOrderByIdDesc(Long clubId);
+    Optional<ClubLike> findByClubIdAndLikerId(Long clubId, Long likerId);
 
     long countByClubId(Long clubId);
 

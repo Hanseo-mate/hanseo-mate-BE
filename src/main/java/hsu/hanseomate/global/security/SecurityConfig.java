@@ -85,13 +85,16 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    public SecurityFilterChain clubReviewSecurityFilterChain(
+    public SecurityFilterChain clubEngagementSecurityFilterChain(
             HttpSecurity http,
             RestAuthenticationEntryPoint authenticationEntryPoint,
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
-                .securityMatcher("/api/clubs/reviews/**")
+                .securityMatcher(
+                        "/api/clubs/reviews/**",
+                        "/api/clubs/likes/**"
+                )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -99,6 +102,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/clubs/reviews/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/clubs/reviews/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/clubs/likes/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint))

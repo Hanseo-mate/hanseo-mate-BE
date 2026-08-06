@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.club.controller;
 
 import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
+import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
 import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
 import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
@@ -74,6 +75,40 @@ public class AdminClubController {
             @RequestParam(required = false) String category
     ) {
         return clubService.getClubs(category);
+    }
+
+    @Operation(
+            summary = "관리자용 동아리 상세 조회",
+            description = "일반 사용자용 동아리 상세 조회와 동일한 결과를 반환하며 ADMIN 권한이 필요합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 동아리 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 권한 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "동아리 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @GetMapping("/{clubId}")
+    public ClubDetailResponse getClub(
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
+    ) {
+        return clubService.getClub(clubId);
     }
 
     @Operation(

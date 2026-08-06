@@ -87,13 +87,18 @@ public class ClubController {
 
     @Operation(
             summary = "좋아요 상태 설정",
-            description = "인증 없는 테스트 방식입니다. liked=true 요청마다 1건 증가하고 false 요청마다 최근 1건을 감소시킵니다."
+            description = "로그인 사용자의 좋아요 상태를 설정합니다. 같은 상태를 반복 요청해도 중복 반영되지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "좋아요 상태 반영 성공"),
             @ApiResponse(
                     responseCode = "400",
                     description = "잘못된 요청값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -105,9 +110,10 @@ public class ClubController {
     @PutMapping("/likes/{clubId}")
     public ClubLikeResponse setLike(
             @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
-            @Valid @RequestBody ClubLikeRequest request
+            @Valid @RequestBody ClubLikeRequest request,
+            Authentication authentication
     ) {
-        return clubService.setLike(clubId, request);
+        return clubService.setLike(clubId, currentUserId(authentication), request);
     }
 
     @Operation(

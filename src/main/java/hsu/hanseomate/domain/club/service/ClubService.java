@@ -186,15 +186,23 @@ public class ClubService {
     }
 
     @Transactional
-    public ClubLikeResponse setLike(Long clubId, ClubLikeRequest request) {
+    public ClubLikeResponse setLike(
+            Long clubId,
+            Long likerId,
+            ClubLikeRequest request
+    ) {
         Club club = findClubForUpdate(clubId);
+        UserAccount liker = findAuthenticatedUser(likerId);
         boolean requestedLike = Boolean.TRUE.equals(request.liked());
+        Optional<ClubLike> existingLike =
+                clubLikeRepository.findByClubIdAndLikerId(clubId, likerId);
 
         if (requestedLike) {
-            clubLikeRepository.save(ClubLike.create(club));
+            if (existingLike.isEmpty()) {
+                clubLikeRepository.save(ClubLike.create(club, liker));
+            }
         } else {
-            clubLikeRepository.findFirstByClubIdOrderByIdDesc(clubId)
-                    .ifPresent(clubLikeRepository::delete);
+            existingLike.ifPresent(clubLikeRepository::delete);
         }
         clubLikeRepository.flush();
 
@@ -213,7 +221,7 @@ public class ClubService {
             ClubReviewSaveRequest request
     ) {
         Club club = findClubForUpdate(clubId);
-        UserAccount reviewer = findReviewer(reviewerId);
+        UserAccount reviewer = findAuthenticatedUser(reviewerId);
         List<ClubReviewOption> requestedTags = request == null ? null : request.reviewTags();
         Optional<ClubReview> existingReview =
                 clubReviewRepository.findByClubIdAndReviewerId(clubId, reviewerId);
@@ -378,8 +386,8 @@ public class ClubService {
                 .orElseThrow(() -> clubNotFound(clubId));
     }
 
-    private UserAccount findReviewer(Long reviewerId) {
-        return userAccountRepository.findById(reviewerId)
+    private UserAccount findAuthenticatedUser(Long userId) {
+        return userAccountRepository.findById(userId)
                 .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
                         "로그인이 필요합니다."
                 ));

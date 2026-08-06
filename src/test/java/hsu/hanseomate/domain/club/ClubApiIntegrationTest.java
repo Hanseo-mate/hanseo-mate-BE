@@ -214,7 +214,7 @@ class ClubApiIntegrationTest {
         setLike(clubId, true);
         putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION"));
 
-        mockMvc.perform(get("/api/clubs/{clubId}", clubId))
+        MvcResult publicDetailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", aMapWithSize(12)))
                 .andExpect(jsonPath("$.name").value("상세 조회 동아리"))
@@ -237,7 +237,36 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.id").doesNotExist())
                 .andExpect(jsonPath("$.category").doesNotExist())
                 .andExpect(jsonPath("$.createdAt").doesNotExist())
-                .andExpect(jsonPath("$.updatedAt").doesNotExist());
+                .andExpect(jsonPath("$.updatedAt").doesNotExist())
+                .andReturn();
+
+        MvcResult adminDetailResult = mockMvc.perform(
+                        get("/api/admin/clubs/{clubId}", clubId)
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(adminDetailResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .isEqualTo(publicDetailResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void adminClubDetailRequiresAdminRole() throws Exception {
+        long clubId = createClub("관리자 상세 조회 동아리", "ACADEMIC");
+        long userId = createReviewUser();
+
+        mockMvc.perform(get("/api/admin/clubs/{clubId}", clubId).with(anonymous()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/admin/clubs/{clubId}", clubId).with(userJwt(userId)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/admin/clubs/{clubId}", clubId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("관리자 상세 조회 동아리"));
+
+        mockMvc.perform(get("/api/admin/clubs/{clubId}", 999999L))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -396,20 +425,37 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void incrementsAndDecrementsLikeCountPerRequestWithoutClientIdentity() throws Exception {
+    void storesAtMostOneLikePerAuthenticatedUser() throws Exception {
         long clubId = createClub("좋아요 동아리", "ACADEMIC");
+        long firstUserId = createReviewUser();
+        long secondUserId = createReviewUser();
 
-        setLikeAndExpect(clubId, true, true, 1);
-        setLikeAndExpect(clubId, true, true, 2);
-        setLikeAndExpect(clubId, true, true, 3);
-        setLikeAndExpect(clubId, false, false, 2);
-        setLikeAndExpect(clubId, false, false, 1);
-        setLikeAndExpect(clubId, false, false, 0);
-        setLikeAndExpect(clubId, false, false, 0);
+        setLikeAndExpect(clubId, firstUserId, true, true, 1);
+        setLikeAndExpect(clubId, firstUserId, true, true, 1);
+        setLikeAndExpect(clubId, secondUserId, true, true, 2);
+        setLikeAndExpect(clubId, firstUserId, false, false, 1);
+        setLikeAndExpect(clubId, firstUserId, false, false, 1);
+        setLikeAndExpect(clubId, secondUserId, false, false, 0);
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.liked").doesNotExist())
+                .andExpect(jsonPath("$.likeCount").value(0));
+    }
+
+    @Test
+    void likingClubRequiresAuthentication() throws Exception {
+        long clubId = createClub("로그인 좋아요 동아리", "ACADEMIC");
+
+        mockMvc.perform(put("/api/clubs/likes/{clubId}", clubId)
+                        .with(anonymous())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("liked", true))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
+
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId).with(anonymous()))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.likeCount").value(0));
     }
 
@@ -681,6 +727,7 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
         mockMvc.perform(put("/api/clubs/likes/{clubId}", 999999L)
+                        .with(userJwt(createReviewUser()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("liked", true))))
                 .andExpect(status().isNotFound());
@@ -793,6 +840,18 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/{clubId}'].put.responses['204']"
                 ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/{clubId}'].get.responses['200']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/{clubId}'].get.responses['401']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/{clubId}'].get.responses['403']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/clubs/{clubId}'].get.responses['404']"
+                ).exists())
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties",
                         aMapWithSize(7)))
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.name")
@@ -895,6 +954,8 @@ class ClubApiIntegrationTest {
                 ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].put.responses['200']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].put.responses['401']")
+                        .exists())
                 .andExpect(jsonPath("$.paths['/api/clubs/reviews/{clubId}'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath(
@@ -945,7 +1006,12 @@ class ClubApiIntegrationTest {
     }
 
     private void setLike(long clubId, boolean liked) throws Exception {
+        setLikeAsUser(clubId, createReviewUser(), liked);
+    }
+
+    private void setLikeAsUser(long clubId, long userId, boolean liked) throws Exception {
         mockMvc.perform(put("/api/clubs/likes/{clubId}", clubId)
+                        .with(userJwt(userId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("liked", liked))))
                 .andExpect(status().isOk());
@@ -953,11 +1019,13 @@ class ClubApiIntegrationTest {
 
     private void setLikeAndExpect(
             long clubId,
+            long userId,
             boolean requestedState,
             boolean expectedState,
             long expectedCount
     ) throws Exception {
         mockMvc.perform(put("/api/clubs/likes/{clubId}", clubId)
+                        .with(userJwt(userId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("liked", requestedState))))
                 .andExpect(status().isOk())
