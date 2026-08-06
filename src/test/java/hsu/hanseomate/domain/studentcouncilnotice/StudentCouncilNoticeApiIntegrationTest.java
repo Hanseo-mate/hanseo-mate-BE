@@ -1,6 +1,8 @@
 package hsu.hanseomate.domain.studentcouncilnotice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import hsu.hanseomate.domain.studentcouncilnotice.entity.StudentCouncilNotice;
 import hsu.hanseomate.domain.studentcouncilnotice.repository.StudentCouncilNoticeRepository;
 import hsu.hanseomate.support.AdminMockMvcConfiguration;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,8 +25,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
@@ -129,6 +135,75 @@ class StudentCouncilNoticeApiIntegrationTest {
     }
 
     @Test
+    void adminListReturnsSamePageAsPublicList() throws Exception {
+        studentCouncilNoticeRepository.saveAndFlush(
+                StudentCouncilNotice.create("관리자 목록 공지", "관리자 목록 내용")
+        );
+
+        MvcResult publicResult = mockMvc.perform(
+                        get("/api/notices/categories/admin").param("page", "0")
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MvcResult adminResult = mockMvc.perform(
+                        get("/api/admin/notices").param("page", "0")
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(adminResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .isEqualTo(publicResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void adminDetailReturnsSameResponseAsPublicDetail() throws Exception {
+        StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
+                StudentCouncilNotice.create("관리자 상세 공지", "관리자 상세 내용 📢")
+        );
+
+        MvcResult publicResult = mockMvc.perform(get(
+                        "/api/notices/categories/admin/{noticeId}",
+                        notice.getId()
+                ))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MvcResult adminResult = mockMvc.perform(get(
+                        "/api/admin/notices/{noticeId}",
+                        notice.getId()
+                ))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(adminResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .isEqualTo(publicResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void adminNoticeReadApisRequireAdminRole() throws Exception {
+        StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
+                StudentCouncilNotice.create("권한 확인 공지", "권한 확인 내용")
+        );
+
+        mockMvc.perform(get("/api/admin/notices").with(anonymous()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
+
+        mockMvc.perform(get("/api/admin/notices/{noticeId}", notice.getId())
+                        .with(anonymous()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/admin/notices").with(userJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("관리자 권한이 필요합니다."));
+
+        mockMvc.perform(get("/api/admin/notices/{noticeId}", notice.getId())
+                        .with(userJwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void updatesStudentCouncilNoticeWithoutChangingCreatedAt() throws Exception {
         StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
                 StudentCouncilNotice.create("수정 전", "수정 전 내용")
@@ -188,6 +263,10 @@ class StudentCouncilNoticeApiIntegrationTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.path")
                         .value("/api/notices/categories/admin/999999"));
+
+        mockMvc.perform(get("/api/admin/notices/{noticeId}", 999999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.path").value("/api/admin/notices/999999"));
 
         mockMvc.perform(put("/api/admin/notices/{noticeId}", 999999L)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -256,5 +335,13 @@ class StudentCouncilNoticeApiIntegrationTest {
                   "content": "학생회 공지 내용입니다."
                 }
                 """;
+    }
+
+    private RequestPostProcessor userJwt() {
+        return jwt()
+                .jwt(token -> token
+                        .subject("user-test")
+                        .claim("role", "USER"))
+                .authorities(new SimpleGrantedAuthority("ROLE_USER"));
     }
 }
