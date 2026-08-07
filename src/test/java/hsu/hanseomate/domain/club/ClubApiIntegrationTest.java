@@ -227,7 +227,7 @@ class ClubApiIntegrationTest {
     void returnsUnifiedClubDetailWithInformationRecruitmentAndReviewerCount()
             throws Exception {
         long clubId = createClub("상세 조회 동아리", "HOBBY");
-        setLike(clubId, true);
+        toggleLike(clubId);
         putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION"));
 
         MvcResult publicDetailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
@@ -403,7 +403,7 @@ class ClubApiIntegrationTest {
     @Test
     void updatesClubTextSectionsWithoutRemovingInteractionData() throws Exception {
         long clubId = createClub("수정 전 동아리", "RELIGION");
-        setLike(clubId, true);
+        toggleLike(clubId);
         putReview(clubId, List.of("BUILD_RESUME"));
 
         String longIntroduction = "아주 긴 동아리 소개와 이모지 🦁\n".repeat(700);
@@ -442,21 +442,32 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void storesAtMostOneLikePerAuthenticatedUser() throws Exception {
+    void togglesLikeForAuthenticatedUser() throws Exception {
         long clubId = createClub("좋아요 동아리", "ACADEMIC");
         long firstUserId = createReviewUser();
         long secondUserId = createReviewUser();
 
-        setLikeAndExpect(clubId, firstUserId, true, true, 1);
-        setLikeAndExpect(clubId, firstUserId, true, true, 1);
-        setLikeAndExpect(clubId, secondUserId, true, true, 2);
-        setLikeAndExpect(clubId, firstUserId, false, false, 1);
-        setLikeAndExpect(clubId, firstUserId, false, false, 1);
-        setLikeAndExpect(clubId, secondUserId, false, false, 0);
+        toggleLikeAndExpect(clubId, firstUserId, true, 1);
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId).with(userJwt(firstUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likedByMe").value(true))
+                .andExpect(jsonPath("$.likeCount").value(1));
+
+        toggleLikeAndExpect(clubId, firstUserId, false, 0);
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId).with(userJwt(firstUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likedByMe").value(false))
+                .andExpect(jsonPath("$.likeCount").value(0));
+
+        toggleLikeAndExpect(clubId, firstUserId, true, 1);
+        toggleLikeAndExpect(clubId, secondUserId, true, 2);
+        toggleLikeAndExpect(clubId, firstUserId, false, 1);
+        toggleLikeAndExpect(clubId, secondUserId, false, 0);
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.liked").doesNotExist())
+                .andExpect(jsonPath("$.likedByMe").value(false))
                 .andExpect(jsonPath("$.likeCount").value(0));
     }
 
@@ -464,10 +475,8 @@ class ClubApiIntegrationTest {
     void likingClubRequiresAuthentication() throws Exception {
         long clubId = createClub("로그인 좋아요 동아리", "ACADEMIC");
 
-        mockMvc.perform(put("/api/clubs/likes/{clubId}", clubId)
-                        .with(anonymous())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("liked", true))))
+        mockMvc.perform(post("/api/clubs/likes/{clubId}", clubId)
+                        .with(anonymous()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
 
@@ -482,7 +491,7 @@ class ClubApiIntegrationTest {
         long likedClubId = createClub("좋아요한 동아리", "ACADEMIC");
         long unlikedClubId = createClub("좋아요하지 않은 동아리", "SPORTS");
         long userId = createReviewUser();
-        setLikeAsUser(likedClubId, userId, true);
+        toggleLikeAsUser(likedClubId, userId);
 
         mockMvc.perform(get("/api/clubs").with(anonymous()))
                 .andExpect(status().isOk())
@@ -816,7 +825,7 @@ class ClubApiIntegrationTest {
     void isolatesLikesAndReviewsByClub() throws Exception {
         long firstClubId = createClub("첫 번째 동아리", "ACADEMIC");
         long secondClubId = createClub("두 번째 동아리", "SPORTS");
-        setLike(firstClubId, true);
+        toggleLike(firstClubId);
         putReview(firstClubId, List.of("BUILD_RESUME"));
 
         mockMvc.perform(get("/api/clubs/{clubId}", firstClubId))
@@ -835,8 +844,8 @@ class ClubApiIntegrationTest {
     @Test
     void deletesClubTogetherWithLikesReviewsAndManagedImages() throws Exception {
         long clubId = createClub("삭제할 동아리", "RELIGION");
-        setLike(clubId, true);
-        setLike(clubId, true);
+        toggleLike(clubId);
+        toggleLike(clubId);
         putReview(clubId, List.of("BUILD_RESUME", "ACADEMIC_PASSION"));
         putReview(clubId, List.of("BUILD_RESUME"));
         String profileUrl = uploadImage(
@@ -885,10 +894,8 @@ class ClubApiIntegrationTest {
         mockMvc.perform(get("/api/clubs/{clubId}", 999999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
-        mockMvc.perform(put("/api/clubs/likes/{clubId}", 999999L)
-                        .with(userJwt(createReviewUser()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("liked", true))))
+        mockMvc.perform(post("/api/clubs/likes/{clubId}", 999999L)
+                        .with(userJwt(createReviewUser())))
                 .andExpect(status().isNotFound());
         long reviewUserId = createReviewUser();
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", 999999L)
@@ -1120,10 +1127,21 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/clubs/recruitments/{clubId}']"
                 ).doesNotExist())
-                .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].put.responses['200']")
+                .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].post.responses['200']")
                         .exists())
-                .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].put.responses['401']")
+                .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].post.responses['401']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/clubs/likes/{clubId}'].put")
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.paths['/api/clubs/likes/{clubId}'].post.requestBody"
+                ).doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubLikeResponse.properties.likedByMe"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubLikeResponse.properties.liked"
+                ).doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/clubs/reviews/{clubId}'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath(
@@ -1192,32 +1210,28 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isNoContent());
     }
 
-    private void setLike(long clubId, boolean liked) throws Exception {
-        setLikeAsUser(clubId, createReviewUser(), liked);
+    private void toggleLike(long clubId) throws Exception {
+        toggleLikeAsUser(clubId, createReviewUser());
     }
 
-    private void setLikeAsUser(long clubId, long userId, boolean liked) throws Exception {
-        mockMvc.perform(put("/api/clubs/likes/{clubId}", clubId)
-                        .with(userJwt(userId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("liked", liked))))
+    private void toggleLikeAsUser(long clubId, long userId) throws Exception {
+        mockMvc.perform(post("/api/clubs/likes/{clubId}", clubId)
+                        .with(userJwt(userId)))
                 .andExpect(status().isOk());
     }
 
-    private void setLikeAndExpect(
+    private void toggleLikeAndExpect(
             long clubId,
             long userId,
-            boolean requestedState,
             boolean expectedState,
             long expectedCount
     ) throws Exception {
-        mockMvc.perform(put("/api/clubs/likes/{clubId}", clubId)
-                        .with(userJwt(userId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("liked", requestedState))))
+        mockMvc.perform(post("/api/clubs/likes/{clubId}", clubId)
+                        .with(userJwt(userId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.clubId").value(clubId))
-                .andExpect(jsonPath("$.liked").value(expectedState))
+                .andExpect(jsonPath("$.likedByMe").value(expectedState))
+                .andExpect(jsonPath("$.liked").doesNotExist())
                 .andExpect(jsonPath("$.likeCount").value(expectedCount));
     }
 

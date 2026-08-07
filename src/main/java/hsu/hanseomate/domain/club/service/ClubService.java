@@ -4,7 +4,6 @@ import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
-import hsu.hanseomate.domain.club.dto.ClubLikeRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewOptionResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
@@ -199,27 +198,30 @@ public class ClubService {
     }
 
     @Transactional
-    public ClubLikeResponse setLike(
+    public ClubLikeResponse toggleLike(
             Long clubId,
-            Long likerId,
-            ClubLikeRequest request
+            Long likerId
     ) {
         Club club = findClubForUpdate(clubId);
         UserAccount liker = findAuthenticatedUser(likerId);
-        boolean requestedLike = Boolean.TRUE.equals(request.liked());
         Optional<ClubLike> existingLike =
                 clubLikeRepository.findByClubIdAndLikerId(clubId, likerId);
 
-        if (requestedLike) {
-            if (existingLike.isEmpty()) {
-                clubLikeRepository.save(ClubLike.create(club, liker));
-            }
+        boolean likedByMe;
+        if (existingLike.isPresent()) {
+            clubLikeRepository.delete(existingLike.get());
+            likedByMe = false;
         } else {
-            existingLike.ifPresent(clubLikeRepository::delete);
+            clubLikeRepository.save(ClubLike.create(club, liker));
+            likedByMe = true;
         }
         clubLikeRepository.flush();
 
-        return new ClubLikeResponse(clubId, requestedLike, clubLikeRepository.countByClubId(clubId));
+        return new ClubLikeResponse(
+                clubId,
+                likedByMe,
+                clubLikeRepository.countByClubId(clubId)
+        );
     }
 
     public ClubReviewStatisticsResponse getReview(Long clubId) {

@@ -105,7 +105,7 @@ public class SecurityConfig {
                                 "/api/clubs/reviews/*/me"
                         ).authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/clubs/reviews/**").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/api/clubs/likes/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/clubs/likes/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint))
