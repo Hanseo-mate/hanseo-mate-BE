@@ -55,6 +55,14 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
+        source.registerCorsConfiguration(
+                "/api/v1/timetables/major",
+                adminConfiguration
+        );
+        source.registerCorsConfiguration(
+                "/api/v1/timetables/general-education",
+                adminConfiguration
+        );
         source.registerCorsConfiguration("/api/auth/login", loginConfiguration);
         return source;
     }

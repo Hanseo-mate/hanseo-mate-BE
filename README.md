@@ -108,8 +108,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `POST` | `/api/admin/links` | 링크 등록 |
 | `PUT` | `/api/admin/links/{linkId}` | 링크 전체 수정 |
 | `DELETE` | `/api/admin/links/{linkId}` | 링크 삭제 |
-| `POST` | `/api/v1/timetables/major` | 전공 시간표 엑셀 분석 및 일괄 저장 |
-| `POST` | `/api/v1/timetables/general-education` | 교양 시간표 엑셀 분석 및 일괄 저장 |
+| `POST` | `/api/v1/timetables/major` | 관리자 전용 전공 시간표 엑셀 분석 및 일괄 저장 |
+| `POST` | `/api/v1/timetables/general-education` | 관리자 전용 교양 시간표 엑셀 분석 및 일괄 저장 |
 | `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |
@@ -229,6 +229,7 @@ SWAGGER_API_DOCS_ENABLED=true
 
 - 회원가입과 로그인 성공 시 JWT Access Token을 발급합니다.
 - `/api/admin/**`는 `ADMIN` 역할만 접근할 수 있습니다.
+- 전공·교양 엑셀 수입 API는 `ADMIN` 역할만 접근할 수 있습니다.
 - 시간표 구성 API, 동아리 좋아요 및 활동 후기 작성에는 로그인 JWT가 필요합니다.
 - 동아리 목록·상세와 활동 후기 통계 조회는 로그인 없이 사용할 수 있습니다.
 

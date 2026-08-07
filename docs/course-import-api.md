@@ -15,7 +15,8 @@
 
 Spring Boot가 엑셀 업로드부터 파싱, 검토, 트랜잭션 저장까지 전부 처리한다.
 
-현재 로그인·JWT·관리자 권한은 구현하지 않았으므로 수입 API에도 인증 검사가 없다.
+전공·교양 엑셀 수입 API는 모두 관리자 전용이다. `ADMIN` 역할이 포함된 유효한
+Bearer JWT가 필요하며, 토큰이 없으면 `401`, 일반 사용자이면 `403`을 반환한다.
 
 ---
 
@@ -37,6 +38,7 @@ Spring Boot가 엑셀 업로드부터 파싱, 검토, 트랜잭션 저장까지 
 
 ```http
 POST /api/v1/timetables/major
+Authorization: Bearer {ADMIN_ACCESS_TOKEN}
 Content-Type: multipart/form-data
 ```
 
@@ -44,9 +46,10 @@ Content-Type: multipart/form-data
 
 1. Method를 `POST`로 선택한다.
 2. URL에 `http://localhost:8080/api/v1/timetables/major`를 입력한다.
-3. `Body` → `form-data`를 선택한다.
-4. Key를 `file`, 타입을 `File`로 변경한다.
-5. 전공 시간표 `.xlsx` 또는 `.xlsm` 파일을 선택해 전송한다.
+3. `Authorization`에서 `Bearer Token`을 선택하고 관리자 Access Token을 입력한다.
+4. `Body` → `form-data`를 선택한다.
+5. Key를 `file`, 타입을 `File`로 변경한다.
+6. 전공 시간표 `.xlsx` 또는 `.xlsm` 파일을 선택해 전송한다.
 
 별도 JSON body와 `X-IMPORT-ID`, `X-PARSER-SCHEMA-VERSION`, `Idempotency-Key` 헤더는 필요하지 않다.
 
@@ -56,6 +59,7 @@ Content-Type: multipart/form-data
 
 ```http
 POST /api/v1/timetables/general-education
+Authorization: Bearer {ADMIN_ACCESS_TOKEN}
 Content-Type: multipart/form-data
 ```
 
@@ -157,6 +161,8 @@ Postman 설정은 전공과 같고, `file`에 교양 시간표를 선택한다.
 | HTTP | 대표 코드 | 설명 |
 |---:|---|---|
 | 400 | `FILE_MISSING`, `EMPTY_FILE`, `UNSUPPORTED_EXTENSION`, `INVALID_XLSX_SIGNATURE`, `WORKBOOK_OPEN_FAILED` | 요청 파일 또는 엑셀 컨테이너 오류 |
+| 401 | - | JWT가 없거나 유효하지 않음 |
+| 403 | - | 로그인했지만 `ADMIN` 역할이 아님 |
 | 413 | `FILE_TOO_LARGE`, `WORKBOOK_TOO_LARGE`, `WORKBOOK_ARCHIVE_TOO_LARGE` | 업로드 또는 압축 해제 후 처리 크기 제한 초과 |
 | 422 | `NO_LECTURES_PARSED`, `TOO_MANY_SHEETS`, `SEMESTER_NOT_FOUND`, `SEMESTER_CONFLICT`, `CURRICULUM_TYPE_NOT_DETECTED`, `CURRICULUM_TYPE_MISMATCH`, `MIXED_CURRICULUM_WORKBOOK` | 파일은 열렸지만 안전하게 강좌 스냅샷으로 판단할 수 없음 |
 | 500 | - | 예기치 못한 서버·DB 오류. 저장 트랜잭션 전체 롤백 |
@@ -389,6 +395,9 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
 
 ---
 
-## 9. 현재 보안 주의사항
+## 9. 인증 및 권한
 
-로그인, JWT, 관리자 계정과 권한 검사는 아직 구현하지 않았다. 기능 검증 중에는 사용할 수 있지만, 인터넷에 정식 공개하기 전 관리자 수입 API에 인증과 권한 검사를 추가해야 한다.
+- 전공·교양 엑셀 수입은 `ADMIN` 역할만 사용할 수 있다.
+- JWT가 없거나 잘못되었거나 만료되면 `401 Unauthorized`를 반환한다.
+- `USER` 역할로 요청하면 `403 Forbidden`을 반환한다.
+- 강좌 조회 API인 `GET /api/courses`는 기존처럼 인증 없이 사용할 수 있다.
