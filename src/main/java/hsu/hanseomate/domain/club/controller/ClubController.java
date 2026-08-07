@@ -1,7 +1,6 @@
 package hsu.hanseomate.domain.club.controller;
 
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
-import hsu.hanseomate.domain.club.dto.ClubLikeRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
@@ -28,6 +27,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -102,14 +102,14 @@ public class ClubController {
     }
 
     @Operation(
-            summary = "좋아요 상태 설정",
-            description = "로그인 사용자의 좋아요 상태를 설정합니다. 같은 상태를 반복 요청해도 중복 반영되지 않습니다."
+            summary = "좋아요 토글",
+            description = "로그인 사용자의 현재 좋아요 상태를 반전합니다. 요청 본문은 사용하지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "좋아요 상태 반영 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 요청값",
+                    description = "잘못된 동아리 ID",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -123,13 +123,12 @@ public class ClubController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    @PutMapping("/likes/{clubId}")
-    public ClubLikeResponse setLike(
+    @PostMapping("/likes/{clubId}")
+    public ClubLikeResponse toggleLike(
             @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
-            @Valid @RequestBody ClubLikeRequest request,
             Authentication authentication
     ) {
-        return clubService.setLike(clubId, currentUserId(authentication), request);
+        return clubService.toggleLike(clubId, currentUserId(authentication));
     }
 
     @Operation(

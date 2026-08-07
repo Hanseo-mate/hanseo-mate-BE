@@ -2,7 +2,7 @@ package hsu.hanseomate.domain.club.dto;
 
 public record ClubLikeResponse(
         Long clubId,
-        boolean liked,
+        boolean likedByMe,
         long likeCount
 ) {
 }
