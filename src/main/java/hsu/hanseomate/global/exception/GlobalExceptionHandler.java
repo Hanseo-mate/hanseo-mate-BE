@@ -2,6 +2,8 @@ package hsu.hanseomate.global.exception;
 
 import hsu.hanseomate.domain.courseimport.exception.CourseImportContractException;
 import hsu.hanseomate.domain.courseimport.parser.common.CourseWorkbookParseException;
+import hsu.hanseomate.domain.timetable.composition.dto.TimetableErrorResponse;
+import hsu.hanseomate.domain.timetable.composition.exception.TimetableApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.Set;
@@ -40,6 +42,15 @@ public class GlobalExceptionHandler {
             "CURRICULUM_TYPE_NOT_DETECTED",
             "CURRICULUM_TYPE_MISMATCH"
     );
+
+    @ExceptionHandler(TimetableApiException.class)
+    public ResponseEntity<TimetableErrorResponse> handleTimetableApi(
+            TimetableApiException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(exception.getErrorCode().getStatus())
+                .body(TimetableErrorResponse.of(exception, request.getRequestURI()));
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(

@@ -5,6 +5,7 @@ import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,15 @@ import org.springframework.data.repository.query.Param;
 public interface CourseOfferingRepository
         extends JpaRepository<CourseOffering, UUID>,
         org.springframework.data.jpa.repository.JpaSpecificationExecutor<CourseOffering> {
+
+    @EntityGraph(attributePaths = {
+            "semester",
+            "course",
+            "academicUnit",
+            "generalEducation"
+    })
+    @Query("select o from CourseOffering o where o.id = :id")
+    Optional<CourseOffering> findDetailedById(@Param("id") UUID id);
 
     @Query("""
             select o.id from CourseOffering o
