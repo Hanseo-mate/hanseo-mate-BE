@@ -28,7 +28,17 @@ public class StudentCouncilNoticeService {
         );
     }
 
-    public StudentCouncilNoticeDetailResponse getNotice(Long noticeId) {
+    public StudentCouncilNoticeDetailResponse getNoticeForAdmin(Long noticeId) {
+        return StudentCouncilNoticeDetailResponse.from(findNotice(noticeId));
+    }
+
+    @Transactional
+    public StudentCouncilNoticeDetailResponse getNoticeAndIncrementViewCount(Long noticeId) {
+        int updatedRows = studentCouncilNoticeRepository.incrementViewCount(noticeId);
+        if (updatedRows == 0) {
+            throw new StudentCouncilNoticeNotFoundException(noticeId);
+        }
+
         return StudentCouncilNoticeDetailResponse.from(findNotice(noticeId));
     }
 
