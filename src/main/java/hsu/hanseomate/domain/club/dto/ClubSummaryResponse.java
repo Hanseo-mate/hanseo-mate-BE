@@ -12,6 +12,7 @@ public record ClubSummaryResponse(
         String profileImageUrl,
         String shortDescription,
         long likeCount,
+        boolean likedByMe,
         List<ClubReviewOption> topReviewTags
 ) {
 
@@ -22,6 +23,7 @@ public record ClubSummaryResponse(
     public static ClubSummaryResponse from(
             Club club,
             long likeCount,
+            boolean likedByMe,
             List<ClubReviewOption> topReviewTags
     ) {
         return new ClubSummaryResponse(
@@ -31,6 +33,7 @@ public record ClubSummaryResponse(
                 club.getProfileImageUrl(),
                 club.getShortDescription(),
                 likeCount,
+                likedByMe,
                 topReviewTags
         );
     }

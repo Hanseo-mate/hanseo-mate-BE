@@ -19,10 +19,12 @@ import com.jayway.jsonpath.JsonPath;
 import hsu.hanseomate.support.AdminMockMvcConfiguration;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
+import hsu.hanseomate.global.security.JwtProperties;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.context.annotation.Import;
@@ -41,6 +44,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -100,6 +108,12 @@ class ClubApiIntegrationTest {
     @Autowired
     private UserAccountRepository userAccountRepository;
 
+    @Autowired
+    private JwtEncoder jwtEncoder;
+
+    @Autowired
+    private JwtProperties jwtProperties;
+
     @BeforeEach
     void cleanUp() throws Exception {
         cleanTestUploads();
@@ -142,12 +156,13 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(12)))
+                .andExpect(jsonPath("$", aMapWithSize(13)))
                 .andExpect(jsonPath("$.name").value("멋쟁이사자처럼 한서대학교"))
                 .andExpect(jsonPath("$.shortDescription").value((Object) null))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.likeCount").value(0))
+                .andExpect(jsonPath("$.likedByMe").value(false))
                 .andExpect(jsonPath("$.topReviewTags").isEmpty())
                 .andExpect(jsonPath("$.introduction").value((Object) null))
                 .andExpect(jsonPath("$.activityContent").value((Object) null))
@@ -176,6 +191,7 @@ class ClubApiIntegrationTest {
                         .value("함께 서비스를 만드는 IT 동아리"))
                 .andExpect(jsonPath("$[0].liked").doesNotExist())
                 .andExpect(jsonPath("$[0].likeCount").value(0))
+                .andExpect(jsonPath("$[0].likedByMe").value(false))
                 .andExpect(jsonPath("$[0].topReviewTags").isEmpty())
                 .andExpect(jsonPath("$[0].backgroundImageUrl").doesNotExist())
                 .andExpect(jsonPath("$[0].introduction").doesNotExist())
@@ -216,7 +232,7 @@ class ClubApiIntegrationTest {
 
         MvcResult publicDetailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(12)))
+                .andExpect(jsonPath("$", aMapWithSize(13)))
                 .andExpect(jsonPath("$.name").value("상세 조회 동아리"))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
@@ -224,6 +240,7 @@ class ClubApiIntegrationTest {
                         .value("함께 서비스를 만드는 IT 동아리"))
                 .andExpect(jsonPath("$.liked").doesNotExist())
                 .andExpect(jsonPath("$.likeCount").value(1))
+                .andExpect(jsonPath("$.likedByMe").value(false))
                 .andExpect(jsonPath("$.topReviewTags.length()").value(2))
                 .andExpect(jsonPath("$.topReviewTags[0]").value("BUILD_RESUME"))
                 .andExpect(jsonPath("$.topReviewTags[1]").value("ACADEMIC_PASSION"))
@@ -456,7 +473,74 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId).with(anonymous()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.likeCount").value(0));
+                .andExpect(jsonPath("$.likeCount").value(0))
+                .andExpect(jsonPath("$.likedByMe").value(false));
+    }
+
+    @Test
+    void returnsLikedByMeForEachClubWithoutRequiringLoginForReads() throws Exception {
+        long likedClubId = createClub("좋아요한 동아리", "ACADEMIC");
+        long unlikedClubId = createClub("좋아요하지 않은 동아리", "SPORTS");
+        long userId = createReviewUser();
+        setLikeAsUser(likedClubId, userId, true);
+
+        mockMvc.perform(get("/api/clubs").with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(likedClubId))
+                .andExpect(jsonPath("$[0].likeCount").value(1))
+                .andExpect(jsonPath("$[0].likedByMe").value(false))
+                .andExpect(jsonPath("$[1].id").value(unlikedClubId))
+                .andExpect(jsonPath("$[1].likeCount").value(0))
+                .andExpect(jsonPath("$[1].likedByMe").value(false));
+
+        mockMvc.perform(get("/api/clubs")
+                        .with(anonymous())
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(userId)
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].likeCount").value(1))
+                .andExpect(jsonPath("$[0].likedByMe").value(true))
+                .andExpect(jsonPath("$[1].likeCount").value(0))
+                .andExpect(jsonPath("$[1].likedByMe").value(false));
+
+        mockMvc.perform(get("/api/clubs/{clubId}", likedClubId).with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likeCount").value(1))
+                .andExpect(jsonPath("$.likedByMe").value(false));
+
+        mockMvc.perform(get("/api/clubs/{clubId}", likedClubId).with(userJwt(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likeCount").value(1))
+                .andExpect(jsonPath("$.likedByMe").value(true));
+    }
+
+    @Test
+    void rejectsInvalidAndExpiredBearerTokensOnOptionalClubReads() throws Exception {
+        long clubId = createClub("토큰 검증 동아리", "ACADEMIC");
+        long userId = createReviewUser();
+        String expiredToken = expiredAccessToken(userId);
+
+        mockMvc.perform(get("/api/clubs")
+                        .with(anonymous())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId)
+                        .with(anonymous())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/clubs")
+                        .with(anonymous())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + expiredToken))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId)
+                        .with(anonymous())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + expiredToken))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -624,6 +708,81 @@ class ClubApiIntegrationTest {
                         .with(anonymous()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.options.length()").value(26));
+    }
+
+    @Test
+    void returnsAndUpdatesOnlyTheAuthenticatedUsersReviewState() throws Exception {
+        long clubId = createClub("내 후기 조회 동아리", "HOBBY");
+        long currentUserId = createReviewUser();
+        long otherUserId = createReviewUser();
+        putReviewAsUser(clubId, otherUserId, List.of("SOCIALIZING"));
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId)
+                        .with(userJwt(currentUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(2)))
+                .andExpect(jsonPath("$.hasReview").value(false))
+                .andExpect(jsonPath("$.reviewTags").isEmpty());
+
+        putReviewAsUser(
+                clubId,
+                currentUserId,
+                List.of("SOCIALIZING", "BUILD_RESUME")
+        );
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId)
+                        .with(userJwt(currentUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasReview").value(true))
+                .andExpect(jsonPath("$.reviewTags.length()").value(2))
+                .andExpect(jsonPath("$.reviewTags[0]").value("BUILD_RESUME"))
+                .andExpect(jsonPath("$.reviewTags[1]").value("SOCIALIZING"));
+
+        putReviewAsUser(
+                clubId,
+                currentUserId,
+                List.of("INTERVIEW_IMPORTANT", "ENJOY_HOBBY")
+        );
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId)
+                        .with(userJwt(currentUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasReview").value(true))
+                .andExpect(jsonPath("$.reviewTags[0]").value("ENJOY_HOBBY"))
+                .andExpect(jsonPath("$.reviewTags[1]").value("INTERVIEW_IMPORTANT"));
+
+        mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
+                        .with(userJwt(currentUserId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reviewRequest(List.of())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("활동 후기가 삭제되었습니다."));
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId)
+                        .with(userJwt(currentUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasReview").value(false))
+                .andExpect(jsonPath("$.reviewTags").isEmpty());
+    }
+
+    @Test
+    void myReviewLookupRequiresAuthenticationAndReturnsNotFoundForUnknownClub()
+            throws Exception {
+        long clubId = createClub("내 후기 인증 동아리", "ACADEMIC");
+        long userId = createReviewUser();
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId)
+                        .with(anonymous()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId)
+                        .with(anonymous())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", 999999L)
+                        .with(userJwt(userId)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -812,8 +971,17 @@ class ClubApiIntegrationTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/clubs'].get.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/clubs'].get.responses['401']").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubSummaryResponse.properties.likedByMe"
+                ).exists())
                 .andExpect(jsonPath("$.paths['/api/clubs/{clubId}'].get.responses['404']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/clubs/{clubId}'].get.responses['401']")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubDetailResponse.properties.likedByMe"
+                ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/clubs/information/{clubId}']"
                 ).doesNotExist())
@@ -959,6 +1127,25 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/clubs/reviews/{clubId}'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath(
+                        "$.paths['/api/clubs/reviews/{clubId}/me'].get.responses['200']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/clubs/reviews/{clubId}/me'].get.responses['401']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/clubs/reviews/{clubId}/me'].get.responses['404']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewMeResponse.properties",
+                        aMapWithSize(2)
+                ))
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewMeResponse.properties.hasReview"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ClubReviewMeResponse.properties.reviewTags"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.components.schemas.ClubReviewStatisticsResponse.properties",
                         aMapWithSize(1)
                 ))
@@ -1082,6 +1269,39 @@ class ClubApiIntegrationTest {
         return jwt().jwt(token -> token
                 .subject(Long.toString(userId))
                 .claim("role", "USER"));
+    }
+
+    private String expiredAccessToken(long userId) {
+        Instant now = Instant.now();
+        return signedAccessToken(
+                userId,
+                now.minusSeconds(7_200),
+                now.minusSeconds(3_600)
+        );
+    }
+
+    private String validAccessToken(long userId) {
+        Instant now = Instant.now();
+        return signedAccessToken(userId, now, now.plusSeconds(3_600));
+    }
+
+    private String signedAccessToken(
+            long userId,
+            Instant issuedAt,
+            Instant expiresAt
+    ) {
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(jwtProperties.issuer())
+                .subject(Long.toString(userId))
+                .claim("role", "USER")
+                .issuedAt(issuedAt)
+                .expiresAt(expiresAt)
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+                .type("JWT")
+                .build();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims))
+                .getTokenValue();
     }
 
     private String uploadImage(String endpoint, long clubId, String originalFileName)

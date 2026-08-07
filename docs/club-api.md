@@ -11,6 +11,9 @@ Image Content-Type: multipart/form-data
 JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/admin/**`는 ADMIN 역할만 접근할 수 있다.
 활동 후기 조회는 공개 API이고, 활동 후기 등록·수정·제거에는 로그인 JWT가 필요하다.
 좋아요 변경에는 로그인 JWT가 필요하며 사용자별로 동아리당 한 번만 반영된다.
+동아리 목록과 상세 조회는 로그인 없이 사용할 수 있다. 유효한 JWT를 함께 보내면
+`likedByMe`에 현재 사용자의 좋아요 여부가 반영되고, 토큰이 없으면 `false`를 반환한다.
+잘못되거나 만료된 토큰을 명시적으로 보내면 `401 Unauthorized`를 반환한다.
 
 ---
 
@@ -22,6 +25,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 사용자 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 사용자 | `PUT` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 설정 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
+| 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
 | 관리자 | `GET` | `/api/admin/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | 관리자 | `GET` | `/api/admin/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
@@ -55,6 +59,7 @@ GET /api/clubs?category=ACADEMIC
     "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
     "shortDescription": "함께 서비스를 만드는 IT 동아리",
     "likeCount": 20,
+    "likedByMe": true,
     "topReviewTags": [
       "BUILD_RESUME",
       "ACADEMIC_PASSION"
@@ -64,6 +69,9 @@ GET /api/clubs?category=ACADEMIC
 ```
 
 `topReviewTags`는 누적 선택 수가 많은 순서대로 최대 2개를 반환한다.
+`likedByMe`는 로그인한 사용자가 해당 동아리에 좋아요를 등록했는지를 의미한다.
+비로그인 요청에서는 모든 동아리가 `false`이며, `likeCount`는 로그인 여부와 관계없이
+각 동아리의 전체 좋아요 개수를 반환한다.
 
 ---
 
@@ -80,6 +88,7 @@ GET /api/clubs/{clubId}
   "backgroundImageUrl": "http://localhost:8080/uploads/clubs/background/example.png",
   "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
   "likeCount": 20,
+  "likedByMe": true,
   "name": "멋쟁이사자처럼 한서대학교",
   "shortDescription": "함께 서비스를 만드는 IT 동아리",
   "topReviewTags": [
@@ -98,6 +107,8 @@ GET /api/clubs/{clubId}
 
 `topReviewTags`는 누적 선택 수가 많은 순서대로 최대 3개를 반환한다.
 `reviewerCount`는 현재 해당 동아리에 활동 후기를 남긴 로그인 사용자 수다.
+`likedByMe`는 현재 로그인 사용자가 해당 동아리에 좋아요를 등록했는지를 나타낸다.
+토큰이 없으면 `false`이며 조회 권한은 제한하지 않는다.
 
 ---
 
@@ -182,7 +193,43 @@ percentage = 해당 태그 선택 수 ÷ 전체 태그 선택 수 × 100
 
 ---
 
-## 5. 내 활동 후기 등록·수정·제거
+## 5. 내 활동 후기 상태 조회
+
+```http
+GET /api/clubs/reviews/{clubId}/me
+Authorization: Bearer {accessToken}
+```
+
+### 후기를 작성한 경우
+
+```json
+{
+  "hasReview": true,
+  "reviewTags": [
+    "BUILD_RESUME",
+    "SOCIALIZING"
+  ]
+}
+```
+
+### 후기를 작성하지 않은 경우
+
+```json
+{
+  "hasReview": false,
+  "reviewTags": []
+}
+```
+
+- 로그인한 사용자가 해당 동아리에 작성한 후기만 조회한다.
+- 다른 사용자의 후기는 `hasReview`와 `reviewTags`에 영향을 주지 않는다.
+- 태그는 활동 후기 enum 선언 순서로 반환한다.
+- 토큰이 없거나 유효하지 않은 경우: `401 Unauthorized`
+- 존재하지 않는 동아리인 경우: `404 Not Found`
+
+---
+
+## 6. 내 활동 후기 등록·수정·제거
 
 ```http
 PUT /api/clubs/reviews/{clubId}
@@ -280,6 +327,7 @@ Authorization: Bearer {accessToken}
   "backgroundImageUrl": "http://localhost:8080/uploads/clubs/background/example.png",
   "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
   "likeCount": 20,
+  "likedByMe": false,
   "name": "멋쟁이사자처럼 한서대학교",
   "shortDescription": "함께 서비스를 만드는 IT 동아리",
   "topReviewTags": [

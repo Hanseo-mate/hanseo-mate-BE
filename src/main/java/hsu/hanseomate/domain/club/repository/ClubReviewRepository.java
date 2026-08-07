@@ -4,12 +4,14 @@ import hsu.hanseomate.domain.club.entity.ClubReview;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ClubReviewRepository extends JpaRepository<ClubReview, Long> {
 
+    @EntityGraph(attributePaths = "reviewTags")
     Optional<ClubReview> findByClubIdAndReviewerId(Long clubId, Long reviewerId);
 
     long countByClubId(Long clubId);
