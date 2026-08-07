@@ -10,7 +10,8 @@ Image Content-Type: multipart/form-data
 
 JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/admin/**`는 ADMIN 역할만 접근할 수 있다.
 활동 후기 조회는 공개 API이고, 활동 후기 등록·수정·제거에는 로그인 JWT가 필요하다.
-좋아요 변경에는 로그인 JWT가 필요하며 사용자별로 동아리당 한 번만 반영된다.
+좋아요 변경에는 로그인 JWT가 필요하며 사용자별·동아리별로 좋아요 한 건만 저장된다.
+토글 API를 호출할 때마다 해당 좋아요가 등록 또는 취소된다.
 동아리 목록과 상세 조회는 로그인 없이 사용할 수 있다. 유효한 JWT를 함께 보내면
 `likedByMe`에 현재 사용자의 좋아요 여부가 반영되고, 토큰이 없으면 `false`를 반환한다.
 잘못되거나 만료된 토큰을 명시적으로 보내면 `401 Unauthorized`를 반환한다.
@@ -23,7 +24,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 |---|---|---|---|
 | 사용자 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | 사용자 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
-| 사용자 | `PUT` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 설정 |
+| 사용자 | `POST` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 토글 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
@@ -112,45 +113,31 @@ GET /api/clubs/{clubId}
 
 ---
 
-## 3. 좋아요 수 변경
+## 3. 좋아요 토글
 
 ```http
-PUT /api/clubs/likes/{clubId}
+POST /api/clubs/likes/{clubId}
 Authorization: Bearer {accessToken}
-Content-Type: application/json
 ```
 
-### 증가 요청
-
-```json
-{
-  "liked": true
-}
-```
-
-### 감소 요청
-
-```json
-{
-  "liked": false
-}
-```
+요청 본문은 보내지 않는다. 호출할 때마다 현재 로그인 사용자의 좋아요 상태가 반전된다.
 
 ### 응답
 
 ```json
 {
   "clubId": 1,
-  "liked": true,
+  "likedByMe": true,
   "likeCount": 21
 }
 ```
 
-- `liked=true`: 로그인 사용자의 좋아요를 등록한다.
-- `liked=false`: 로그인 사용자의 좋아요를 해제한다.
-- 같은 상태를 반복 요청해도 중복 등록·삭제되지 않는다.
+- 현재 사용자의 좋아요가 없으면 등록하고 `likedByMe=true`를 반환한다.
+- 현재 사용자의 좋아요가 있으면 삭제하고 `likedByMe=false`를 반환한다.
+- 연속으로 두 번 호출하면 등록 후 취소되어 원래 상태로 돌아간다.
 - `likeCount`는 현재 좋아요를 누른 로그인 사용자 수다.
 - 토큰이 없거나 유효하지 않은 경우 `401 Unauthorized`를 반환한다.
+- 중복 클릭으로 상태가 두 번 반전되지 않도록 요청 처리 중에는 프론트의 좋아요 버튼을 비활성화하는 것을 권장한다.
 
 ---
 

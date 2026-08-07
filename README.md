@@ -113,7 +113,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |
-| `PUT` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 설정 |
+| `POST` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 토글 |
 | `GET` | `/api/clubs/reviews/{clubId}` | 전체 활동 후기 키워드별 선택 비율 조회 |
 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 후기 등록·수정·제거 |
 | `GET` | `/api/admin/clubs` | 관리자용 전체 또는 분과별 동아리 목록 조회 |
@@ -232,5 +232,5 @@ SWAGGER_API_DOCS_ENABLED=true
 - 시간표 구성 API, 동아리 좋아요 및 활동 후기 작성에는 로그인 JWT가 필요합니다.
 - 동아리 목록·상세와 활동 후기 통계 조회는 로그인 없이 사용할 수 있습니다.
 
-동아리 좋아요는 로그인 사용자별로 동아리당 한 건만 저장하며 같은 상태의 반복 요청은 중복 반영하지 않습니다.
+동아리 좋아요는 로그인 사용자별로 동아리당 한 건만 저장하며 토글 API를 호출할 때마다 등록 또는 취소됩니다.
 활동 후기는 로그인 사용자별로 동아리당 한 건만 저장하고, 빈 요청은 본인의 후기만 제거합니다.
