@@ -38,7 +38,11 @@ public class SecurityConfig {
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
-                .securityMatcher("/api/admin/**")
+                .securityMatcher(
+                        "/api/admin/**",
+                        "/api/v1/timetables/major",
+                        "/api/v1/timetables/general-education"
+                )
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
