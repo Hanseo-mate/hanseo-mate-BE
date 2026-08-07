@@ -13,7 +13,7 @@ public final class AdminJwtRequestPostProcessor {
     public static RequestPostProcessor adminJwt() {
         return jwt()
                 .jwt(jwt -> jwt
-                        .subject("admin-test-user")
+                        .subject("0")
                         .claim("role", "ADMIN"))
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }

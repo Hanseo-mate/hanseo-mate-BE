@@ -8,6 +8,7 @@ public record ClubDetailResponse(
         String backgroundImageUrl,
         String profileImageUrl,
         long likeCount,
+        boolean likedByMe,
         String name,
         String shortDescription,
         List<ClubReviewOption> topReviewTags,
@@ -26,6 +27,7 @@ public record ClubDetailResponse(
     public static ClubDetailResponse from(
             Club club,
             long likeCount,
+            boolean likedByMe,
             List<ClubReviewOption> topReviewTags,
             long reviewerCount
     ) {
@@ -33,6 +35,7 @@ public record ClubDetailResponse(
                 club.getBackgroundImageUrl(),
                 club.getProfileImageUrl(),
                 likeCount,
+                likedByMe,
                 club.getName(),
                 club.getShortDescription(),
                 topReviewTags,

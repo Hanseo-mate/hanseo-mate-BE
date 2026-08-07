@@ -7,6 +7,7 @@ import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
 import hsu.hanseomate.domain.club.dto.ClubLikeRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewOptionResponse;
+import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
@@ -66,6 +67,13 @@ public class ClubService {
     private final LocalImageStorageService imageStorageService;
 
     public List<ClubSummaryResponse> getClubs(String category) {
+        return getClubs(category, Optional.empty());
+    }
+
+    public List<ClubSummaryResponse> getClubs(
+            String category,
+            Optional<Long> currentUserId
+    ) {
         List<Club> clubs = category == null || category.isBlank()
                 ? clubRepository.findAllByOrderByIdAsc()
                 : clubRepository.findAllByCategoryOrderByIdAsc(normalizeCategory(category));
@@ -74,19 +82,24 @@ public class ClubService {
             return List.of();
         }
 
-        EngagementSnapshot snapshot = loadEngagement(clubIds(clubs));
+        EngagementSnapshot snapshot = loadEngagement(clubIds(clubs), currentUserId);
         return clubs.stream()
                 .map(club -> ClubSummaryResponse.from(
                         club,
                         snapshot.likeCount(club.getId()),
+                        snapshot.likedByMe(club.getId()),
                         snapshot.topReviews(club.getId(), LIST_TOP_REVIEW_LIMIT)
                 ))
                 .toList();
     }
 
     public ClubDetailResponse getClub(Long clubId) {
+        return getClub(clubId, Optional.empty());
+    }
+
+    public ClubDetailResponse getClub(Long clubId, Optional<Long> currentUserId) {
         Club club = findClub(clubId);
-        EngagementSnapshot snapshot = loadEngagement(List.of(clubId));
+        EngagementSnapshot snapshot = loadEngagement(List.of(clubId), currentUserId);
         return detailResponse(
                 club,
                 snapshot,
@@ -214,6 +227,14 @@ public class ClubService {
         return reviewStatistics(clubId);
     }
 
+    public ClubReviewMeResponse getMyReview(Long clubId, Long reviewerId) {
+        findClub(clubId);
+        findAuthenticatedUser(reviewerId);
+        return clubReviewRepository.findByClubIdAndReviewerId(clubId, reviewerId)
+                .map(ClubReviewMeResponse::from)
+                .orElseGet(ClubReviewMeResponse::empty);
+    }
+
     @Transactional
     public ClubReviewSaveResponse saveReview(
             Long clubId,
@@ -259,13 +280,19 @@ public class ClubService {
         return new ClubReviewStatisticsResponse(options);
     }
 
-    private EngagementSnapshot loadEngagement(Collection<Long> clubIds) {
+    private EngagementSnapshot loadEngagement(
+            Collection<Long> clubIds,
+            Optional<Long> currentUserId
+    ) {
         Map<Long, Long> likeCounts = clubLikeRepository.countByClubIds(clubIds).stream()
                 .collect(Collectors.toMap(
                         ClubLikeCountProjection::getClubId,
                         ClubLikeCountProjection::getLikeCount
                 ));
-        return new EngagementSnapshot(likeCounts, reviewCounts(clubIds));
+        Set<Long> likedClubIds = currentUserId
+                .map(userId -> clubLikeRepository.findLikedClubIds(userId, clubIds))
+                .orElseGet(Set::of);
+        return new EngagementSnapshot(likeCounts, likedClubIds, reviewCounts(clubIds));
     }
 
     private Map<Long, EnumMap<ClubReviewOption, Long>> reviewCounts(Collection<Long> clubIds) {
@@ -288,6 +315,7 @@ public class ClubService {
         return ClubDetailResponse.from(
                 club,
                 snapshot.likeCount(club.getId()),
+                snapshot.likedByMe(club.getId()),
                 snapshot.topReviews(club.getId(), DETAIL_TOP_REVIEW_LIMIT),
                 reviewerCount
         );
@@ -459,16 +487,22 @@ public class ClubService {
 
     private record EngagementSnapshot(
             Map<Long, Long> likeCounts,
+            Set<Long> likedClubIds,
             Map<Long, EnumMap<ClubReviewOption, Long>> reviewCounts
     ) {
 
         private EngagementSnapshot {
             likeCounts = Map.copyOf(likeCounts);
+            likedClubIds = Set.copyOf(likedClubIds);
             reviewCounts = copyReviewCounts(reviewCounts);
         }
 
         long likeCount(Long clubId) {
             return likeCounts.getOrDefault(clubId, 0L);
+        }
+
+        boolean likedByMe(Long clubId) {
+            return likedClubIds.contains(clubId);
         }
 
         List<ClubReviewOption> topReviews(Long clubId, int limit) {

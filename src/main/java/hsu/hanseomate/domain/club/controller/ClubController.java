@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.club.controller;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubLikeRequest;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
+import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
@@ -19,7 +20,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -42,7 +45,7 @@ public class ClubController {
 
     @Operation(
             summary = "분과별 동아리 목록 조회",
-            description = "분과 필터는 선택입니다."
+            description = "분과 필터는 선택입니다. 유효한 JWT를 보내면 각 동아리의 본인 좋아요 여부를 함께 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -50,26 +53,38 @@ public class ClubController {
                     responseCode = "400",
                     description = "지원하지 않는 분과",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "잘못되거나 만료된 토큰",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
     @GetMapping
     public List<ClubSummaryResponse> getClubs(
             @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
-            @RequestParam(required = false) String category
+            @RequestParam(required = false) String category,
+            Authentication authentication
     ) {
-        return clubService.getClubs(category);
+        return clubService.getClubs(category, optionalCurrentUserId(authentication));
     }
 
     @Operation(
             summary = "동아리 상세 조회",
             description = "이미지, 이름, 한 줄 소개, 좋아요, 상위 활동 후기 3개, "
-                    + "동아리 소개, 활동 내용, 문의 링크, 모집공고와 후기 작성 수를 조회합니다."
+                    + "동아리 소개, 활동 내용, 문의 링크, 모집공고와 후기 작성 수를 조회합니다. "
+                    + "유효한 JWT를 보내면 본인 좋아요 여부도 함께 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(
                     responseCode = "400",
                     description = "잘못된 동아리 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "잘못되거나 만료된 토큰",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -80,9 +95,10 @@ public class ClubController {
     })
     @GetMapping("/{clubId}")
     public ClubDetailResponse getClub(
-            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
+            Authentication authentication
     ) {
-        return clubService.getClub(clubId);
+        return clubService.getClub(clubId, optionalCurrentUserId(authentication));
     }
 
     @Operation(
@@ -141,6 +157,36 @@ public class ClubController {
     }
 
     @Operation(
+            summary = "내 활동 후기 조회",
+            description = "로그인 사용자가 해당 동아리에 등록한 후기 여부와 선택한 태그를 반환합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 동아리 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "동아리 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @GetMapping("/reviews/{clubId}/me")
+    public ClubReviewMeResponse getMyReview(
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
+            Authentication authentication
+    ) {
+        return clubService.getMyReview(clubId, currentUserId(authentication));
+    }
+
+    @Operation(
             summary = "내 활동 후기 등록·수정·제거",
             description = "로그인 사용자는 동아리별 후기 1건을 작성할 수 있습니다. "
                     + "1~5개 태그는 본인 후기를 등록하거나 수정하고, 빈 요청이나 빈 배열은 본인 후기를 제거합니다."
@@ -173,7 +219,9 @@ public class ClubController {
     }
 
     private Long currentUserId(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
             throw new AuthenticationCredentialsNotFoundException("로그인이 필요합니다.");
         }
         try {
@@ -184,5 +232,14 @@ public class ClubController {
                     exception
             );
         }
+    }
+
+    private Optional<Long> optionalCurrentUserId(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+        return Optional.of(currentUserId(authentication));
     }
 }
