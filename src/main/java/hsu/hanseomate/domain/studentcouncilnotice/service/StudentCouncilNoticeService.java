@@ -36,6 +36,7 @@ public class StudentCouncilNoticeService {
     public StudentCouncilNoticeDetailResponse createNotice(StudentCouncilNoticeRequest request) {
         StudentCouncilNotice notice = StudentCouncilNotice.create(
                 request.title().trim(),
+                request.author().trim(),
                 request.content()
         );
         return StudentCouncilNoticeDetailResponse.from(
@@ -49,7 +50,11 @@ public class StudentCouncilNoticeService {
             StudentCouncilNoticeRequest request
     ) {
         StudentCouncilNotice notice = findNotice(noticeId);
-        notice.update(request.title().trim(), request.content());
+        notice.update(
+                request.title().trim(),
+                request.author().trim(),
+                request.content()
+        );
         studentCouncilNoticeRepository.flush();
         return StudentCouncilNoticeDetailResponse.from(notice);
     }

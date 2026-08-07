@@ -21,7 +21,9 @@ CREATE TABLE essential_links (
 CREATE TABLE student_council_notices (
     id BIGINT NOT NULL AUTO_INCREMENT,
     title VARCHAR(500) NOT NULL,
+    author VARCHAR(100) NOT NULL,
     content LONGTEXT NOT NULL,
+    view_count BIGINT NOT NULL DEFAULT 0,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),

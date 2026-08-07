@@ -14,6 +14,7 @@ public record NoticeDetailResponse(
         String author,
         LocalDate postDate,
         boolean isHot,
+        long viewCount,
         List<NoticeFileResponse> attachments
 ) {
 
@@ -28,6 +29,7 @@ public record NoticeDetailResponse(
                 notice.getAuthor(),
                 notice.getPostDate(),
                 notice.isHot(),
+                notice.getViewCount(),
                 notice.getAttachments().stream()
                         .map(NoticeFileResponse::from)
                         .toList()

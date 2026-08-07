@@ -24,20 +24,28 @@ public class StudentCouncilNotice extends BaseTimeEntity {
     @Column(nullable = false, length = 500)
     private String title;
 
+    @Column(nullable = false, length = 100)
+    private String author;
+
     @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String content;
 
-    private StudentCouncilNotice(String title, String content) {
+    @Column(name = "view_count", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    private long viewCount = 0L;
+
+    private StudentCouncilNotice(String title, String author, String content) {
         this.title = title;
+        this.author = author;
         this.content = content;
     }
 
-    public static StudentCouncilNotice create(String title, String content) {
-        return new StudentCouncilNotice(title, content);
+    public static StudentCouncilNotice create(String title, String author, String content) {
+        return new StudentCouncilNotice(title, author, content);
     }
 
-    public void update(String title, String content) {
+    public void update(String title, String author, String content) {
         this.title = title;
+        this.author = author;
         this.content = content;
     }
 }

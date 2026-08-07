@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 public record StudentCouncilNoticeDetailResponse(
         Long id,
         String title,
+        String author,
         String content,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -15,6 +16,7 @@ public record StudentCouncilNoticeDetailResponse(
         return new StudentCouncilNoticeDetailResponse(
                 notice.getId(),
                 notice.getTitle(),
+                notice.getAuthor(),
                 notice.getContent(),
                 notice.getCreatedAt(),
                 notice.getUpdatedAt()
