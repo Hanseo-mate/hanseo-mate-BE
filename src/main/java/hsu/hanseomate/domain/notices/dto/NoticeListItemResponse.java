@@ -11,7 +11,8 @@ public record NoticeListItemResponse(
         String sourceUrl,
         String author,
         LocalDate postDate,
-        boolean isHot
+        boolean isHot,
+        long viewCount
 ) {
 
     public static NoticeListItemResponse from(Notice notice) {
@@ -23,7 +24,8 @@ public record NoticeListItemResponse(
                 notice.getSourceUrl(),
                 notice.getAuthor(),
                 notice.getPostDate(),
-                notice.isHot()
+                notice.isHot(),
+                notice.getViewCount()
         );
     }
 }

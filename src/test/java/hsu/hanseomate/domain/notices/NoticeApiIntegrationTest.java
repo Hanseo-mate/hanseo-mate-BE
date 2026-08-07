@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.notices;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,6 +31,7 @@ class NoticeApiIntegrationTest {
     void cleanUp() {
         jdbcTemplate.update("DELETE FROM notice_files");
         jdbcTemplate.update("DELETE FROM notices");
+        jdbcTemplate.update("DELETE FROM student_council_notices");
     }
 
     @Test
@@ -46,6 +48,7 @@ class NoticeApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(10))
                 .andExpect(jsonPath("$.items[0].originNoticeId").value("n-hot"))
+                .andExpect(jsonPath("$.items[0].viewCount").value(0))
                 .andExpect(jsonPath("$.size").value(10))
                 .andExpect(jsonPath("$.totalElements").value(11))
                 .andExpect(jsonPath("$.hasNext").value(true));
@@ -83,6 +86,73 @@ class NoticeApiIntegrationTest {
                 .andExpect(jsonPath("$.originNoticeId").value("detail-1"))
                 .andExpect(jsonPath("$.attachments.length()").value(2))
                 .andExpect(jsonPath("$.attachments[0].fileName").value("첨부1.pdf"));
+    }
+
+    @Test
+    void incrementsViewCountForEveryDetailRequestAndExposesItInLists() throws Exception {
+        Long noticeId = insertNotice(
+                "academic",
+                "view-count-1",
+                "조회수 확인 공지",
+                LocalDate.of(2026, 8, 7),
+                false
+        );
+
+        mockMvc.perform(get("/api/notices/{noticeId}", noticeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(1));
+
+        mockMvc.perform(get("/api/notices/{noticeId}", noticeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(2));
+
+        mockMvc.perform(get("/api/notices/categories/academic").param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].viewCount").value(2));
+
+        mockMvc.perform(get("/api/notices").param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].viewCount").value(2));
+
+        mockMvc.perform(get("/api/notices/search")
+                        .param("keyword", "조회수")
+                        .param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].viewCount").value(2));
+
+        mockMvc.perform(get("/api/notices/unified")
+                        .param("keyword", "조회수")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].viewCount").value(2));
+
+        Long persistedViewCount = jdbcTemplate.queryForObject(
+                "SELECT view_count FROM notices WHERE id = ?",
+                Long.class,
+                noticeId
+        );
+        assertThat(persistedViewCount).isEqualTo(2L);
+    }
+
+    @Test
+    void incrementsViewCountForEveryCrawledNoticeCategory() throws Exception {
+        for (String noticeType : java.util.List.of(
+                "academic", "general", "scholarship", "graduate"
+        )) {
+            Long noticeId = insertNotice(
+                    noticeType,
+                    "view-count-" + noticeType,
+                    noticeType + " 조회수 공지",
+                    LocalDate.of(2026, 8, 7),
+                    false
+            );
+
+            mockMvc.perform(get("/api/notices/{noticeId}", noticeId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.noticeType").value(noticeType))
+                    .andExpect(jsonPath("$.viewCount").value(1));
+        }
     }
 
     @Test

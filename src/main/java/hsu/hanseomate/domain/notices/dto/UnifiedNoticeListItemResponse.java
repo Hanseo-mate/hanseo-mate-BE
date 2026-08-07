@@ -39,7 +39,7 @@ public record UnifiedNoticeListItemResponse(
                 null,                   // originNoticeId 없음
                 councilNotice.getTitle(),
                 null,                   // sourceUrl 없음
-                null,                   // author 없음 (프론트에서 '총학생회'로 표시하거나 여기서 "총학생회"로 하드코딩 가능)
+                councilNotice.getAuthor(),
                 councilNotice.getCreatedAt().toLocalDate(), // LocalDateTime을 LocalDate로 변환
                 false,                  // isHot 없음
                 councilNotice.getViewCount()

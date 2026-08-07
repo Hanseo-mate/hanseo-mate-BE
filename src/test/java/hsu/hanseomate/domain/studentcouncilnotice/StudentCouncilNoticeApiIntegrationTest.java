@@ -65,7 +65,8 @@ class StudentCouncilNoticeApiIntegrationTest {
                 """, String.class);
 
         assertThat(columns).containsExactlyInAnyOrder(
-                "id", "title", "content", "created_at", "updated_at"
+                "id", "title", "author", "content", "view_count",
+                "created_at", "updated_at"
         );
     }
 
@@ -76,6 +77,7 @@ class StudentCouncilNoticeApiIntegrationTest {
                         .content("""
                                 {
                                   "title": "  학생회 행사 안내  ",
+                                  "author": "  총학생회  ",
                                   "content": "행사 내용을 안내드립니다. 📢\\n많은 참여 부탁드립니다."
                                 }
                                 """))
@@ -88,12 +90,14 @@ class StudentCouncilNoticeApiIntegrationTest {
                 ))
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.title").value("학생회 행사 안내"))
+                .andExpect(jsonPath("$.author").value("총학생회"))
                 .andExpect(jsonPath("$.content")
                         .value("행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다."))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
 
         StudentCouncilNotice saved = studentCouncilNoticeRepository.findAll().get(0);
+        assertThat(saved.getAuthor()).isEqualTo("총학생회");
 
         mockMvc.perform(get(
                         "/api/notices/categories/admin/{noticeId}",
@@ -101,15 +105,23 @@ class StudentCouncilNoticeApiIntegrationTest {
                 ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(saved.getId()))
+                .andExpect(jsonPath("$.author").value("총학생회"))
                 .andExpect(jsonPath("$.content")
                         .value("행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다."));
+
+        mockMvc.perform(get("/api/notices/unified")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].noticeType").value("STUDENT_COUNCIL"))
+                .andExpect(jsonPath("$[0].author").value("총학생회"));
     }
 
     @Test
     void returnsNoticesTenAtATimeInNewestOrder() throws Exception {
         for (int i = 1; i <= 11; i++) {
             studentCouncilNoticeRepository.save(
-                    StudentCouncilNotice.create("공지 " + i, "내용 " + i)
+                    StudentCouncilNotice.create("공지 " + i, "작성자 " + i, "내용 " + i)
             );
         }
         studentCouncilNoticeRepository.flush();
@@ -118,6 +130,7 @@ class StudentCouncilNoticeApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(10))
                 .andExpect(jsonPath("$.items[0].title").value("공지 11"))
+                .andExpect(jsonPath("$.items[0].author").value("작성자 11"))
                 .andExpect(jsonPath("$.items[0].content").value("내용 11"))
                 .andExpect(jsonPath("$.items[9].title").value("공지 2"))
                 .andExpect(jsonPath("$.items[9].content").value("내용 2"))
@@ -137,7 +150,7 @@ class StudentCouncilNoticeApiIntegrationTest {
     @Test
     void adminListReturnsSamePageAsPublicList() throws Exception {
         studentCouncilNoticeRepository.saveAndFlush(
-                StudentCouncilNotice.create("관리자 목록 공지", "관리자 목록 내용")
+                StudentCouncilNotice.create("관리자 목록 공지", "총학생회", "관리자 목록 내용")
         );
 
         MvcResult publicResult = mockMvc.perform(
@@ -159,7 +172,7 @@ class StudentCouncilNoticeApiIntegrationTest {
     @Test
     void adminDetailReturnsSameResponseAsPublicDetail() throws Exception {
         StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
-                StudentCouncilNotice.create("관리자 상세 공지", "관리자 상세 내용 📢")
+                StudentCouncilNotice.create("관리자 상세 공지", "총학생회", "관리자 상세 내용 📢")
         );
 
         MvcResult publicResult = mockMvc.perform(get(
@@ -183,7 +196,7 @@ class StudentCouncilNoticeApiIntegrationTest {
     @Test
     void adminNoticeReadApisRequireAdminRole() throws Exception {
         StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
-                StudentCouncilNotice.create("권한 확인 공지", "권한 확인 내용")
+                StudentCouncilNotice.create("권한 확인 공지", "총학생회", "권한 확인 내용")
         );
 
         mockMvc.perform(get("/api/admin/notices").with(anonymous()))
@@ -206,7 +219,7 @@ class StudentCouncilNoticeApiIntegrationTest {
     @Test
     void updatesStudentCouncilNoticeWithoutChangingCreatedAt() throws Exception {
         StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
-                StudentCouncilNotice.create("수정 전", "수정 전 내용")
+                StudentCouncilNotice.create("수정 전", "기존 작성자", "수정 전 내용")
         );
         LocalDateTime createdAt = jdbcTemplate.queryForObject(
                 "SELECT created_at FROM student_council_notices WHERE id = ?",
@@ -219,12 +232,14 @@ class StudentCouncilNoticeApiIntegrationTest {
                         .content("""
                                 {
                                   "title": "수정 후",
+                                  "author": "수정된 작성자",
                                   "content": "수정된 내용입니다. ✅"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(notice.getId()))
                 .andExpect(jsonPath("$.title").value("수정 후"))
+                .andExpect(jsonPath("$.author").value("수정된 작성자"))
                 .andExpect(jsonPath("$.content").value("수정된 내용입니다. ✅"));
 
         StudentCouncilNotice updated =
@@ -240,6 +255,7 @@ class StudentCouncilNoticeApiIntegrationTest {
                 notice.getId()
         );
         assertThat(updated.getTitle()).isEqualTo("수정 후");
+        assertThat(updated.getAuthor()).isEqualTo("수정된 작성자");
         assertThat(persistedCreatedAt).isEqualTo(createdAt);
         assertThat(persistedUpdatedAt).isAfterOrEqualTo(createdAt);
     }
@@ -247,7 +263,7 @@ class StudentCouncilNoticeApiIntegrationTest {
     @Test
     void deletesStudentCouncilNotice() throws Exception {
         StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
-                StudentCouncilNotice.create("삭제 대상", "삭제할 내용")
+                StudentCouncilNotice.create("삭제 대상", "총학생회", "삭제할 내용")
         );
 
         mockMvc.perform(delete("/api/admin/notices/{noticeId}", notice.getId()))
@@ -284,6 +300,7 @@ class StudentCouncilNoticeApiIntegrationTest {
                         .content("""
                                 {
                                   "title": " ",
+                                  "author": " ",
                                   "content": " "
                                 }
                                 """))
@@ -292,10 +309,38 @@ class StudentCouncilNoticeApiIntegrationTest {
     }
 
     @Test
+    void rejectsMissingOrTooLongAuthor() throws Exception {
+        mockMvc.perform(post("/api/admin/notices")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "학생회 공지",
+                                  "content": "학생회 공지 내용입니다."
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("author: 작성자는 필수입니다."));
+
+        String tooLongAuthorRequest = objectMapper.writeValueAsString(Map.of(
+                "title", "학생회 공지",
+                "author", "가".repeat(101),
+                "content", "학생회 공지 내용입니다."
+        ));
+
+        mockMvc.perform(post("/api/admin/notices")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tooLongAuthorRequest))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("author: 작성자는 100자 이하여야 합니다."));
+    }
+
+    @Test
     void storesMoreThanOneHundredThousandCharactersAndEmoji() throws Exception {
         String longContent = "학생회 장문 공지 🚀\n".repeat(10_000);
         String requestBody = objectMapper.writeValueAsString(Map.of(
                 "title", "장문 학생회 공지",
+                "author", "총학생회",
                 "content", longContent
         ));
 
@@ -332,6 +377,7 @@ class StudentCouncilNoticeApiIntegrationTest {
         return """
                 {
                   "title": "학생회 공지",
+                  "author": "총학생회",
                   "content": "학생회 공지 내용입니다."
                 }
                 """;
