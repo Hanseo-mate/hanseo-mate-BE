@@ -7,6 +7,8 @@
 - 본문은 일반 텍스트이며 줄바꿈과 이모티콘을 원문 그대로 저장·반환합니다.
 - 본문에는 애플리케이션 글자 수 제한이 없고 MySQL `LONGTEXT`를 사용합니다.
 - 목록은 최신 작성순으로 10개씩 조회합니다.
+- 사용자용 상세 조회를 호출할 때마다 조회수가 1 증가하며 같은 사용자의 반복 조회도 모두 반영합니다.
+- 관리자용 상세 조회는 현재 조회수를 반환하지만 조회수를 증가시키지 않습니다.
 - 사용자 조회 API는 공개되어 있으며, `/api/admin/notices/**`는 ADMIN 권한이 필요합니다.
 
 ## 사용자 API
@@ -25,6 +27,7 @@ GET /api/notices/categories/admin?page=0
       "title": "학생회 행사 안내",
       "author": "총학생회",
       "content": "학생회 행사 내용을 안내드립니다.",
+      "viewCount": 3,
       "createdAt": "2026-07-25T16:00:00",
       "updatedAt": "2026-07-25T16:00:00"
     }
@@ -49,10 +52,15 @@ GET /api/notices/categories/admin/{noticeId}
   "title": "학생회 행사 안내",
   "author": "총학생회",
   "content": "학생회 행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다.",
+  "viewCount": 4,
   "createdAt": "2026-07-25T16:00:00",
   "updatedAt": "2026-07-25T16:00:00"
 }
 ```
+
+- 상세 조회가 성공할 때마다 `viewCount`가 1 증가합니다.
+- 사용자나 기기를 구분하지 않으므로 같은 사용자의 반복 조회도 모두 증가합니다.
+- 존재하지 않는 공지를 조회하면 조회수를 변경하지 않고 `404 Not Found`를 반환합니다.
 
 ## 관리자 API
 
@@ -72,6 +80,7 @@ Authorization: Bearer {accessToken}
 - 성공 상태: `200 OK`
 - 사용자용 목록 조회와 동일한 페이지 응답을 반환합니다.
 - 목록은 최신 작성순이며 한 페이지에 10개를 반환합니다.
+- 각 목록 항목에 현재 `viewCount`를 포함합니다.
 
 ### 관리자용 학생회 공지 상세 조회
 
@@ -81,7 +90,8 @@ Authorization: Bearer {accessToken}
 ```
 
 - 성공 상태: `200 OK`
-- 사용자용 상세 조회와 동일한 응답을 반환합니다.
+- 사용자용 상세 조회와 동일한 필드를 반환합니다.
+- 관리자 상세 조회는 `viewCount`를 증가시키지 않고 현재 값만 반환합니다.
 - 존재하지 않는 학생회 공지는 `404 Not Found`를 반환합니다.
 
 ### 학생회 공지 등록
@@ -102,6 +112,7 @@ Content-Type: application/json
 - 성공 상태: `201 Created`
 - `Location`: `/api/notices/categories/admin/{noticeId}`
 - 응답 본문: 생성된 학생회 공지 상세 정보
+- 새로 등록된 공지의 `viewCount`는 `0`입니다.
 
 ### 학생회 공지 수정
 

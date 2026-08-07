@@ -14,9 +14,9 @@ public interface StudentCouncilNoticeRepository extends JpaRepository<StudentCou
 
     Page<StudentCouncilNotice> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE StudentCouncilNotice s SET s.viewCount = s.viewCount + 1 WHERE s.id = :id")
-    void incrementViewCount(@Param("id") Long id);
+    int incrementViewCount(@Param("id") Long id);
 
     // 2. 띄어쓰기 무시 제목 검색
     @Query("SELECT s FROM StudentCouncilNotice s WHERE REPLACE(s.title, ' ', '') LIKE %:keyword%")

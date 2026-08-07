@@ -93,6 +93,7 @@ class StudentCouncilNoticeApiIntegrationTest {
                 .andExpect(jsonPath("$.author").value("총학생회"))
                 .andExpect(jsonPath("$.content")
                         .value("행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다."))
+                .andExpect(jsonPath("$.viewCount").value(0))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
 
@@ -107,14 +108,16 @@ class StudentCouncilNoticeApiIntegrationTest {
                 .andExpect(jsonPath("$.id").value(saved.getId()))
                 .andExpect(jsonPath("$.author").value("총학생회"))
                 .andExpect(jsonPath("$.content")
-                        .value("행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다."));
+                        .value("행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다."))
+                .andExpect(jsonPath("$.viewCount").value(1));
 
         mockMvc.perform(get("/api/notices/unified")
                         .param("page", "0")
                         .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].noticeType").value("STUDENT_COUNCIL"))
-                .andExpect(jsonPath("$[0].author").value("총학생회"));
+                .andExpect(jsonPath("$[0].author").value("총학생회"))
+                .andExpect(jsonPath("$[0].viewCount").value(1));
     }
 
     @Test
@@ -132,6 +135,7 @@ class StudentCouncilNoticeApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].title").value("공지 11"))
                 .andExpect(jsonPath("$.items[0].author").value("작성자 11"))
                 .andExpect(jsonPath("$.items[0].content").value("내용 11"))
+                .andExpect(jsonPath("$.items[0].viewCount").value(0))
                 .andExpect(jsonPath("$.items[9].title").value("공지 2"))
                 .andExpect(jsonPath("$.items[9].content").value("내용 2"))
                 .andExpect(jsonPath("$.page").value(0))
@@ -170,7 +174,7 @@ class StudentCouncilNoticeApiIntegrationTest {
     }
 
     @Test
-    void adminDetailReturnsSameResponseAsPublicDetail() throws Exception {
+    void adminDetailReturnsCurrentViewCountWithoutIncreasingIt() throws Exception {
         StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
                 StudentCouncilNotice.create("관리자 상세 공지", "총학생회", "관리자 상세 내용 📢")
         );
@@ -178,8 +182,9 @@ class StudentCouncilNoticeApiIntegrationTest {
         MvcResult publicResult = mockMvc.perform(get(
                         "/api/notices/categories/admin/{noticeId}",
                         notice.getId()
-                ))
+                ).with(anonymous()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(1))
                 .andReturn();
 
         MvcResult adminResult = mockMvc.perform(get(
@@ -187,10 +192,55 @@ class StudentCouncilNoticeApiIntegrationTest {
                         notice.getId()
                 ))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(1))
                 .andReturn();
 
         assertThat(adminResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .isEqualTo(publicResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        mockMvc.perform(get(
+                        "/api/admin/notices/{noticeId}",
+                        notice.getId()
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(1));
+
+        assertThat(viewCountOf(notice.getId())).isEqualTo(1L);
+    }
+
+    @Test
+    void publicDetailIncrementsViewCountOnEveryRequestAndListReturnsLatestCount()
+            throws Exception {
+        StudentCouncilNotice notice = studentCouncilNoticeRepository.saveAndFlush(
+                StudentCouncilNotice.create("조회수 확인 공지", "총학생회", "조회수 확인 내용")
+        );
+
+        mockMvc.perform(get(
+                        "/api/notices/categories/admin/{noticeId}",
+                        notice.getId()
+                ).with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(1));
+
+        mockMvc.perform(get(
+                        "/api/notices/categories/admin/{noticeId}",
+                        notice.getId()
+                ).with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewCount").value(2));
+
+        mockMvc.perform(get("/api/notices/categories/admin")
+                        .param("page", "0")
+                        .with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(notice.getId()))
+                .andExpect(jsonPath("$.items[0].viewCount").value(2));
+
+        mockMvc.perform(get("/api/admin/notices").param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].viewCount").value(2));
+
+        assertThat(viewCountOf(notice.getId())).isEqualTo(2L);
     }
 
     @Test
@@ -381,6 +431,15 @@ class StudentCouncilNoticeApiIntegrationTest {
                   "content": "학생회 공지 내용입니다."
                 }
                 """;
+    }
+
+    private long viewCountOf(Long noticeId) {
+        Long viewCount = jdbcTemplate.queryForObject(
+                "SELECT view_count FROM student_council_notices WHERE id = ?",
+                Long.class,
+                noticeId
+        );
+        return viewCount == null ? 0L : viewCount;
     }
 
     private RequestPostProcessor userJwt() {

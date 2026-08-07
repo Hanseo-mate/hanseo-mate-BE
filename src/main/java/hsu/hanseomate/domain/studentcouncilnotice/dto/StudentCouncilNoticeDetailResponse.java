@@ -8,6 +8,7 @@ public record StudentCouncilNoticeDetailResponse(
         String title,
         String author,
         String content,
+        long viewCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -18,6 +19,7 @@ public record StudentCouncilNoticeDetailResponse(
                 notice.getTitle(),
                 notice.getAuthor(),
                 notice.getContent(),
+                notice.getViewCount(),
                 notice.getCreatedAt(),
                 notice.getUpdatedAt()
         );

@@ -32,7 +32,7 @@ public class StudentCouncilNoticeController {
 
     @Operation(
             summary = "학생회 공지 목록 조회",
-            description = "학생회 공지의 제목과 내용을 최신 작성순으로 10개씩 조회합니다."
+            description = "학생회 공지와 현재 조회수를 최신 작성순으로 10개씩 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -52,7 +52,10 @@ public class StudentCouncilNoticeController {
         return studentCouncilNoticeService.getNotices(page);
     }
 
-    @Operation(summary = "학생회 공지 상세 조회")
+    @Operation(
+            summary = "학생회 공지 상세 조회",
+            description = "학생회 공지를 조회하고 조회수를 1 증가시킨 뒤 최신 조회수를 반환합니다."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(
@@ -72,6 +75,6 @@ public class StudentCouncilNoticeController {
             @Positive(message = "공지 ID는 1 이상이어야 합니다.")
             @PathVariable Long noticeId
     ) {
-        return studentCouncilNoticeService.getNotice(noticeId);
+        return studentCouncilNoticeService.getNoticeAndIncrementViewCount(noticeId);
     }
 }
