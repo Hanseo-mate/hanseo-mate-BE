@@ -2,11 +2,14 @@ package hsu.hanseomate.domain.courseimport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import hsu.hanseomate.support.AdminMockMvcConfiguration;
 import java.io.ByteArrayOutputStream;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -17,14 +20,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(AdminMockMvcConfiguration.class)
 class CourseExcelImportApiIntegrationTest {
 
     @Autowired
@@ -54,6 +60,39 @@ class CourseExcelImportApiIntegrationTest {
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
         }
+    }
+
+    @Test
+    void courseWorkbookImportsRequireAdminRole() throws Exception {
+        MockMultipartFile majorFile = workbookFile(
+                "2026학년도 1학기 전공강좌 강의시간표.xlsx",
+                majorWorkbook("관리자 전공 강좌", "월1,2,3")
+        );
+        MockMultipartFile generalFile = workbookFile(
+                "2026학년도 1학기 교양강좌 강의시간표.xlsx",
+                generalWorkbook("관리자 교양 강좌", "월1,2,3")
+        );
+
+        mockMvc.perform(multipart("/api/v1/timetables/major")
+                        .file(majorFile)
+                        .with(anonymous()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(multipart("/api/v1/timetables/major")
+                        .file(majorFile)
+                        .with(jwt().authorities(
+                                new SimpleGrantedAuthority("ROLE_USER")
+                        )))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(multipart("/api/v1/timetables/general-education")
+                        .file(generalFile)
+                        .with(anonymous()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(multipart("/api/v1/timetables/general-education")
+                        .file(generalFile)
+                        .with(jwt().authorities(
+                                new SimpleGrantedAuthority("ROLE_USER")
+                        )))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -500,7 +539,19 @@ class CourseExcelImportApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/timetables/major'].post.responses['422'].content"
                                 + "['application/json'].schema['$ref']"
-                ).value("#/components/schemas/CourseWorkbookErrorResponse"));
+                ).value("#/components/schemas/CourseWorkbookErrorResponse"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/timetables/major'].post.responses['401']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/timetables/major'].post.responses['403']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/timetables/general-education'].post.responses['401']"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/timetables/general-education'].post.responses['403']"
+                ).exists());
     }
 
     @Test
