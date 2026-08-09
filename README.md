@@ -159,31 +159,21 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
   "items": [
     {
       "offeringId": "7da5b546-d431-4b4d-9992-0a50d97399d5",
-      "courseCode": "001234",
       "courseName": "웹프로그래밍",
       "sectionNo": "01",
-      "credit": 3.000,
+      "credit": 3,
+      "cyber": false,
       "instructorName": "홍길동",
       "curriculumType": "MAJOR",
-      "cyber": false,
-      "academicUnit": {
-        "originalName": "항공소프트웨어공학과",
-        "departmentName": "항공소프트웨어공학과",
-        "majorName": null
-      },
-      "generalEducation": null,
       "targetGrade": 2,
-      "commonGrade": false,
+      "originalAcademicUnitName": "항공소프트웨어공학과",
+      "generalCategory": null,
       "schedules": [
         {
           "dayOfWeek": "MONDAY",
           "periods": [1, 2, 3],
-          "classroom": {
-            "campusCode": "HSU",
-            "buildingName": "공학관",
-            "roomNumber": "302",
-            "originalValue": "공학관 302호"
-          }
+          "buildingName": "공학관",
+          "roomNumber": "302"
         }
       ]
     }
@@ -195,6 +185,12 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
   "hasNext": false
 }
 ```
+
+`offeringId`는 검색 결과의 강좌를 시간표에 추가하거나 상세 조회할 때 사용하는 식별자입니다.
+교양 강좌는 `generalCategory` 하나로 `REQUIRED`, `AREA_1`, `AREA_2`, `AREA_3`,
+`E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`, `OTHER` 중 하나를
+반환합니다. 상세 조회 `GET /api/courses/{offeringId}`는 같은 정보에 엑셀의 비고를
+`note`로 추가하여 반환합니다.
 
 전체 Query parameter, Enum 값과 검색 조합 규칙은
 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
