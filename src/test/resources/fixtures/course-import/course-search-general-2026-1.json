@@ -72,7 +72,7 @@
       "classificationName": "교양선택",
       "categoryCode": "REMOTE",
       "categoryName": "원격수업",
-      "area": "OTHER",
+      "area": "EXPLORATION",
       "deliveryProvider": "OCU",
       "deliveryProviderName": "OCU",
       "sourcePath": ["교양선택", "원격수업", "OCU"]
@@ -286,7 +286,7 @@
         "classificationName": "교양선택",
         "categoryCode": "REMOTE",
         "categoryName": "원격수업",
-        "area": "OTHER",
+        "area": "EXPLORATION",
         "deliveryProvider": "OCU",
         "deliveryProviderName": "OCU",
         "sourcePath": ["교양선택", "원격수업", "OCU"]
@@ -302,7 +302,7 @@
       "allowedGrades": [1, 2, 3, 4],
       "eligibleDepartmentNames": [],
       "teamTeaching": null,
-      "note": null,
+      "note": "OCU 수강 안내",
       "eligibilityNote": null,
       "scheduleText": "금8,9",
       "classroomText": "온라인",

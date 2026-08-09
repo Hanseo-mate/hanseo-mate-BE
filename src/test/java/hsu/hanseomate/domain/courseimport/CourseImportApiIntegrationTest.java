@@ -23,6 +23,7 @@ import hsu.hanseomate.domain.courseimport.service.CourseImportService;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -112,18 +113,24 @@ class CourseImportApiIntegrationTest {
                         .param("curriculumType", "MAJOR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].courseCode").value("001234"))
                 .andExpect(jsonPath("$.items[0].sectionNo").value("01"))
                 .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].credit").value(3))
                 .andExpect(jsonPath("$.items[0].cyber").value(false))
-                .andExpect(jsonPath("$.items[0].academicUnit.departmentName")
+                .andExpect(jsonPath("$.items[0].originalAcademicUnitName")
                         .value("항공소프트웨어공학과"))
+                .andExpect(jsonPath("$.items[0].generalCategory").doesNotExist())
                 .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek").value("MONDAY"))
                 .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(1))
                 .andExpect(jsonPath("$.items[0].schedules[0].periods[1]").value(2))
                 .andExpect(jsonPath("$.items[0].schedules[0].periods[2]").value(3))
-                .andExpect(jsonPath("$.items[0].schedules[0].classroom.originalValue")
-                        .value("본관 101호"))
+                .andExpect(jsonPath("$.items[0].schedules[0].buildingName").value("본관"))
+                .andExpect(jsonPath("$.items[0].schedules[0].roomNumber").value("101"))
+                .andExpect(jsonPath("$.items[0].note").doesNotExist())
+                .andExpect(jsonPath("$.items[0].courseCode").doesNotExist())
+                .andExpect(jsonPath("$.items[0].academicUnit").doesNotExist())
+                .andExpect(jsonPath("$.items[0].generalEducation").doesNotExist())
+                .andExpect(jsonPath("$.items[0].commonGrade").doesNotExist())
                 .andExpect(jsonPath("$.items[0].sourceCells").doesNotExist())
                 .andExpect(jsonPath("$.items[0].fileSha256").doesNotExist());
 
@@ -148,6 +155,91 @@ class CourseImportApiIntegrationTest {
         assertThat(rawUnknownCell.path("headerName").asString()).isEqualTo("새로 생긴 열");
         assertThat(rawUnknownCell.path("canonicalField").isNull()).isTrue();
         assertThat(rawUnknownCell.path("value").isNull()).isTrue();
+    }
+
+    @Test
+    void courseDetailReturnsMajorCourseDisplayInformation() throws Exception {
+        String payload = fixture("major-ready-2026-1-a.json")
+                .replace("\"note\": null", "\"note\": \"온라인수업\"");
+        performImport(payload);
+        CourseOffering offering = courseOfferingRepository.findAll().get(0);
+
+        var result = mockMvc.perform(get("/api/courses/{offeringId}", offering.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.offeringId").value(offering.getId().toString()))
+                .andExpect(jsonPath("$.courseName").value(offering.getCourseName()))
+                .andExpect(jsonPath("$.sectionNo").value(offering.getSectionNo()))
+                .andExpect(jsonPath("$.credit").value(3))
+                .andExpect(jsonPath("$.cyber").value(true))
+                .andExpect(jsonPath("$.instructorName").isNotEmpty())
+                .andExpect(jsonPath("$.curriculumType").value("MAJOR"))
+                .andExpect(jsonPath("$.targetGrade").value(2))
+                .andExpect(jsonPath("$.originalAcademicUnitName")
+                        .value("항공소프트웨어공학과"))
+                .andExpect(jsonPath("$.generalCategory").doesNotExist())
+                .andExpect(jsonPath("$.schedules[0].dayOfWeek").value("MONDAY"))
+                .andExpect(jsonPath("$.schedules[0].periods[0]").value(1))
+                .andExpect(jsonPath("$.schedules[0].periods[1]").value(2))
+                .andExpect(jsonPath("$.schedules[0].periods[2]").value(3))
+                .andExpect(jsonPath("$.schedules[0].buildingName").isNotEmpty())
+                .andExpect(jsonPath("$.schedules[0].roomNumber").value("101"))
+                .andExpect(jsonPath("$.note").value("온라인수업"))
+                .andExpect(jsonPath("$.courseCode").doesNotExist())
+                .andExpect(jsonPath("$.commonGrade").doesNotExist())
+                .andExpect(jsonPath("$.academicUnit").doesNotExist())
+                .andExpect(jsonPath("$.generalEducation").doesNotExist())
+                .andReturn();
+
+        JsonNode detail = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(detail.path("credit").isIntegralNumber()).isTrue();
+    }
+
+    @Test
+    void courseListAndDetailReturnGeneralEducationClassification() throws Exception {
+        performImport(fixture("course-search-general-2026-1.json"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "REQUIRED")
+                        .param("sort", "COURSE_CODE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].curriculumType")
+                        .value("GENERAL_EDUCATION"))
+                .andExpect(jsonPath("$.items[0].generalCategory").value("REQUIRED"))
+                .andExpect(jsonPath("$.items[0].originalAcademicUnitName").doesNotExist())
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(0))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[1]").value(1))
+                .andExpect(jsonPath("$.items[0].note").doesNotExist());
+
+        CourseOffering ocuOffering = courseOfferingRepository.findAll().stream()
+                .filter(offering -> "105000".equals(offering.getCourseCode()))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(get("/api/courses/{offeringId}", ocuOffering.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.curriculumType").value("GENERAL_EDUCATION"))
+                .andExpect(jsonPath("$.cyber").value(true))
+                .andExpect(jsonPath("$.originalAcademicUnitName").doesNotExist())
+                .andExpect(jsonPath("$.generalCategory").value("OCU"))
+                .andExpect(jsonPath("$.note").value("OCU 수강 안내"))
+                .andExpect(jsonPath("$.generalEducation").doesNotExist());
+    }
+
+    @Test
+    void unknownCourseDetailReturnsNotFound() throws Exception {
+        UUID unknownOfferingId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/courses/{offeringId}", unknownOfferingId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message")
+                        .value("강좌를 찾을 수 없습니다. offeringId=" + unknownOfferingId))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/courses/" + unknownOfferingId));
     }
 
     @Test
@@ -448,7 +540,7 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].courseName").value("SDU미래사회"))
                 .andExpect(jsonPath("$.items[0].cyber").value(true))
-                .andExpect(jsonPath("$.items[0].generalEducation.deliveryProviderName").value("SDU"));
+                .andExpect(jsonPath("$.items[0].generalCategory").value("SDU"));
     }
 
     @Test
@@ -495,7 +587,7 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(2))
                 .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath(
-                        "$.items[?(@.academicUnit.originalName != '항공소프트웨어공학과')]"
+                        "$.items[?(@.originalAcademicUnitName != '항공소프트웨어공학과')]"
                 ).isEmpty());
 
         mockMvc.perform(get("/api/courses")
@@ -646,10 +738,13 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(3))
                 .andExpect(jsonPath("$.items[0].courseName").value("필수인성"))
                 .andExpect(jsonPath("$.items[0].cyber").value(false))
+                .andExpect(jsonPath("$.items[0].generalCategory").value("REQUIRED"))
                 .andExpect(jsonPath("$.items[1].courseName").value("탐구사고"))
                 .andExpect(jsonPath("$.items[1].cyber").value(false))
+                .andExpect(jsonPath("$.items[1].generalCategory").value("AREA_1"))
                 .andExpect(jsonPath("$.items[2].courseName").value("OCU디지털"))
-                .andExpect(jsonPath("$.items[2].cyber").value(true));
+                .andExpect(jsonPath("$.items[2].cyber").value(true))
+                .andExpect(jsonPath("$.items[2].generalCategory").value("OCU"));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
@@ -659,7 +754,28 @@ class CourseImportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].courseName").value("기타원격"))
-                .andExpect(jsonPath("$.items[0].cyber").value(false));
+                .andExpect(jsonPath("$.items[0].cyber").value(false))
+                .andExpect(jsonPath("$.items[0].generalCategory").value("OTHER"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "AREA_1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("탐구사고"))
+                .andExpect(jsonPath("$.items[0].generalCategory").value("AREA_1"));
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "OCU"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("OCU디지털"))
+                .andExpect(jsonPath("$.items[0].generalCategory").value("OCU"));
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")

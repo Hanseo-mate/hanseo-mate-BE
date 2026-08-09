@@ -18,6 +18,14 @@ CREATE TABLE essential_links (
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE home_posters (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    image_url VARCHAR(2048) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE student_council_notices (
     id BIGINT NOT NULL AUTO_INCREMENT,
     title VARCHAR(500) NOT NULL,
