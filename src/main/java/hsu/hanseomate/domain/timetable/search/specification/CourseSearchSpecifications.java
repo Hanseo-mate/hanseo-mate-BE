@@ -17,6 +17,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
@@ -126,47 +127,66 @@ public final class CourseSearchSpecifications {
             Join<CourseOffering, OfferingGeneralEducation> generalEducation,
             CriteriaBuilder criteriaBuilder
     ) {
+        Path<GeneralClassification> classification = generalEducation.get("classification");
+        Path<GeneralArea> area = generalEducation.get("area");
+        Path<DeliveryProvider> provider = generalEducation.get("deliveryProvider");
+        Predicate nonRequired = criteriaBuilder.notEqual(
+                classification,
+                GeneralClassification.REQUIRED
+        );
+        Predicate nonRemoteProvider = criteriaBuilder.or(
+                criteriaBuilder.isNull(provider),
+                provider.in(DeliveryProvider.ON_CAMPUS, DeliveryProvider.OTHER)
+        );
+
         List<Predicate> categoryPredicates = categories.stream()
                 .map(category -> switch (category) {
                     case REQUIRED -> criteriaBuilder.equal(
-                            generalEducation.get("classification"),
+                            classification,
                             GeneralClassification.REQUIRED
                     );
-                    case AREA_1 -> criteriaBuilder.equal(
-                            generalEducation.get("area"),
-                            GeneralArea.EXPLORATION
+                    case AREA_1 -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.equal(area, GeneralArea.EXPLORATION)
                     );
-                    case AREA_2 -> criteriaBuilder.equal(
-                            generalEducation.get("area"),
-                            GeneralArea.COEXISTENCE
+                    case AREA_2 -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.equal(area, GeneralArea.COEXISTENCE)
                     );
-                    case AREA_3 -> criteriaBuilder.equal(
-                            generalEducation.get("area"),
-                            GeneralArea.INITIATIVE
+                    case AREA_3 -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.equal(area, GeneralArea.INITIATIVE)
                     );
-                    case E_CLASS -> criteriaBuilder.equal(
-                            generalEducation.get("deliveryProvider"),
-                            DeliveryProvider.E_CLASS
+                    case E_CLASS -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.E_CLASS)
                     );
-                    case HSU_CYBER -> criteriaBuilder.equal(
-                            generalEducation.get("deliveryProvider"),
-                            DeliveryProvider.HSU_CYBER
+                    case HSU_CYBER -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.HSU_CYBER)
                     );
-                    case OCU -> criteriaBuilder.equal(
-                            generalEducation.get("deliveryProvider"),
-                            DeliveryProvider.OCU
+                    case OCU -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.OCU)
                     );
-                    case CHUNGNAM_ELEARNING -> criteriaBuilder.equal(
-                            generalEducation.get("deliveryProvider"),
-                            DeliveryProvider.CHUNGNAM_ELEARNING
+                    case CHUNGNAM_ELEARNING -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.CHUNGNAM_ELEARNING)
                     );
-                    case SDU -> criteriaBuilder.equal(
-                            generalEducation.get("deliveryProvider"),
-                            DeliveryProvider.SDU
+                    case SDU -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.SDU)
                     );
-                    case OTHER -> criteriaBuilder.equal(
-                            generalEducation.get("deliveryProvider"),
-                            DeliveryProvider.OTHER
+                    case OTHER -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.or(
+                                    criteriaBuilder.isNull(area),
+                                    criteriaBuilder.equal(area, GeneralArea.OTHER)
+                            )
                     );
                 })
                 .toList();
