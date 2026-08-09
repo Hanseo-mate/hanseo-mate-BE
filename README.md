@@ -4,7 +4,7 @@
 
 현재 구현된 기능은 학교생활 필수 링크 관리, 학기별 강좌 일괄 수입·조회,
 중앙동아리 정보 관리, 로그인 사용자 기반 좋아요와 선택형 활동 후기, 동아리 이미지 업로드,
-학생회 공지 CRUD입니다.
+학생회 공지 CRUD와 관리자용 홈 포스터 이미지 관리입니다.
 
 ## 기술 스택
 
@@ -43,8 +43,8 @@ CREATE DATABASE hanseo_mate
     COLLATE utf8mb4_unicode_ci;
 ```
 
-로컬과 운영 환경 모두 `ddl-auto=validate`를 사용합니다. JPA가 테이블을 임의로 변경하지 않으며,
-애플리케이션 시작 시 엔티티와 실제 DB 구조가 일치하는지만 확인합니다.
+로컬 환경은 `ddl-auto=update`를 사용하고 운영 환경은 `ddl-auto=validate`를 사용합니다.
+운영에서는 JPA가 테이블을 임의로 변경하지 않으며, 애플리케이션 시작 시 엔티티와 실제 DB 구조가 일치하는지만 확인합니다.
 
 로컬 프로필은 기본적으로 다음 접속 정보를 사용합니다.
 
@@ -70,7 +70,7 @@ DB_PASSWORD
 
 운영 환경에서는 `SPRING_PROFILES_ACTIVE=prod`를 사용하며 세 가지 DB 환경변수가 모두 필요합니다.
 
-동아리 이미지 파일 저장 위치와 반환 URL은 다음 환경변수로 설정합니다.
+동아리 및 홈 포스터 이미지 파일 저장 위치와 반환 URL은 다음 환경변수로 설정합니다.
 
 ```text
 UPLOAD_DIRECTORY=uploads
@@ -100,6 +100,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 학생회 공지 조회와 관리 계약은 [학생회 공지 API 명세서](docs/student-council-notice-api.md)에서 확인할 수 있습니다.
 
+관리자 홈 포스터 관리 계약은 [홈 포스터 API 명세서](docs/home-poster-api.md)에서 확인할 수 있습니다.
+
 | Method | Endpoint | 설명 |
 |---|---|---|
 | `GET` | `/api/links` | 링크 목록을 ID 오름차순으로 조회 |
@@ -125,6 +127,10 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `DELETE` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 삭제 |
 | `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리와 좋아요·후기 데이터 삭제 |
+| `POST` | `/api/admin/home-posters` | 홈 포스터 이미지 추가 |
+| `GET` | `/api/admin/home-posters` | 관리자용 홈 포스터 전체 조회 |
+| `PUT` | `/api/admin/home-posters/{posterId}` | 홈 포스터 이미지 교체 |
+| `DELETE` | `/api/admin/home-posters/{posterId}` | 홈 포스터 삭제 |
 | `GET` | `/api/notices/categories/admin` | 학생회 공지 목록 조회 |
 | `GET` | `/api/notices/categories/admin/{noticeId}` | 학생회 공지 상세 조회 |
 | `POST` | `/api/admin/notices` | 학생회공지 등록 |

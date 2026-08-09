@@ -120,7 +120,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.CONTENT_TOO_LARGE;
-        if (isClubImageRequest(request)) {
+        if (isImageUploadRequest(request)) {
             return errorResponse(status, "이미지 파일이 허용 크기를 초과했습니다.", request);
         }
         return ResponseEntity.status(status).body(CourseWorkbookErrorResponse.of(
@@ -138,7 +138,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        if (isClubImageRequest(request)) {
+        if (isImageUploadRequest(request)) {
             return errorResponse(status, "업로드할 이미지 파일이 없습니다.", request);
         }
         return ResponseEntity.status(status).body(CourseWorkbookErrorResponse.of(
@@ -229,9 +229,11 @@ public class GlobalExceptionHandler {
                 .body(ApiErrorResponse.of(status, message, request.getRequestURI()));
     }
 
-    private boolean isClubImageRequest(HttpServletRequest request) {
+    private boolean isImageUploadRequest(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.startsWith("/api/admin/clubs/background-images/")
-                || path.startsWith("/api/admin/clubs/profile-images/");
+                || path.startsWith("/api/admin/clubs/profile-images/")
+                || path.equals("/api/admin/home-posters")
+                || path.startsWith("/api/admin/home-posters/");
     }
 }
