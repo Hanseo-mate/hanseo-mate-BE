@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.timetable.search.controller;
 
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
+import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingDetailResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingPageResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseSearchCondition;
 import hsu.hanseomate.domain.timetable.search.service.CourseSearchService;
@@ -14,9 +15,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -63,5 +66,13 @@ public class CourseSearchController {
                 credits
         );
         return courseSearchService.search(condition, page, size);
+    }
+
+    @Operation(summary = "강좌 상세 조회")
+    @GetMapping("/{offeringId}")
+    public CourseOfferingDetailResponse getCourse(
+            @PathVariable UUID offeringId
+    ) {
+        return courseSearchService.getCourse(offeringId);
     }
 }

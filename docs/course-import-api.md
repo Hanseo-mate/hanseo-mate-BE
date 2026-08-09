@@ -243,9 +243,9 @@ credits=CREDIT_2,CREDIT_3
 | 값 | 의미 |
 |---|---|
 | `REQUIRED` | 교양필수 |
-| `AREA_1` | 교양선택 1영역 |
-| `AREA_2` | 교양선택 2영역 |
-| `AREA_3` | 교양선택 3영역 |
+| `AREA_1` | 1영역 |
+| `AREA_2` | 2영역 |
+| `AREA_3` | 3영역 |
 | `E_CLASS` | e-Class |
 | `HSU_CYBER` | 한서대학교 사이버강좌 |
 | `OCU` | OCU |
@@ -337,31 +337,21 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
   "items": [
     {
       "offeringId": "7da5b546-d431-4b4d-9992-0a50d97399d5",
-      "courseCode": "001234",
       "courseName": "웹프로그래밍",
       "sectionNo": "01",
-      "credit": 3.000,
+      "credit": 3,
+      "cyber": false,
       "instructorName": "홍길동",
       "curriculumType": "MAJOR",
-      "cyber": false,
-      "academicUnit": {
-        "originalName": "항공소프트웨어공학과",
-        "departmentName": "항공소프트웨어공학과",
-        "majorName": null
-      },
-      "generalEducation": null,
       "targetGrade": 2,
-      "commonGrade": false,
+      "originalAcademicUnitName": "항공소프트웨어공학과",
+      "generalCategory": null,
       "schedules": [
         {
           "dayOfWeek": "MONDAY",
           "periods": [1, 2, 3],
-          "classroom": {
-            "campusCode": "HSU",
-            "buildingName": "공학관",
-            "roomNumber": "302",
-            "originalValue": "공학관 302호"
-          }
+          "buildingName": "공학관",
+          "roomNumber": "302"
         }
       ]
     }
@@ -374,9 +364,24 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
 }
 ```
 
+목록의 강좌 항목은 다음 규칙을 따른다.
+
+- `offeringId`: 강좌 상세 조회와 시간표 강좌 추가에 사용하는 `CourseOffering` UUID
+- `credit`: 현재 정수 학점은 불필요한 소수점 없이 JSON 숫자로 반환하며, 실제 소수 학점이 존재하면 값을 자르지 않고 보존
+- `curriculumType`: `MAJOR` 또는 `GENERAL_EDUCATION`
+- `targetGrade`: 단일 대상 학년을 숫자로 반환하며, 공통학년 또는 원본에서 학년을 확정할 수 없는 강좌는 `null`
+- `originalAcademicUnitName`: 전공 엑셀의 원본 학과명이며 교양은 `null`
+- `generalCategory`: 전공은 `null`, 교양은 아래 단일 Enum 값 중 하나
+  - `REQUIRED`: 교양필수의 세부 종류를 모두 합친 값
+  - `AREA_1`, `AREA_2`, `AREA_3`: 교양 1·2·3영역
+  - `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`: 원격 제공 유형
+  - `OTHER`: 그 밖의 교양 분류
+- 교양 카테고리는 교양필수 → 원격 제공 유형 → 1·2·3영역 순서로 판별하며, 한 강좌는 한 카테고리에만 속한다.
+- `schedules`: 강좌에 여러 일정이 있으면 모두 반환하며, 각 일정에 요일·숫자 교시·건물명·강의실 번호를 함께 제공
+
 `cyber`는 교양 제공기관이 `OCU`, `SDU`, `HSU_CYBER`,
-`CHUNGNAM_ELEARNING` 중 하나이면 `true`이다. 전공, 교내 교양, e-Class,
-기타 교양은 `false`이다.
+`CHUNGNAM_ELEARNING` 중 하나이면 `true`이다. 전공은 엑셀 비고에 `온라인`,
+`사이버`, `원격` 표시가 있을 때 `true`이다. 교내 교양, e-Class, 기타 교양은 `false`이다.
 
 검색 결과가 없으면 `items`가 빈 배열로 반환되며 페이지 정보는 유지된다.
 
@@ -393,6 +398,42 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
 
 수입 원본, 파일 SHA-256, `sourceCells`, 수입 이력은 사용자 조회 응답에 포함하지 않는다.
 
+### 8-2. 강좌 상세 조회
+
+```http
+GET /api/courses/{offeringId}
+```
+
+인증 없이 조회할 수 있다. `offeringId`에는 목록 응답의 값을 전달한다.
+목록 강좌 항목과 같은 필드를 반환하고, 엑셀의 `비고` 값만 `note`로 추가한다.
+
+```json
+{
+  "offeringId": "7da5b546-d431-4b4d-9992-0a50d97399d5",
+  "courseName": "항공산업개론",
+  "sectionNo": "01",
+  "credit": 3,
+  "cyber": true,
+  "instructorName": "홍길동",
+  "curriculumType": "MAJOR",
+  "targetGrade": 2,
+  "originalAcademicUnitName": "항공소프트웨어공학과",
+  "generalCategory": null,
+  "schedules": [
+    {
+      "dayOfWeek": "MONDAY",
+      "periods": [1, 2],
+      "buildingName": null,
+      "roomNumber": null
+    }
+  ],
+  "note": "온라인수업"
+}
+```
+
+`note`가 없는 강좌는 `null`이다. 존재하지 않는 `offeringId`는 `404 Not Found`를
+반환한다. 목록 응답에는 `note`를 포함하지 않는다.
+
 ---
 
 ## 9. 인증 및 권한
@@ -400,4 +441,4 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
 - 전공·교양 엑셀 수입은 `ADMIN` 역할만 사용할 수 있다.
 - JWT가 없거나 잘못되었거나 만료되면 `401 Unauthorized`를 반환한다.
 - `USER` 역할로 요청하면 `403 Forbidden`을 반환한다.
-- 강좌 조회 API인 `GET /api/courses`는 기존처럼 인증 없이 사용할 수 있다.
+- 강좌 조회 API인 `GET /api/courses`, `GET /api/courses/{offeringId}`는 인증 없이 사용할 수 있다.

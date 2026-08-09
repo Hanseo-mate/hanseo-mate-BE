@@ -1,14 +1,15 @@
 package hsu.hanseomate.domain.timetable.search.service;
 
-import tools.jackson.databind.ObjectMapper;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.support.CoursePeriodPolicy;
+import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingDetailResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingPageResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseSearchCondition;
+import hsu.hanseomate.domain.timetable.search.exception.CourseOfferingNotFoundException;
 import hsu.hanseomate.domain.timetable.search.specification.CourseSearchSpecifications;
 import hsu.hanseomate.domain.timetable.search.type.CourseCreditFilter;
 import hsu.hanseomate.domain.timetable.search.type.CourseGradeFilter;
@@ -38,7 +39,6 @@ public class CourseSearchService {
 
     private final CourseOfferingRepository courseOfferingRepository;
     private final CourseScheduleRepository courseScheduleRepository;
-    private final ObjectMapper objectMapper;
 
     public CourseOfferingPageResponse search(
             CourseSearchCondition requestedCondition,
@@ -65,8 +65,7 @@ public class CourseSearchService {
         List<CourseOfferingResponse> items = offerings.stream()
                 .map(offering -> CourseOfferingResponse.from(
                         offering,
-                        schedulesByOffering.getOrDefault(offering.getId(), List.of()),
-                        objectMapper
+                        schedulesByOffering.getOrDefault(offering.getId(), List.of())
                 ))
                 .toList();
 
@@ -78,6 +77,15 @@ public class CourseSearchService {
                 offeringPage.getTotalElements(),
                 offeringPage.hasNext()
         );
+    }
+
+    public CourseOfferingDetailResponse getCourse(UUID offeringId) {
+        CourseOffering offering = courseOfferingRepository.findById(offeringId)
+                .orElseThrow(() -> new CourseOfferingNotFoundException(offeringId));
+        List<CourseSchedule> schedules = courseScheduleRepository.findAllForOfferings(
+                List.of(offeringId)
+        );
+        return CourseOfferingDetailResponse.from(offering, schedules);
     }
 
     private CourseSearchCondition normalize(CourseSearchCondition condition) {
