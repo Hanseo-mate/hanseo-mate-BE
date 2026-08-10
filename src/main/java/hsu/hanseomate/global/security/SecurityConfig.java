@@ -102,7 +102,8 @@ public class SecurityConfig {
                 .securityMatcher(
                         "/api/clubs",
                         "/api/clubs/**",
-                        "/api/calendars/all"
+                        "/api/calendars/all",
+                        "/api/home"
                 )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
