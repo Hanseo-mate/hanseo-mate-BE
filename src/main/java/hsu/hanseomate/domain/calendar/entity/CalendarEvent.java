@@ -38,39 +38,31 @@ public class CalendarEvent extends BaseTimeEntity {
     @Column(nullable = false, length = 500)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "LONGTEXT")
-    private String content;
-
     private CalendarEvent(
             LocalDate startDate,
             LocalDate endDate,
-            String title,
-            String content
+            String title
     ) {
         this.startDate = startDate;
         this.endDate = endDate;
         this.title = title;
-        this.content = content;
     }
 
     public static CalendarEvent create(
             LocalDate startDate,
             LocalDate endDate,
-            String title,
-            String content
+            String title
     ) {
-        return new CalendarEvent(startDate, endDate, title, content);
+        return new CalendarEvent(startDate, endDate, title);
     }
 
     public void update(
             LocalDate startDate,
             LocalDate endDate,
-            String title,
-            String content
+            String title
     ) {
         this.startDate = startDate;
         this.endDate = endDate;
         this.title = title;
-        this.content = content;
     }
 }
