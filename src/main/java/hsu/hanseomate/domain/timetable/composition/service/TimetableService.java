@@ -10,6 +10,7 @@ import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseResponse;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCreateRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCreateResponse;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableDetailResponse;
+import hsu.hanseomate.domain.timetable.composition.dto.TimetableTermResponse;
 import hsu.hanseomate.domain.timetable.composition.entity.Timetable;
 import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
 import hsu.hanseomate.domain.timetable.composition.exception.TimetableApiException;
@@ -87,6 +88,15 @@ public class TimetableService {
                 timetable,
                 toCourseResponses(timetableCourses)
         );
+    }
+
+    public List<TimetableTermResponse> getTerms() {
+        Long ownerId = currentUserIdProvider.currentUserId();
+        return timetableRepository
+                .findAllByOwnerIdOrderByAcademicYearDescSemesterDesc(ownerId)
+                .stream()
+                .map(TimetableTermResponse::from)
+                .toList();
     }
 
     @Transactional

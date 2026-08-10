@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.timetable.composition.dto;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
+import hsu.hanseomate.domain.course.support.CourseCyberPolicy;
 import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseScheduleResponse;
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ public record TimetableCourseResponse(
         String courseName,
         String sectionNo,
         BigDecimal credit,
+        boolean cyber,
         String instructorName,
         String scheduleText,
         String classroomText,
@@ -32,6 +34,7 @@ public record TimetableCourseResponse(
                 offering.getCourseName(),
                 offering.getSectionNo(),
                 offering.getCredit(),
+                CourseCyberPolicy.isCyber(offering),
                 offering.getInstructorName(),
                 offering.getScheduleText(),
                 offering.getClassroomText(),

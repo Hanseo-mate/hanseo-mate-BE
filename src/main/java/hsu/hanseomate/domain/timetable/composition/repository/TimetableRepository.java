@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.timetable.composition.repository;
 
 import hsu.hanseomate.domain.timetable.composition.entity.Timetable;
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -21,6 +22,8 @@ public interface TimetableRepository extends JpaRepository<Timetable, Long> {
             int academicYear,
             int semester
     );
+
+    List<Timetable> findAllByOwnerIdOrderByAcademicYearDescSemesterDesc(Long ownerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from Timetable t where t.id = :timetableId")

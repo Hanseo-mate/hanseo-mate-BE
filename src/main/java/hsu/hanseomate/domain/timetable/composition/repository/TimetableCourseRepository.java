@@ -14,7 +14,10 @@ public interface TimetableCourseRepository extends JpaRepository<TimetableCourse
 
     boolean existsByTimetableIdAndCourseOfferingId(Long timetableId, UUID courseOfferingId);
 
-    @EntityGraph(attributePaths = "courseOffering")
+    @EntityGraph(attributePaths = {
+            "courseOffering",
+            "courseOffering.generalEducation"
+    })
     List<TimetableCourse> findAllByTimetableIdOrderById(Long timetableId);
 
     @Query("select tc.timetable.id from TimetableCourse tc where tc.id = :timetableCourseId")

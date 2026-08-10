@@ -153,7 +153,77 @@ class TimetableApiIntegrationTest {
                 .andExpect(jsonPath("$.timetableId").value(timetableId))
                 .andExpect(jsonPath("$.year").value(2026))
                 .andExpect(jsonPath("$.semester").value(1))
-                .andExpect(jsonPath("$.courses").isEmpty());
+                .andExpect(jsonPath("$.courses").isEmpty())
+                .andExpect(jsonPath("$.cyberCourses").isEmpty());
+    }
+
+    @Test
+    void listsOnlyCurrentUsersCreatedTimetableTermsNewestFirst() throws Exception {
+        long oldestId = createTimetable(2025, 2);
+        long newestId = createTimetable(2026, 2);
+        long middleId = createTimetable(2026, 1);
+        AuthSession otherUser = registerAndLogin("other-term-owner");
+        timetableRepository.saveAndFlush(
+                Timetable.create(otherUser.userId(), 2099, 1)
+        );
+
+        performAuthenticated(get(TIMETABLE_PATH + "/terms"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].timetableId").value(newestId))
+                .andExpect(jsonPath("$[0].year").value(2026))
+                .andExpect(jsonPath("$[0].semester").value(2))
+                .andExpect(jsonPath("$[1].timetableId").value(middleId))
+                .andExpect(jsonPath("$[1].year").value(2026))
+                .andExpect(jsonPath("$[1].semester").value(1))
+                .andExpect(jsonPath("$[2].timetableId").value(oldestId))
+                .andExpect(jsonPath("$[2].year").value(2025))
+                .andExpect(jsonPath("$[2].semester").value(2));
+    }
+
+    @Test
+    void returnsEmptyListWhenCurrentUserHasNoTimetables() throws Exception {
+        performAuthenticated(get(TIMETABLE_PATH + "/terms"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void timetableTermListRequiresAuthentication() throws Exception {
+        mockMvc.perform(get(TIMETABLE_PATH + "/terms"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void groupsCyberCoursesSeparatelyWithoutDuplicatingCourses() throws Exception {
+        importMajorFixture(payload -> payload.replaceFirst(
+                "\"note\": null",
+                "\"note\": \"온라인수업\""
+        ));
+        CourseOffering cyberCourse = offeringByCode(ALPHA_CODE);
+        CourseOffering regularCourse = offeringByCode(CHARLIE_CODE);
+        long timetableId = createTimetable(2026, 1);
+
+        addCourseRequest(timetableId, cyberCourse.getId(), "REJECT")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cyber").value(true));
+        addCourseRequest(timetableId, regularCourse.getId(), "REJECT")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cyber").value(false));
+
+        performAuthenticated(get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].courseId")
+                        .value(regularCourse.getId().toString()))
+                .andExpect(jsonPath("$.courses[0].cyber").value(false))
+                .andExpect(jsonPath("$.cyberCourses.length()").value(1))
+                .andExpect(jsonPath("$.cyberCourses[0].courseId")
+                        .value(cyberCourse.getId().toString()))
+                .andExpect(jsonPath("$.cyberCourses[0].cyber").value(true));
     }
 
     @Test
