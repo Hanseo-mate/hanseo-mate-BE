@@ -32,8 +32,7 @@ public class CalendarEventService {
         CalendarEvent event = CalendarEvent.create(
                 request.startDate(),
                 request.endDate(),
-                request.title().trim(),
-                request.content()
+                request.title().trim()
         );
         return CalendarEventResponse.from(calendarEventRepository.saveAndFlush(event));
     }
@@ -48,8 +47,7 @@ public class CalendarEventService {
         event.update(
                 request.startDate(),
                 request.endDate(),
-                request.title().trim(),
-                request.content()
+                request.title().trim()
         );
         calendarEventRepository.flush();
         return CalendarEventResponse.from(event);

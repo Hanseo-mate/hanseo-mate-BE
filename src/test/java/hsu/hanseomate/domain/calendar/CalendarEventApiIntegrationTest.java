@@ -65,8 +65,8 @@ class CalendarEventApiIntegrationTest {
                 """, String.class);
 
         assertThat(columns).containsExactlyInAnyOrder(
-                "id", "start_date", "end_date", "title", "content",
-                "created_at", "updated_at"
+                "id", "start_date", "end_date", "title", "created_at",
+                "updated_at"
         );
     }
 
@@ -79,15 +79,14 @@ class CalendarEventApiIntegrationTest {
     }
 
     @Test
-    void createsCalendarEventAndPreservesContent() throws Exception {
+    void createsCalendarEventWithDatesAndTrimmedTitle() throws Exception {
         mockMvc.perform(post(ADMIN_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "startDate": "2026-08-10",
                                   "endDate": "2026-08-12",
-                                  "title": "  학생회 행사 안내  ",
-                                  "content": "행사 내용을 안내합니다. 🎉\\n많은 참여 부탁드립니다."
+                                  "title": "  학생회 행사 안내  "
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -95,14 +94,12 @@ class CalendarEventApiIntegrationTest {
                 .andExpect(jsonPath("$.startDate").value("2026-08-10"))
                 .andExpect(jsonPath("$.endDate").value("2026-08-12"))
                 .andExpect(jsonPath("$.title").value("학생회 행사 안내"))
-                .andExpect(jsonPath("$.content")
-                        .value("행사 내용을 안내합니다. 🎉\n많은 참여 부탁드립니다."))
+                .andExpect(jsonPath("$.content").doesNotExist())
                 .andExpect(jsonPath("$.createdAt").doesNotExist())
                 .andExpect(jsonPath("$.updatedAt").doesNotExist());
 
         CalendarEvent saved = calendarEventRepository.findAll().get(0);
-        assertThat(saved.getContent())
-                .isEqualTo("행사 내용을 안내합니다. 🎉\n많은 참여 부탁드립니다.");
+        assertThat(saved.getTitle()).isEqualTo("학생회 행사 안내");
     }
 
     @Test
@@ -113,8 +110,7 @@ class CalendarEventApiIntegrationTest {
                             .content(objectMapper.writeValueAsString(Map.of(
                                     "startDate", "2026-09-01",
                                     "endDate", "2026-09-03",
-                                    "title", "중복 일정 " + i,
-                                    "content", "서로 겹치는 일정"
+                                    "title", "중복 일정 " + i
                             ))))
                     .andExpect(status().isCreated());
         }
@@ -124,8 +120,7 @@ class CalendarEventApiIntegrationTest {
                         .content(request(
                                 "2026-09-02",
                                 "2026-09-02",
-                                "하루 일정",
-                                "시작일과 종료일이 같습니다."
+                                "하루 일정"
                         )))
                 .andExpect(status().isCreated());
 
@@ -138,13 +133,13 @@ class CalendarEventApiIntegrationTest {
     @Test
     void publicAndAdminListsReturnEveryEventInDateOrder() throws Exception {
         CalendarEvent later = saveEvent(
-                "2026-10-10", "2026-10-11", "나중 일정", "나중 내용"
+                "2026-10-10", "2026-10-11", "나중 일정"
         );
         CalendarEvent earlierLong = saveEvent(
-                "2026-09-01", "2026-09-05", "먼저 시작하는 긴 일정", "긴 일정"
+                "2026-09-01", "2026-09-05", "먼저 시작하는 긴 일정"
         );
         CalendarEvent earlierShort = saveEvent(
-                "2026-09-01", "2026-09-03", "먼저 시작하는 짧은 일정", "짧은 일정"
+                "2026-09-01", "2026-09-03", "먼저 시작하는 짧은 일정"
         );
 
         mockMvc.perform(get(PUBLIC_PATH).with(anonymous()))
@@ -163,9 +158,9 @@ class CalendarEventApiIntegrationTest {
     }
 
     @Test
-    void updatesAllCalendarEventFields() throws Exception {
+    void updatesCalendarEventDatesAndTitle() throws Exception {
         CalendarEvent event = saveEvent(
-                "2026-08-10", "2026-08-11", "수정 전", "수정 전 내용"
+                "2026-08-10", "2026-08-11", "수정 전"
         );
 
         mockMvc.perform(put(ADMIN_PATH + "/{calendarId}", event.getId())
@@ -173,15 +168,14 @@ class CalendarEventApiIntegrationTest {
                         .content(request(
                                 "2026-08-20",
                                 "2026-08-25",
-                                "  수정 후 일정  ",
-                                "수정 후 내용 ✅"
+                                "  수정 후 일정  "
                         )))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(event.getId()))
                 .andExpect(jsonPath("$.startDate").value("2026-08-20"))
                 .andExpect(jsonPath("$.endDate").value("2026-08-25"))
                 .andExpect(jsonPath("$.title").value("수정 후 일정"))
-                .andExpect(jsonPath("$.content").value("수정 후 내용 ✅"));
+                .andExpect(jsonPath("$.content").doesNotExist());
 
         assertThat(calendarEventRepository.count()).isEqualTo(1);
     }
@@ -189,10 +183,10 @@ class CalendarEventApiIntegrationTest {
     @Test
     void deletesOnlyRequestedCalendarEvent() throws Exception {
         CalendarEvent deleted = saveEvent(
-                "2026-08-10", "2026-08-10", "삭제 대상", "삭제 내용"
+                "2026-08-10", "2026-08-10", "삭제 대상"
         );
         CalendarEvent remaining = saveEvent(
-                "2026-08-11", "2026-08-11", "유지 대상", "유지 내용"
+                "2026-08-11", "2026-08-11", "유지 대상"
         );
 
         mockMvc.perform(delete(ADMIN_PATH + "/{calendarId}", deleted.getId()))
@@ -209,8 +203,7 @@ class CalendarEventApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "title": " ",
-                                  "content": " "
+                                  "title": " "
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
@@ -221,8 +214,7 @@ class CalendarEventApiIntegrationTest {
                         .content(request(
                                 "2026-08-12",
                                 "2026-08-10",
-                                "역전 일정",
-                                "종료일이 더 빠릅니다."
+                                "역전 일정"
                         )))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
@@ -233,8 +225,7 @@ class CalendarEventApiIntegrationTest {
                         .content(request(
                                 "2026/08/10",
                                 "2026-08-12",
-                                "잘못된 날짜",
-                                "날짜 형식 오류"
+                                "잘못된 날짜"
                         )))
                 .andExpect(status().isBadRequest());
 
@@ -243,8 +234,7 @@ class CalendarEventApiIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "startDate", "2026-08-10",
                                 "endDate", "2026-08-12",
-                                "title", "가".repeat(501),
-                                "content", "제목 길이 오류"
+                                "title", "가".repeat(501)
                         ))))
                 .andExpect(status().isBadRequest());
     }
@@ -267,7 +257,7 @@ class CalendarEventApiIntegrationTest {
     @Test
     void everyAdminCalendarApiRequiresAdminRole() throws Exception {
         CalendarEvent event = saveEvent(
-                "2026-08-10", "2026-08-10", "권한 확인", "권한 확인 내용"
+                "2026-08-10", "2026-08-10", "권한 확인"
         );
 
         mockMvc.perform(get(ADMIN_PATH).with(anonymous()))
@@ -318,20 +308,24 @@ class CalendarEventApiIntegrationTest {
                         "$.paths['/api/admin/calendars/{calendarId}'].delete"
                 ).exists())
                 .andExpect(jsonPath("$.paths['/api/calendars/{calendarId}']")
-                        .doesNotExist());
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.CalendarEventRequest.properties.content"
+                ).doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.CalendarEventResponse.properties.content"
+                ).doesNotExist());
     }
 
     private CalendarEvent saveEvent(
             String startDate,
             String endDate,
-            String title,
-            String content
+            String title
     ) {
         return calendarEventRepository.saveAndFlush(CalendarEvent.create(
                 LocalDate.parse(startDate),
                 LocalDate.parse(endDate),
-                title,
-                content
+                title
         ));
     }
 
@@ -339,22 +333,19 @@ class CalendarEventApiIntegrationTest {
         return request(
                 "2026-08-10",
                 "2026-08-12",
-                "학생회 일정",
-                "학생회 일정 내용"
+                "학생회 일정"
         );
     }
 
     private String request(
             String startDate,
             String endDate,
-            String title,
-            String content
+            String title
     ) throws Exception {
         return objectMapper.writeValueAsString(Map.of(
                 "startDate", startDate,
                 "endDate", endDate,
-                "title", title,
-                "content", content
+                "title", title
         ));
     }
 

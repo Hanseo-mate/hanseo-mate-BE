@@ -64,13 +64,17 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain timetableSecurityFilterChain(
+    public SecurityFilterChain authenticatedUserApiSecurityFilterChain(
             HttpSecurity http,
             RestAuthenticationEntryPoint authenticationEntryPoint,
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
-                .securityMatcher("/api/timetables/**")
+                .securityMatcher(
+                        "/api/timetables/**",
+                        "/api/calendars/me",
+                        "/api/calendars/me/**"
+                )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -98,6 +102,7 @@ public class SecurityConfig {
                 .securityMatcher(
                         "/api/clubs",
                         "/api/clubs/**",
+                        "/api/calendars/all",
                         "/api/home"
                 )
                 .csrf(AbstractHttpConfigurer::disable)

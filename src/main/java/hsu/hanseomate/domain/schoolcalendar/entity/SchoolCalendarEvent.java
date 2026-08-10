@@ -1,4 +1,4 @@
-package hsu.hanseomate.domain.calendar.entity;
+package hsu.hanseomate.domain.schoolcalendar.entity;
 
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -16,14 +16,14 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-        name = "student_council_calendar_events",
+        name = "school_calendar_events",
         indexes = @Index(
-                name = "idx_calendar_event_dates",
+                name = "idx_school_calendar_events_dates",
                 columnList = "start_date,end_date,id"
         )
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CalendarEvent extends BaseTimeEntity {
+public class SchoolCalendarEvent extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,7 +38,7 @@ public class CalendarEvent extends BaseTimeEntity {
     @Column(nullable = false, length = 500)
     private String title;
 
-    private CalendarEvent(
+    private SchoolCalendarEvent(
             LocalDate startDate,
             LocalDate endDate,
             String title
@@ -48,19 +48,15 @@ public class CalendarEvent extends BaseTimeEntity {
         this.title = title;
     }
 
-    public static CalendarEvent create(
+    public static SchoolCalendarEvent create(
             LocalDate startDate,
             LocalDate endDate,
             String title
     ) {
-        return new CalendarEvent(startDate, endDate, title);
+        return new SchoolCalendarEvent(startDate, endDate, title);
     }
 
-    public void update(
-            LocalDate startDate,
-            LocalDate endDate,
-            String title
-    ) {
+    public void update(LocalDate startDate, LocalDate endDate, String title) {
         this.startDate = startDate;
         this.endDate = endDate;
         this.title = title;
