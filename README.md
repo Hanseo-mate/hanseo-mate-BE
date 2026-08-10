@@ -104,6 +104,12 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 학생회 캘린더 조회와 관리 계약은 [학생회 캘린더 API 명세서](docs/calendar-api.md)에서 확인할 수 있습니다.
 
+로그인 사용자 개인 일정 계약은 [개인 일정 API 명세서](docs/personal-calendar-api.md)에서 확인할 수 있습니다.
+
+학교 공식 일정 관리 계약은 [학교 공식 일정 API 명세서](docs/school-calendar-api.md)에서 확인할 수 있습니다.
+
+세 종류의 일정을 합치는 조회 계약은 [통합 일정 API 명세서](docs/unified-calendar-api.md)에서 확인할 수 있습니다.
+
 | Method | Endpoint | 설명 |
 |---|---|---|
 | `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
@@ -111,6 +117,16 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `POST` | `/api/admin/calendars` | 학생회 일정 등록 |
 | `PUT` | `/api/admin/calendars/{calendarId}` | 학생회 일정 전체 수정 |
 | `DELETE` | `/api/admin/calendars/{calendarId}` | 학생회 일정 삭제 |
+| `GET` | `/api/calendars/me` | 로그인 사용자의 개인 일정 전체 조회 |
+| `POST` | `/api/calendars/me` | 개인 일정 등록 |
+| `PUT` | `/api/calendars/me/{calendarId}` | 본인 개인 일정 전체 수정 |
+| `DELETE` | `/api/calendars/me/{calendarId}` | 본인 개인 일정 삭제 |
+| `GET` | `/api/calendars/school` | 로그인 없이 학교 공식 일정 전체 조회 |
+| `GET` | `/api/admin/school-calendars` | 관리자용 학교 일정 전체 조회 |
+| `POST` | `/api/admin/school-calendars` | 학교 일정 등록 |
+| `PUT` | `/api/admin/school-calendars/{calendarId}` | 학교 일정 전체 수정 |
+| `DELETE` | `/api/admin/school-calendars/{calendarId}` | 학교 일정 삭제 |
+| `GET` | `/api/calendars/all` | 학교·학생회·개인 일정 통합 조회 |
 | `GET` | `/api/links` | 링크 목록을 ID 오름차순으로 조회 |
 | `GET` | `/api/links?category=REMOTE_CLASS` | 카테고리별 링크 조회 |
 | `GET` | `/api/links/{linkId}` | 링크 상세 조회 |

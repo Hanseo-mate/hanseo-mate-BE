@@ -43,11 +43,21 @@ CREATE TABLE student_council_calendar_events (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     title VARCHAR(500) NOT NULL,
-    content LONGTEXT NOT NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     INDEX idx_calendar_event_dates (start_date, end_date, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE school_calendar_events (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_school_calendar_events_dates (start_date, end_date, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE user_accounts (
@@ -59,6 +69,27 @@ CREATE TABLE user_accounts (
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_user_account_login_id UNIQUE (login_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE personal_calendar_events (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    owner_id BIGINT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_personal_calendar_events_owner_dates (
+        owner_id,
+        start_date,
+        end_date,
+        id
+    ),
+    CONSTRAINT fk_personal_calendar_events_owner
+        FOREIGN KEY (owner_id)
+        REFERENCES user_accounts (id)
+        ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE semesters (

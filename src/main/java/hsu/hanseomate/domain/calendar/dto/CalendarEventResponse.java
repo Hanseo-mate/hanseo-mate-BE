@@ -7,16 +7,14 @@ public record CalendarEventResponse(
         Long id,
         LocalDate startDate,
         LocalDate endDate,
-        String title,
-        String content
+        String title
 ) {
     public static CalendarEventResponse from(CalendarEvent event) {
         return new CalendarEventResponse(
                 event.getId(),
                 event.getStartDate(),
                 event.getEndDate(),
-                event.getTitle(),
-                event.getContent()
+                event.getTitle()
         );
     }
 }

@@ -1,11 +1,11 @@
-package hsu.hanseomate.domain.calendar.dto;
+package hsu.hanseomate.domain.schoolcalendar.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
-public record CalendarEventRequest(
+public record SchoolCalendarEventRequest(
         @NotNull(message = "일정 시작일은 필수입니다.")
         LocalDate startDate,
 
