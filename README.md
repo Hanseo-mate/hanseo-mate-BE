@@ -102,8 +102,15 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 관리자 홈 포스터 관리 계약은 [홈 포스터 API 명세서](docs/home-poster-api.md)에서 확인할 수 있습니다.
 
+학생회 캘린더 조회와 관리 계약은 [학생회 캘린더 API 명세서](docs/calendar-api.md)에서 확인할 수 있습니다.
+
 | Method | Endpoint | 설명 |
 |---|---|---|
+| `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
+| `GET` | `/api/admin/calendars` | 관리자용 학생회 일정 전체 조회 |
+| `POST` | `/api/admin/calendars` | 학생회 일정 등록 |
+| `PUT` | `/api/admin/calendars/{calendarId}` | 학생회 일정 전체 수정 |
+| `DELETE` | `/api/admin/calendars/{calendarId}` | 학생회 일정 삭제 |
 | `GET` | `/api/links` | 링크 목록을 ID 오름차순으로 조회 |
 | `GET` | `/api/links?category=REMOTE_CLASS` | 카테고리별 링크 조회 |
 | `GET` | `/api/links/{linkId}` | 링크 상세 조회 |

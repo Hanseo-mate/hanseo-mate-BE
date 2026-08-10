@@ -9,10 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface StudentCouncilNoticeRepository extends JpaRepository<StudentCouncilNotice, Long> {
 
     Page<StudentCouncilNotice> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
+
+    Optional<StudentCouncilNoticeTitleProjection>
+    findFirstByOrderByViewCountDescCreatedAtDescIdDesc();
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE StudentCouncilNotice s SET s.viewCount = s.viewCount + 1 WHERE s.id = :id")

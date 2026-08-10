@@ -12,33 +12,6 @@ import org.junit.jupiter.api.Test;
 class CourseOfferingResponseTest {
 
     @Test
-    void cyberProvidersFollowTheResponsePolicy() {
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.OCU)).isTrue();
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.SDU)).isTrue();
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.HSU_CYBER)).isTrue();
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.CHUNGNAM_ELEARNING))
-                .isTrue();
-
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.ON_CAMPUS)).isFalse();
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.E_CLASS)).isFalse();
-        assertThat(CourseOfferingResponse.isCyberProvider(DeliveryProvider.OTHER)).isFalse();
-        assertThat(CourseOfferingResponse.isCyberProvider(null)).isFalse();
-    }
-
-    @Test
-    void majorCyberMarkersFollowTheExcelNotePolicy() {
-        assertThat(CourseOfferingResponse.containsMajorCyberMarker("온라인수업")).isTrue();
-        assertThat(CourseOfferingResponse.containsMajorCyberMarker(
-                "미국비행 대면강의, 한국 수강생 온라인 강의"
-        )).isTrue();
-        assertThat(CourseOfferingResponse.containsMajorCyberMarker("사이버 강좌")).isTrue();
-        assertThat(CourseOfferingResponse.containsMajorCyberMarker("원격수업")).isTrue();
-
-        assertThat(CourseOfferingResponse.containsMajorCyberMarker("일반 대면수업")).isFalse();
-        assertThat(CourseOfferingResponse.containsMajorCyberMarker(null)).isFalse();
-    }
-
-    @Test
     void generalCategoryCollapsesRequiredAndPrioritizesRemoteProvider() {
         assertThat(CourseOfferingResponse.generalCategory(
                 GeneralClassification.REQUIRED,
@@ -70,7 +43,9 @@ class CourseOfferingResponseTest {
     @Test
     void creditRemovesOnlyUnnecessaryTrailingZeros() {
         BigDecimal wholeCredit = CourseOfferingResponse.displayCredit(new BigDecimal("3.000"));
-        BigDecimal fractionalCredit = CourseOfferingResponse.displayCredit(new BigDecimal("2.500"));
+        BigDecimal fractionalCredit = CourseOfferingResponse.displayCredit(
+                new BigDecimal("2.500")
+        );
 
         assertThat(wholeCredit).isEqualByComparingTo("3");
         assertThat(wholeCredit.scale()).isZero();

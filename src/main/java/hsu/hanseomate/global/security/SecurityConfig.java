@@ -89,7 +89,7 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    public SecurityFilterChain clubApiSecurityFilterChain(
+    public SecurityFilterChain optionalJwtApiSecurityFilterChain(
             HttpSecurity http,
             RestAuthenticationEntryPoint authenticationEntryPoint,
             JwtAuthenticationConverter jwtAuthenticationConverter
@@ -97,7 +97,8 @@ public class SecurityConfig {
         http
                 .securityMatcher(
                         "/api/clubs",
-                        "/api/clubs/**"
+                        "/api/clubs/**",
+                        "/api/home"
                 )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session

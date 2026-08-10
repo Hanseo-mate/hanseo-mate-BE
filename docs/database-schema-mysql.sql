@@ -38,6 +38,18 @@ CREATE TABLE student_council_notices (
     INDEX idx_student_council_notices_created_at (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE student_council_calendar_events (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    content LONGTEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_calendar_event_dates (start_date, end_date, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE user_accounts (
     id BIGINT NOT NULL AUTO_INCREMENT,
     login_id VARCHAR(100) NOT NULL,
