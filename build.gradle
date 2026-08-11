@@ -2,10 +2,6 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'org.jetbrains.kotlin.jvm' version '2.1.0'
-    id 'org.jetbrains.kotlin.plugin.spring' version '2.1.0'
-    id 'org.jetbrains.kotlin.plugin.jpa' version '2.1.0'
-    id 'org.jetbrains.kotlin.kapt' version '2.1.0'
 }
 
 group = 'hsu'
@@ -15,13 +11,6 @@ description = 'hanseomate'
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
-    }
-}
-
-kotlin {
-    jvmToolchain(17)
-    compilerOptions {
-        freeCompilerArgs.addAll(['-Xjsr305=strict'])
     }
 }
 
@@ -38,15 +27,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.apache.poi:poi-ooxml:5.5.1'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
-    // Kotlin
-    implementation 'org.jetbrains.kotlin:kotlin-reflect'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib'
     // QueryDSL (Jakarta)
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
-    kapt 'com.querydsl:querydsl-apt:5.1.0:jakarta'
-    kapt 'jakarta.annotation:jakarta.annotation-api'
-    kapt 'jakarta.persistence:jakarta.persistence-api'
-    // Lombok (Java only) — kapt.keepJavacAnnotationProcessors=true 로 javac가 직접 처리
+    annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    // Lombok
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.mysql:mysql-connector-j'
@@ -65,10 +51,6 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs.add('-Xlint:deprecation')
-}
-
-kapt {
-    correctErrorTypes = true
 }
 
 tasks.named('test') {
