@@ -92,6 +92,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 ## API
 
+로그인 사용자 마이페이지 조회 계약은 [마이페이지 API 명세서](docs/my-page-api.md)에서 확인할 수 있습니다.
+
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
 강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
@@ -112,6 +114,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 | Method | Endpoint | 설명 |
 |---|---|---|
+| `GET` | `/api/auth/me` | 로그인 사용자의 계정 정보와 작성한 동아리 후기 조회 |
 | `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
 | `GET` | `/api/admin/calendars` | 관리자용 학생회 일정 전체 조회 |
 | `POST` | `/api/admin/calendars` | 학생회 일정 등록 |

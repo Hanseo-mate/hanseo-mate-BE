@@ -52,6 +52,20 @@ public class CorsConfig {
         loginConfiguration.setAllowCredentials(false);
         loginConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
+        CorsConfiguration authenticatedGetConfiguration = new CorsConfiguration();
+        authenticatedGetConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        authenticatedGetConfiguration.setAllowedMethods(List.of(
+                HttpMethod.GET.name(),
+                HttpMethod.OPTIONS.name()
+        ));
+        authenticatedGetConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION,
+                HttpHeaders.CONTENT_TYPE,
+                HttpHeaders.ACCEPT
+        ));
+        authenticatedGetConfiguration.setAllowCredentials(false);
+        authenticatedGetConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
@@ -64,6 +78,10 @@ public class CorsConfig {
                 adminConfiguration
         );
         source.registerCorsConfiguration("/api/auth/login", loginConfiguration);
+        source.registerCorsConfiguration(
+                "/api/auth/me",
+                authenticatedGetConfiguration
+        );
         return source;
     }
 }
