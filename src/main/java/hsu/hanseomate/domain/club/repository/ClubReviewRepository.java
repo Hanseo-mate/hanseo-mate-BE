@@ -14,6 +14,18 @@ public interface ClubReviewRepository extends JpaRepository<ClubReview, Long> {
     @EntityGraph(attributePaths = "reviewTags")
     Optional<ClubReview> findByClubIdAndReviewerId(Long clubId, Long reviewerId);
 
+    @Query("""
+            select distinct review
+            from ClubReview review
+            join fetch review.club
+            left join fetch review.reviewTags
+            where review.reviewer.id = :reviewerId
+            order by review.id desc
+            """)
+    List<ClubReview> findAllByReviewerIdWithClubAndReviewTags(
+            @Param("reviewerId") Long reviewerId
+    );
+
     long countByClubId(Long clubId);
 
     void deleteAllByClubId(Long clubId);

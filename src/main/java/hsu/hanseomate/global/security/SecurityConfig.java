@@ -71,10 +71,12 @@ public class SecurityConfig {
     ) throws Exception {
         http
                 .securityMatcher(
+                        "/api/auth/me",
                         "/api/timetables/**",
                         "/api/calendars/me",
                         "/api/calendars/me/**"
                 )
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -88,6 +88,34 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void myPageApiPreflightAllowsConfiguredOriginAndAuthorizationHeader()
+            throws Exception {
+        mockMvc.perform(options("/api/auth/me")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                HttpHeaders.AUTHORIZATION
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.GET.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
+                ));
+    }
+
+    @Test
     void clubReviewApiPreflightIsNotCorsEnabled() throws Exception {
         mockMvc.perform(options("/api/clubs/reviews/1")
                         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
@@ -131,6 +159,20 @@ class CorsIntegrationTest {
                         .header(
                                 HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
                                 HttpMethod.POST.name()
+                        ))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
+                ));
+    }
+
+    @Test
+    void myPageApiPreflightRejectsOriginThatIsNotConfigured() throws Exception {
+        mockMvc.perform(options("/api/auth/me")
+                        .header(HttpHeaders.ORIGIN, DISALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
                         ))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist(
