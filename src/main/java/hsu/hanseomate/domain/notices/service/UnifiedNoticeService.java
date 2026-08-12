@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,44 +20,93 @@ public class UnifiedNoticeService {
     private final NoticeRepository noticeRepository;
     private final StudentCouncilNoticeRepository councilNoticeRepository;
 
-    // 생성자 주입 (생략)
-
     /**
-     * 띄어쓰기 무시 통합 검색 및 목록 조회 (페이징 포함)
+     * 통합 공지 목록 조회 (검색어 포함, 페이징).
+     *
+     * <p>정렬 기준 (우선순위 순):
+     * <ol>
+     *   <li>학생회 공지(STUDENT_COUNCIL) 최우선</li>
+     *   <li>isHot=true 인 공지 (학사 → 일반 → 장학 → 대학원)</li>
+     *   <li>isHot=false 인 공지 (학사 → 일반 → 장학 → 대학원)</li>
+     *   <li>동일 그룹 내에서는 최신순(postDate DESC, id DESC)</li>
+     * </ol>
      */
     @Transactional(readOnly = true)
     public List<UnifiedNoticeListItemResponse> getUnifiedNotices(String keyword, int page, int size) {
-        // 1. 검색어 공백 제거 (사용자가 "수 강신청" 이라 쳐도 "수강신청"으로 변환)
         String processedKeyword = (keyword == null) ? "" : keyword.replace(" ", "");
 
-        // 2. 각 DB에서 충분한 양의 데이터를 가져옵니다.
-        // 최신순 정렬을 위해 (page + 1) * size 만큼 넉넉하게 가져와야 자바 단에서 정렬 시 누락이 없습니다.
-        int fetchLimit = (page + 1) * size;
-        PageRequest pageRequest = PageRequest.of(0, fetchLimit); // 각 레포지토리의 최신 N개
+        // 학생회 공지는 항상 최상단이므로 전체를 가져온다 (학교 특성상 수백 건 이내)
+        int councilFetchLimit = Math.max((page + 1) * size, 500);
+        // 일반 공지는 현재 페이지를 커버할 만큼만 가져온다
+        int noticeFetchLimit = (page + 1) * size;
 
-        // 공지사항 가져오기
-        List<Notice> notices = noticeRepository.searchByTitleIgnoringSpaces(processedKeyword, pageRequest);
-        // 학생회 공지 가져오기
-        List<StudentCouncilNotice> councilNotices = councilNoticeRepository.searchByTitleIgnoringSpaces(processedKeyword, pageRequest);
+        List<Notice> notices = noticeRepository.searchByTitleIgnoringSpaces(
+                processedKeyword, PageRequest.of(0, noticeFetchLimit)
+        );
+        List<StudentCouncilNotice> councilNotices = councilNoticeRepository.searchByTitleIgnoringSpaces(
+                processedKeyword, PageRequest.of(0, councilFetchLimit)
+        );
 
-        // 3. 자바 메모리에서 리스트 합치기 및 DTO 변환
-        List<UnifiedNoticeListItemResponse> combinedList = new ArrayList<>();
+        List<UnifiedNoticeListItemResponse> combined = new ArrayList<>(
+                notices.size() + councilNotices.size()
+        );
+        notices.forEach(n -> combined.add(UnifiedNoticeListItemResponse.from(n)));
+        councilNotices.forEach(c -> combined.add(UnifiedNoticeListItemResponse.from(c)));
 
-        combinedList.addAll(notices.stream()
-                .map(UnifiedNoticeListItemResponse::from)
-                .toList());
+        combined.sort(unifiedComparator());
 
-        combinedList.addAll(councilNotices.stream()
-                .map(UnifiedNoticeListItemResponse::from)
-                .toList());
+        int start = Math.min(page * size, combined.size());
+        int end   = Math.min(start + size, combined.size());
+        return combined.subList(start, end);
+    }
 
-        // 4. 날짜 기준 최신순(내림차순) 정렬
-        combinedList.sort(Comparator.comparing(UnifiedNoticeListItemResponse::postDate).reversed());
+    // ── 정렬 기준 ─────────────────────────────────────────────────────────────
 
-        // 5. 요청한 페이지 사이즈에 맞게 자르기 (SubList)
-        int start = Math.min(page * size, combinedList.size());
-        int end = Math.min(start + size, combinedList.size());
+    /**
+     * 학생회 공지 → isHot 공지(타입 우선순위 순) → 일반 공지(타입 우선순위 순)
+     * 동일 그룹 내에서는 postDate DESC, id DESC.
+     */
+    private Comparator<UnifiedNoticeListItemResponse> unifiedComparator() {
+        return Comparator
+                // 1. 학생회 공지 최우선
+                .comparingInt((UnifiedNoticeListItemResponse r) -> groupPriority(r))
+                // 2. 동일 그룹 내 최신순
+                .thenComparing(
+                        Comparator.comparing(UnifiedNoticeListItemResponse::postDate).reversed()
+                )
+                .thenComparing(
+                        Comparator.comparing(UnifiedNoticeListItemResponse::id).reversed()
+                );
+    }
 
-        return combinedList.subList(start, end);
+    /**
+     * 그룹 우선순위 값을 반환합니다. 값이 작을수록 먼저 표시됩니다.
+     *
+     * <pre>
+     * 0  : 학생회 공지 (STUDENT_COUNCIL)
+     * 1  : 학사공지   isHot=true  (ACADEMIC)
+     * 2  : 일반공지   isHot=true  (GENERAL)
+     * 3  : 장학공지   isHot=true  (SCHOLARSHIP)
+     * 4  : 대학원공지 isHot=true  (GRADUATE)
+     * 5  : 학사공지   isHot=false (ACADEMIC)
+     * 6  : 일반공지   isHot=false (GENERAL)
+     * 7  : 장학공지   isHot=false (SCHOLARSHIP)
+     * 8  : 대학원공지 isHot=false (GRADUATE)
+     * 99 : 기타
+     * </pre>
+     */
+    private int groupPriority(UnifiedNoticeListItemResponse r) {
+        if ("STUDENT_COUNCIL".equals(r.noticeType())) return 0;
+
+        // isHot=false 는 타입 구분 없이 같은 그룹 → 이후 날짜순으로만 정렬
+        if (!r.isHot()) return 5;
+
+        return switch (r.noticeType()) {
+            case "ACADEMIC"    -> 1;
+            case "GENERAL"     -> 2;
+            case "SCHOLARSHIP" -> 3;
+            case "GRADUATE"    -> 4;
+            default            -> 99;
+        };
     }
 }
