@@ -199,6 +199,7 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
       "curriculumType": "MAJOR",
       "targetGrade": 2,
       "originalAcademicUnitName": "항공소프트웨어공학과",
+      "eligibleDepartmentNames": [],
       "generalCategory": null,
       "schedules": [
         {
@@ -223,6 +224,10 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
 `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`, `OTHER` 중 하나를
 반환합니다. 상세 조회 `GET /api/courses/{offeringId}`는 같은 정보에 엑셀의 비고를
 `note`로 추가하여 반환합니다.
+`eligibleDepartmentNames`는 엑셀에 저장된 수강대상 학과 목록이며, 제한 정보가 없으면
+빈 배열을 반환합니다. 이는 전공 엑셀의 원본 학과·전공을 나타내는
+`originalAcademicUnitName`과는 다른 정보이며, 교양의 `originalAcademicUnitName`은
+`null`입니다.
 
 전체 Query parameter, Enum 값과 검색 조합 규칙은
 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
