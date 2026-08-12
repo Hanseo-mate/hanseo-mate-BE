@@ -70,15 +70,19 @@ DB_PASSWORD
 
 운영 환경에서는 `SPRING_PROFILES_ACTIVE=prod`를 사용하며 세 가지 DB 환경변수가 모두 필요합니다.
 
-동아리 및 홈 포스터 이미지 파일 저장 위치와 반환 URL은 다음 환경변수로 설정합니다.
+동아리·홈 포스터·학생회 공지 이미지 파일 저장 위치와 반환 URL, 학생회 공지 일반
+첨부파일의 비공개 저장 위치는 다음 환경변수로 설정합니다.
 
 ```text
 UPLOAD_DIRECTORY=uploads
 UPLOAD_PUBLIC_BASE_URL=http://localhost:8080
 UPLOAD_MAX_IMAGE_BYTES=5242880
+NOTICE_ATTACHMENT_DIRECTORY=private-uploads/student-council-notices
 ```
 
-운영 환경에서는 `UPLOAD_DIRECTORY`를 영속 디스크나 Docker 볼륨에 연결해야 합니다.
+운영 환경에서는 `UPLOAD_DIRECTORY`와 `NOTICE_ATTACHMENT_DIRECTORY`를 영속 디스크나
+Docker 볼륨에 연결해야 합니다. 일반 첨부파일은 공개 정적 경로가 아니라 API를 통해
+다운로드합니다.
 
 새 DB에는 전체 엔티티를 기준으로 정리한 단일 스키마 파일을 한 번 적용합니다.
 이 파일은 기존 테이블을 변경하거나 삭제하지 않는 **빈 데이터베이스 전용** 파일입니다.

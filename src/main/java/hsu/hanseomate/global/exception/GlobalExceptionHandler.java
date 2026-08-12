@@ -10,11 +10,13 @@ import jakarta.validation.ConstraintViolationException;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -129,16 +131,21 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.CONTENT_TOO_LARGE;
-        if (isImageUploadRequest(request)) {
-            return errorResponse(status, "이미지 파일이 허용 크기를 초과했습니다.", request);
+        if (!isWorkbookUploadRequest(request)) {
+            String message = isImageUploadRequest(request)
+                    ? "이미지 파일이 허용 크기를 초과했습니다."
+                    : "업로드 파일이 허용 크기를 초과했습니다.";
+            return errorResponse(status, message, request);
         }
-        return ResponseEntity.status(status).body(CourseWorkbookErrorResponse.of(
-                status,
-                "FILE_TOO_LARGE",
-                "업로드 파일이 허용 크기를 초과했습니다.",
-                java.util.Map.of(),
-                request.getRequestURI()
-        ));
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(CourseWorkbookErrorResponse.of(
+                        status,
+                        "FILE_TOO_LARGE",
+                        "업로드 파일이 허용 크기를 초과했습니다.",
+                        java.util.Map.of(),
+                        request.getRequestURI()
+                ));
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
@@ -147,16 +154,33 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        if (isImageUploadRequest(request)) {
-            return errorResponse(status, "업로드할 이미지 파일이 없습니다.", request);
+        if (!isWorkbookUploadRequest(request)) {
+            String message = isImageUploadRequest(request)
+                    ? "업로드할 이미지 파일이 없습니다."
+                    : "업로드할 파일이 없습니다.";
+            return errorResponse(status, message, request);
         }
-        return ResponseEntity.status(status).body(CourseWorkbookErrorResponse.of(
-                status,
-                "FILE_MISSING",
-                "업로드할 엑셀 파일이 없습니다.",
-                java.util.Map.of("partName", exception.getRequestPartName()),
-                request.getRequestURI()
-        ));
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(CourseWorkbookErrorResponse.of(
+                        status,
+                        "FILE_MISSING",
+                        "업로드할 엑셀 파일이 없습니다.",
+                        java.util.Map.of("partName", exception.getRequestPartName()),
+                        request.getRequestURI()
+                ));
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiErrorResponse> handleMalformedMultipart(
+            MultipartException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                "multipart 요청 형식이 올바르지 않습니다.",
+                request
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -235,7 +259,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiErrorResponse.of(status, message, request.getRequestURI()));
+    }
+
+    private boolean isWorkbookUploadRequest(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.equals("/api/v1/timetables/major")
+                || path.equals("/api/v1/timetables/general-education");
     }
 
     private boolean isImageUploadRequest(HttpServletRequest request) {

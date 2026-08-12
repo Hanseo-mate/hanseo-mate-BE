@@ -38,6 +38,41 @@ CREATE TABLE student_council_notices (
     INDEX idx_student_council_notices_created_at (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE student_council_notice_images (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    notice_id BIGINT NOT NULL,
+    image_url VARCHAR(2048) NOT NULL,
+    original_file_name VARCHAR(500) NOT NULL,
+    content_type VARCHAR(255) NOT NULL,
+    file_size BIGINT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_student_council_notice_images_notice (notice_id, id),
+    CONSTRAINT fk_student_council_notice_images_notice
+        FOREIGN KEY (notice_id)
+        REFERENCES student_council_notices (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE student_council_notice_attachments (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    notice_id BIGINT NOT NULL,
+    storage_key VARCHAR(255) NOT NULL,
+    original_file_name VARCHAR(500) NOT NULL,
+    content_type VARCHAR(255) NOT NULL,
+    file_size BIGINT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_student_council_notice_attachment_storage_key UNIQUE (storage_key),
+    INDEX idx_student_council_notice_attachments_notice (notice_id, id),
+    CONSTRAINT fk_student_council_notice_attachments_notice
+        FOREIGN KEY (notice_id)
+        REFERENCES student_council_notices (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE student_council_calendar_events (
     id BIGINT NOT NULL AUTO_INCREMENT,
     start_date DATE NOT NULL,

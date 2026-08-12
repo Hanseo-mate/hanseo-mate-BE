@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.studentcouncilnotice.controller;
 
 import hsu.hanseomate.domain.studentcouncilnotice.dto.StudentCouncilNoticeDetailResponse;
+import hsu.hanseomate.domain.studentcouncilnotice.dto.StudentCouncilNoticeAttachmentDownload;
 import hsu.hanseomate.domain.studentcouncilnotice.dto.StudentCouncilNoticePageResponse;
 import hsu.hanseomate.domain.studentcouncilnotice.service.StudentCouncilNoticeService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
@@ -13,7 +14,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -76,5 +83,43 @@ public class StudentCouncilNoticeController {
             @PathVariable Long noticeId
     ) {
         return studentCouncilNoticeService.getNoticeAndIncrementViewCount(noticeId);
+    }
+
+    @Operation(
+            summary = "학생회 공지 첨부파일 다운로드",
+            description = "첨부파일을 실행하지 않고 다운로드 형식으로 반환합니다. 조회수는 증가하지 않습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "다운로드 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 공지 또는 첨부파일 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "첨부파일 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @GetMapping("/{noticeId}/attachments/{attachmentId}/download")
+    public ResponseEntity<Resource> downloadAttachment(
+            @Positive(message = "공지 ID는 1 이상이어야 합니다.")
+            @PathVariable Long noticeId,
+            @Positive(message = "첨부파일 ID는 1 이상이어야 합니다.")
+            @PathVariable Long attachmentId
+    ) {
+        StudentCouncilNoticeAttachmentDownload download =
+                studentCouncilNoticeService.downloadAttachment(noticeId, attachmentId);
+        String contentDisposition = ContentDisposition.attachment()
+                .filename(download.fileName(), StandardCharsets.UTF_8)
+                .build()
+                .toString();
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(download.fileSize())
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
+                .header("X-Content-Type-Options", "nosniff")
+                .body(download.resource());
     }
 }
