@@ -180,7 +180,7 @@ Authorization: Bearer {ADMIN_ACCESS_TOKEN}
 | `401` | JWT 없음, 잘못된 JWT, 만료된 JWT |
 | `403` | `USER` 역할로 관리자 API 호출 |
 | `404` | 교체하거나 삭제할 포스터가 없음 |
-| `413` | Spring multipart 전체 업로드 제한 초과 |
+| `413` | 운영 프록시·웹 서버 등 외부 업로드 제한 초과 |
 
 ## 9. API 요약
 
