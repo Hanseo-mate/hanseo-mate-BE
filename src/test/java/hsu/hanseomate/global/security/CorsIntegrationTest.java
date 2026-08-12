@@ -116,6 +116,35 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void publicNoticeDownloadPreflightAllowsConfiguredOrigin() throws Exception {
+        mockMvc.perform(options(
+                        "/api/notices/categories/admin/1/attachments/1/download"
+                )
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                HttpHeaders.AUTHORIZATION
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.GET.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
+                        containsString(HttpHeaders.CONTENT_DISPOSITION)
+                ));
+    }
+
+    @Test
     void clubReviewApiPreflightIsNotCorsEnabled() throws Exception {
         mockMvc.perform(options("/api/clubs/reviews/1")
                         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
