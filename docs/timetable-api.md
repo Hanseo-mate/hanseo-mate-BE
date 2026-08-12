@@ -105,6 +105,9 @@ GET /api/timetables?year=2026&semester=2
       "courseName": "자료구조",
       "sectionNo": "01",
       "credit": 3.000,
+      "cyber": false,
+      "generalCategory": null,
+      "eligibleDepartmentNames": [],
       "instructorName": "김교수",
       "scheduleText": "월1,2 / 수1,2",
       "classroomText": "공학관 301호",
@@ -121,9 +124,19 @@ GET /api/timetables?year=2026&semester=2
         }
       ]
     }
-  ]
+  ],
+  "cyberCourses": []
 }
 ```
+
+`courses`에는 일반 강좌, `cyberCourses`에는 `cyber=true`인 사이버 강좌가 들어간다.
+각 강좌는 두 배열 중 하나에만 포함된다.
+
+- `generalCategory`: 전공은 `null`, 교양은 `REQUIRED`, `AREA_1`, `AREA_2`,
+  `AREA_3`, `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`,
+  `OTHER` 중 하나
+- `eligibleDepartmentNames`: 엑셀의 수강대상 학과 목록이며 제한 정보가 없으면 `[]`
+- `sectionNo`: 엑셀의 분반 값을 문자열로 보존
 
 ## 5. 시간표에 과목 추가
 
@@ -162,6 +175,9 @@ HTTP/1.1 201 Created
   "courseName": "자료구조",
   "sectionNo": "01",
   "credit": 3.000,
+  "cyber": false,
+  "generalCategory": null,
+  "eligibleDepartmentNames": [],
   "instructorName": "김교수",
   "scheduleText": "월1,2",
   "classroomText": "공학관 301호",
@@ -201,6 +217,9 @@ HTTP/1.1 409 Conflict
       "courseName": "운영체제",
       "sectionNo": "01",
       "credit": 3.000,
+      "cyber": false,
+      "generalCategory": null,
+      "eligibleDepartmentNames": [],
       "instructorName": "이교수",
       "scheduleText": "월1,2",
       "classroomText": "공학관 302호",
@@ -220,6 +239,9 @@ HTTP/1.1 409 Conflict
   ]
 }
 ```
+
+과목 추가 성공 응답과 시간 충돌의 `conflicts` 항목도 시간표 조회의 강좌 객체와
+동일하게 `sectionNo`, `cyber`, `generalCategory`, `eligibleDepartmentNames`를 반환한다.
 
 ## 6. 시간표 과목 삭제
 
