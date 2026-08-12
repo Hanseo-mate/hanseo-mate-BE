@@ -94,6 +94,10 @@ class StudentCouncilNoticeApiIntegrationTest {
                 .andExpect(jsonPath("$.content")
                         .value("행사 내용을 안내드립니다. 📢\n많은 참여 부탁드립니다."))
                 .andExpect(jsonPath("$.viewCount").value(0))
+                .andExpect(jsonPath("$.images").isArray())
+                .andExpect(jsonPath("$.images").isEmpty())
+                .andExpect(jsonPath("$.attachments").isArray())
+                .andExpect(jsonPath("$.attachments").isEmpty())
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
 
