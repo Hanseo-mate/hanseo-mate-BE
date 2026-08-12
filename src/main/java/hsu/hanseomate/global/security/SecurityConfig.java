@@ -105,7 +105,9 @@ public class SecurityConfig {
                         "/api/clubs",
                         "/api/clubs/**",
                         "/api/calendars/all",
-                        "/api/home"
+                        "/api/home",
+                        "/api/v1/push-tokens",
+                        "/api/v1/push-tokens/**"
                 )
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session

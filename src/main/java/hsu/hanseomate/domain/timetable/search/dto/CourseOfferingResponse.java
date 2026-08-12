@@ -3,12 +3,12 @@ package hsu.hanseomate.domain.timetable.search.dto;
 import hsu.hanseomate.domain.course.entity.AcademicUnit;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
-import hsu.hanseomate.domain.course.entity.OfferingGeneralEducation;
 import hsu.hanseomate.domain.course.support.CourseCyberPolicy;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.courseimport.dto.type.DeliveryProvider;
 import hsu.hanseomate.domain.courseimport.dto.type.GeneralArea;
 import hsu.hanseomate.domain.courseimport.dto.type.GeneralClassification;
+import hsu.hanseomate.domain.timetable.search.support.GeneralCategoryResolver;
 import hsu.hanseomate.domain.timetable.search.type.GeneralCategoryFilter;
 import java.math.BigDecimal;
 import java.util.List;
@@ -24,12 +24,14 @@ public record CourseOfferingResponse(
         CurriculumType curriculumType,
         Integer targetGrade,
         String originalAcademicUnitName,
+        List<String> eligibleDepartmentNames,
         GeneralCategoryFilter generalCategory,
         List<CourseSearchScheduleResponse> schedules
 ) {
     public static CourseOfferingResponse from(
             CourseOffering offering,
-            List<CourseSchedule> schedules
+            List<CourseSchedule> schedules,
+            List<String> eligibleDepartmentNames
     ) {
         return new CourseOfferingResponse(
                 offering.getId(),
@@ -41,7 +43,8 @@ public record CourseOfferingResponse(
                 offering.getCurriculumType(),
                 offering.getTargetGrade(),
                 originalAcademicUnitName(offering.getAcademicUnit()),
-                generalCategory(offering.getGeneralEducation()),
+                List.copyOf(eligibleDepartmentNames),
+                GeneralCategoryResolver.resolve(offering.getGeneralEducation()),
                 schedules.stream().map(CourseSearchScheduleResponse::from).toList()
         );
     }
@@ -50,52 +53,12 @@ public record CourseOfferingResponse(
         return credit == null ? null : credit.stripTrailingZeros();
     }
 
-    static GeneralCategoryFilter generalCategory(OfferingGeneralEducation generalEducation) {
-        if (generalEducation == null) {
-            return null;
-        }
-        return generalCategory(
-                generalEducation.getClassification(),
-                generalEducation.getArea(),
-                generalEducation.getDeliveryProvider()
-        );
-    }
-
     static GeneralCategoryFilter generalCategory(
             GeneralClassification classification,
             GeneralArea area,
             DeliveryProvider provider
     ) {
-        if (classification == GeneralClassification.REQUIRED) {
-            return GeneralCategoryFilter.REQUIRED;
-        }
-        GeneralCategoryFilter remoteCategory = remoteCategory(provider);
-        if (remoteCategory != null) {
-            return remoteCategory;
-        }
-        if (area == null) {
-            return GeneralCategoryFilter.OTHER;
-        }
-        return switch (area) {
-            case EXPLORATION -> GeneralCategoryFilter.AREA_1;
-            case COEXISTENCE -> GeneralCategoryFilter.AREA_2;
-            case INITIATIVE -> GeneralCategoryFilter.AREA_3;
-            case OTHER -> GeneralCategoryFilter.OTHER;
-        };
-    }
-
-    private static GeneralCategoryFilter remoteCategory(DeliveryProvider provider) {
-        if (provider == null) {
-            return null;
-        }
-        return switch (provider) {
-            case E_CLASS -> GeneralCategoryFilter.E_CLASS;
-            case HSU_CYBER -> GeneralCategoryFilter.HSU_CYBER;
-            case OCU -> GeneralCategoryFilter.OCU;
-            case CHUNGNAM_ELEARNING -> GeneralCategoryFilter.CHUNGNAM_ELEARNING;
-            case SDU -> GeneralCategoryFilter.SDU;
-            case ON_CAMPUS, OTHER -> null;
-        };
+        return GeneralCategoryResolver.resolve(classification, area, provider);
     }
 
     private static String originalAcademicUnitName(AcademicUnit academicUnit) {

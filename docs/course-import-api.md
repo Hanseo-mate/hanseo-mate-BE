@@ -345,6 +345,7 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
       "curriculumType": "MAJOR",
       "targetGrade": 2,
       "originalAcademicUnitName": "항공소프트웨어공학과",
+      "eligibleDepartmentNames": [],
       "generalCategory": null,
       "schedules": [
         {
@@ -371,6 +372,7 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
 - `curriculumType`: `MAJOR` 또는 `GENERAL_EDUCATION`
 - `targetGrade`: 단일 대상 학년을 숫자로 반환하며, 공통학년 또는 원본에서 학년을 확정할 수 없는 강좌는 `null`
 - `originalAcademicUnitName`: 전공 엑셀의 원본 학과명이며 교양은 `null`
+- `eligibleDepartmentNames`: 엑셀의 수강대상 학과 목록이며, 제한 정보가 없으면 빈 배열 `[]`
 - `generalCategory`: 전공은 `null`, 교양은 아래 단일 Enum 값 중 하나
   - `REQUIRED`: 교양필수의 세부 종류를 모두 합친 값
   - `AREA_1`, `AREA_2`, `AREA_3`: 교양 1·2·3영역
@@ -418,6 +420,7 @@ GET /api/courses/{offeringId}
   "curriculumType": "MAJOR",
   "targetGrade": 2,
   "originalAcademicUnitName": "항공소프트웨어공학과",
+  "eligibleDepartmentNames": [],
   "generalCategory": null,
   "schedules": [
     {
@@ -433,6 +436,9 @@ GET /api/courses/{offeringId}
 
 `note`가 없는 강좌는 `null`이다. 존재하지 않는 `offeringId`는 `404 Not Found`를
 반환한다. 목록 응답에는 `note`를 포함하지 않는다.
+`eligibleDepartmentNames`는 목록과 상세에서 동일하게 반환하며 교양의 수강대상 학과도
+이 배열로 제공한다. 교양의 `originalAcademicUnitName`은 개설 학과 데이터가 아니므로
+임의의 값으로 채우지 않고 `null`을 유지한다.
 
 ---
 

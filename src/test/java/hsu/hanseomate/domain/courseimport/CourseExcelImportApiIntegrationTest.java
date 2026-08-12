@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.courseimport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -11,14 +12,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
+import hsu.hanseomate.domain.courseimport.dto.type.DeliveryProvider;
+import hsu.hanseomate.domain.courseimport.dto.type.GeneralArea;
+import hsu.hanseomate.domain.courseimport.dto.type.GeneralClassification;
 import hsu.hanseomate.support.AdminMockMvcConfiguration;
 import java.io.ByteArrayOutputStream;
+import java.util.stream.Stream;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -148,8 +156,13 @@ class CourseExcelImportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].courseName").value("지역사회와봉사"))
+                .andExpect(jsonPath("$.items[0].sectionNo").value("001"))
                 .andExpect(jsonPath("$.items[0].curriculumType")
                         .value("GENERAL_EDUCATION"))
+                .andExpect(jsonPath("$.items[0].eligibleDepartmentNames", containsInAnyOrder(
+                        "항공소프트웨어공학과",
+                        "항공운항학과"
+                )))
                 .andExpect(jsonPath("$.items[0].generalCategory").value("REQUIRED"))
                 .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek")
                         .value("MONDAY"))
@@ -161,11 +174,101 @@ class CourseExcelImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].note").doesNotExist());
 
         CourseOffering offering = courseOfferingRepository.findAll().get(0);
+        assertThat(offering.getSectionNo()).isEqualTo("001");
+        assertThat(offering.getGeneralEducation().getClassification())
+                .isEqualTo(GeneralClassification.REQUIRED);
+        assertThat(jdbcTemplate.queryForList(
+                "select department_name from offering_eligible_departments",
+                String.class
+        )).containsExactlyInAnyOrder("항공소프트웨어공학과", "항공운항학과");
         mockMvc.perform(get("/api/courses/{offeringId}", offering.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.offeringId").value(offering.getId().toString()))
+                .andExpect(jsonPath("$.sectionNo").value("001"))
+                .andExpect(jsonPath("$.eligibleDepartmentNames", containsInAnyOrder(
+                        "항공소프트웨어공학과",
+                        "항공운항학과"
+                )))
                 .andExpect(jsonPath("$.generalCategory").value("REQUIRED"))
                 .andExpect(jsonPath("$.note").value("봉사활동 안내"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("generalCategoryCases")
+    void generalCategoryHeadingsArePreservedFromWorkbookToListAndDetail(
+            String heading,
+            String courseCode,
+            String expectedCategory,
+            GeneralArea expectedArea,
+            DeliveryProvider expectedProvider,
+            boolean expectedCyber
+    ) throws Exception {
+        String courseName = expectedCategory + " 강좌";
+        MockMultipartFile file = workbookFile(
+                "2026학년도 1학기 교양강좌-" + courseCode + ".xlsx",
+                generalCategoryWorkbook(heading, courseName, courseCode)
+        );
+
+        mockMvc.perform(multipart("/api/v1/timetables/general-education").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storageStatus").value("STORED"));
+
+        CourseOffering offering = courseOfferingRepository.findDetailedById(
+                courseOfferingRepository.findAll().get(0).getId()
+        ).orElseThrow();
+        assertThat(offering.getSectionNo()).isEqualTo("001");
+        assertThat(offering.getGeneralEducation().getClassification())
+                .isEqualTo(GeneralClassification.ELECTIVE);
+        if (expectedArea != null) {
+            assertThat(offering.getGeneralEducation().getArea()).isEqualTo(expectedArea);
+        }
+        assertThat(offering.getGeneralEducation().getDeliveryProvider())
+                .isEqualTo(expectedProvider);
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", expectedCategory))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value(courseName))
+                .andExpect(jsonPath("$.items[0].sectionNo").value("001"))
+                .andExpect(jsonPath("$.items[0].generalCategory").value(expectedCategory))
+                .andExpect(jsonPath("$.items[0].cyber").value(expectedCyber))
+                .andExpect(jsonPath("$.items[0].eligibleDepartmentNames").isEmpty());
+
+        mockMvc.perform(get("/api/courses/{offeringId}", offering.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sectionNo").value("001"))
+                .andExpect(jsonPath("$.generalCategory").value(expectedCategory))
+                .andExpect(jsonPath("$.cyber").value(expectedCyber))
+                .andExpect(jsonPath("$.eligibleDepartmentNames").isEmpty());
+    }
+
+    private static Stream<Arguments> generalCategoryCases() {
+        return Stream.of(
+                Arguments.of(
+                        "1영역 탐구", "0099101", "AREA_1",
+                        GeneralArea.EXPLORATION, DeliveryProvider.ON_CAMPUS, false
+                ),
+                Arguments.of(
+                        "2영역 상생", "0099102", "AREA_2",
+                        GeneralArea.COEXISTENCE, DeliveryProvider.ON_CAMPUS, false
+                ),
+                Arguments.of(
+                        "3영역 진취", "0099103", "AREA_3",
+                        GeneralArea.INITIATIVE, DeliveryProvider.ON_CAMPUS, false
+                ),
+                Arguments.of(
+                        "OCU", "0099104", "OCU",
+                        null, DeliveryProvider.OCU, true
+                ),
+                Arguments.of(
+                        "SDU", "0099105", "SDU",
+                        null, DeliveryProvider.SDU, true
+                )
+        );
     }
 
     @Test
@@ -665,6 +768,7 @@ class CourseExcelImportApiIntegrationTest {
             sheet.createRow(0).createCell(0).setCellValue("교양필수");
             sheet.createRow(1).createCell(0).setCellValue("지역사회와봉사");
             createHeader(sheet.createRow(2));
+            sheet.getRow(2).createCell(10).setCellValue("수강학과");
             Row lecture = sheet.createRow(3);
             createLecture(
                     lecture,
@@ -675,6 +779,24 @@ class CourseExcelImportApiIntegrationTest {
                     "본관 101호"
             );
             lecture.createCell(9).setCellValue("봉사활동 안내");
+            lecture.createCell(10).setCellValue("항공소프트웨어공학과, 항공운항학과");
+            workbook.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] generalCategoryWorkbook(
+            String heading,
+            String courseName,
+            String courseCode
+    ) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("2026학년도 1학기");
+            sheet.createRow(0).createCell(0).setCellValue("교양선택");
+            sheet.createRow(1).createCell(0).setCellValue(heading);
+            createHeader(sheet.createRow(2));
+            createLecture(sheet.createRow(3), courseName, courseCode, "월1,2");
             workbook.write(output);
             return output.toByteArray();
         }

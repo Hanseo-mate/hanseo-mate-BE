@@ -4,6 +4,8 @@ import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
+import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentNameProjection;
+import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
 import hsu.hanseomate.domain.course.support.CoursePeriodPolicy;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingDetailResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingPageResponse;
@@ -19,6 +21,7 @@ import hsu.hanseomate.domain.timetable.search.type.GeneralCategoryFilter;
 import hsu.hanseomate.global.exception.BadRequestException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +42,7 @@ public class CourseSearchService {
 
     private final CourseOfferingRepository courseOfferingRepository;
     private final CourseScheduleRepository courseScheduleRepository;
+    private final OfferingEligibleDepartmentRepository offeringEligibleDepartmentRepository;
 
     public CourseOfferingPageResponse search(
             CourseSearchCondition requestedCondition,
@@ -61,11 +65,14 @@ public class CourseSearchService {
                 : courseScheduleRepository.findAllForOfferings(offeringIds)
                         .stream()
                         .collect(Collectors.groupingBy(schedule -> schedule.getOffering().getId()));
+        Map<UUID, List<String>> eligibleDepartmentsByOffering =
+                loadEligibleDepartmentNames(offeringIds);
 
         List<CourseOfferingResponse> items = offerings.stream()
                 .map(offering -> CourseOfferingResponse.from(
                         offering,
-                        schedulesByOffering.getOrDefault(offering.getId(), List.of())
+                        schedulesByOffering.getOrDefault(offering.getId(), List.of()),
+                        eligibleDepartmentsByOffering.getOrDefault(offering.getId(), List.of())
                 ))
                 .toList();
 
@@ -85,7 +92,29 @@ public class CourseSearchService {
         List<CourseSchedule> schedules = courseScheduleRepository.findAllForOfferings(
                 List.of(offeringId)
         );
-        return CourseOfferingDetailResponse.from(offering, schedules);
+        List<String> eligibleDepartmentNames = loadEligibleDepartmentNames(List.of(offeringId))
+                .getOrDefault(offeringId, List.of());
+        return CourseOfferingDetailResponse.from(
+                offering,
+                schedules,
+                eligibleDepartmentNames
+        );
+    }
+
+    private Map<UUID, List<String>> loadEligibleDepartmentNames(List<UUID> offeringIds) {
+        if (offeringIds.isEmpty()) {
+            return Map.of();
+        }
+        return offeringEligibleDepartmentRepository.findNamesByOfferingIds(offeringIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        OfferingEligibleDepartmentNameProjection::getOfferingId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(
+                                OfferingEligibleDepartmentNameProjection::getDepartmentName,
+                                Collectors.toList()
+                        )
+                ));
     }
 
     private CourseSearchCondition normalize(CourseSearchCondition condition) {
