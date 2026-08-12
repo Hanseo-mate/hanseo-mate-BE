@@ -66,6 +66,25 @@ public class CorsConfig {
         authenticatedGetConfiguration.setAllowCredentials(false);
         authenticatedGetConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
+        CorsConfiguration publicNoticeConfiguration = new CorsConfiguration();
+        publicNoticeConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        publicNoticeConfiguration.setAllowedMethods(List.of(
+                HttpMethod.GET.name(),
+                HttpMethod.OPTIONS.name()
+        ));
+        publicNoticeConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION,
+                HttpHeaders.CONTENT_TYPE,
+                HttpHeaders.ACCEPT
+        ));
+        publicNoticeConfiguration.setExposedHeaders(List.of(
+                HttpHeaders.CONTENT_DISPOSITION,
+                HttpHeaders.CONTENT_LENGTH,
+                "X-Content-Type-Options"
+        ));
+        publicNoticeConfiguration.setAllowCredentials(false);
+        publicNoticeConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
@@ -81,6 +100,10 @@ public class CorsConfig {
         source.registerCorsConfiguration(
                 "/api/auth/me",
                 authenticatedGetConfiguration
+        );
+        source.registerCorsConfiguration(
+                "/api/notices/**",
+                publicNoticeConfiguration
         );
         return source;
     }
