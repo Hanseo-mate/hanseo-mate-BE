@@ -18,15 +18,21 @@ public record CourseOfferingDetailResponse(
         CurriculumType curriculumType,
         Integer targetGrade,
         String originalAcademicUnitName,
+        List<String> eligibleDepartmentNames,
         GeneralCategoryFilter generalCategory,
         List<CourseSearchScheduleResponse> schedules,
         String note
 ) {
     public static CourseOfferingDetailResponse from(
             CourseOffering offering,
-            List<CourseSchedule> schedules
+            List<CourseSchedule> schedules,
+            List<String> eligibleDepartmentNames
     ) {
-        CourseOfferingResponse summary = CourseOfferingResponse.from(offering, schedules);
+        CourseOfferingResponse summary = CourseOfferingResponse.from(
+                offering,
+                schedules,
+                eligibleDepartmentNames
+        );
         return new CourseOfferingDetailResponse(
                 summary.offeringId(),
                 summary.courseName(),
@@ -37,6 +43,7 @@ public record CourseOfferingDetailResponse(
                 summary.curriculumType(),
                 summary.targetGrade(),
                 summary.originalAcademicUnitName(),
+                summary.eligibleDepartmentNames(),
                 summary.generalCategory(),
                 summary.schedules(),
                 offering.getNote()
