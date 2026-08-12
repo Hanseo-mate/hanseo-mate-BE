@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.timetable.composition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -50,10 +51,15 @@ class TimetableApiIntegrationTest {
 
     private static final String FIXTURE =
             "fixtures/course-import/course-search-major-2026-1.json";
+    private static final String GENERAL_FIXTURE =
+            "fixtures/course-import/course-search-general-2026-1.json";
     private static final String TIMETABLE_PATH = "/api/timetables";
     private static final String ALPHA_CODE = "003000";
     private static final String CHARLIE_CODE = "001000";
     private static final String OTHER_CODE = "005000";
+    private static final String GENERAL_REQUIRED_CODE = "101000";
+    private static final String GENERAL_AREA_1_CODE = "102000";
+    private static final String GENERAL_OCU_CODE = "105000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -227,6 +233,55 @@ class TimetableApiIntegrationTest {
     }
 
     @Test
+    void returnsGeneralCategoryDepartmentsAndSectionForGeneralEducationCourses()
+            throws Exception {
+        importGeneralFixture(payload -> payload.replaceFirst(
+                "\\\"eligibleDepartmentNames\\\": \\[\\]",
+                "\"eligibleDepartmentNames\": "
+                        + "[\"항공소프트웨어공학과\", \"항공운항학과\"]"
+        ));
+        CourseOffering requiredCourse = offeringByCode(GENERAL_REQUIRED_CODE);
+        CourseOffering ocuCourse = offeringByCode(GENERAL_OCU_CODE);
+        long timetableId = createTimetable(2026, 1);
+
+        addCourseRequest(timetableId, requiredCourse.getId(), "REJECT")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sectionNo").value("01"))
+                .andExpect(jsonPath("$.generalCategory").value("REQUIRED"))
+                .andExpect(jsonPath("$.eligibleDepartmentNames", containsInAnyOrder(
+                        "항공소프트웨어공학과",
+                        "항공운항학과"
+                )))
+                .andExpect(jsonPath("$.cyber").value(false));
+        addCourseRequest(timetableId, ocuCourse.getId(), "REJECT")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sectionNo").value("01"))
+                .andExpect(jsonPath("$.generalCategory").value("OCU"))
+                .andExpect(jsonPath("$.eligibleDepartmentNames").isEmpty())
+                .andExpect(jsonPath("$.cyber").value(true));
+
+        performAuthenticated(get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].courseId")
+                        .value(requiredCourse.getId().toString()))
+                .andExpect(jsonPath("$.courses[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.courses[0].generalCategory").value("REQUIRED"))
+                .andExpect(jsonPath("$.courses[0].eligibleDepartmentNames", containsInAnyOrder(
+                        "항공소프트웨어공학과",
+                        "항공운항학과"
+                )))
+                .andExpect(jsonPath("$.cyberCourses.length()").value(1))
+                .andExpect(jsonPath("$.cyberCourses[0].courseId")
+                        .value(ocuCourse.getId().toString()))
+                .andExpect(jsonPath("$.cyberCourses[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.cyberCourses[0].generalCategory").value("OCU"))
+                .andExpect(jsonPath("$.cyberCourses[0].eligibleDepartmentNames").isEmpty());
+    }
+
+    @Test
     void getTimetableIncludesStoredCoursesAndAllMeetingDetails() throws Exception {
         importMajorFixture();
         CourseOffering course = offeringByCode(OTHER_CODE);
@@ -244,7 +299,10 @@ class TimetableApiIntegrationTest {
                         .value(course.getId().toString()))
                 .andExpect(jsonPath("$.courses[0].courseCode").value(OTHER_CODE))
                 .andExpect(jsonPath("$.courses[0].courseName").value("기타세미나"))
+                .andExpect(jsonPath("$.courses[0].sectionNo").value("01"))
                 .andExpect(jsonPath("$.courses[0].credit").value(5.0))
+                .andExpect(jsonPath("$.courses[0].eligibleDepartmentNames[0]")
+                        .value("자유전공학부"))
                 .andExpect(jsonPath("$.courses[0].instructorName").value("윤교수"))
                 .andExpect(jsonPath("$.courses[0].scheduleText").value("월1,2 / 금8,9"))
                 .andExpect(jsonPath("$.courses[0].classroomText").value("미래관 501호"))
@@ -413,11 +471,45 @@ class TimetableApiIntegrationTest {
                 .andExpect(jsonPath("$.conflicts[0].courseId")
                         .value(alpha.getId().toString()))
                 .andExpect(jsonPath("$.conflicts[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.conflicts[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.conflicts[0].eligibleDepartmentNames[0]")
+                        .value("항공소프트웨어공학과"))
                 .andExpect(jsonPath("$.conflicts[0].meetings.length()").value(1))
                 .andExpect(jsonPath("$.conflicts[0].meetings[0].dayOfWeek")
                         .value("MONDAY"))
                 .andExpect(jsonPath("$.conflicts[0].meetings[0].periods[0]").value(0))
                 .andExpect(jsonPath("$.conflicts[0].meetings[0].periods[1]").value(1));
+    }
+
+    @Test
+    void generalCategoryIsIncludedInGeneralEducationConflictDetails() throws Exception {
+        importGeneralFixture(payload -> payload
+                .replaceFirst(
+                        "\\\"dayOfWeek\\\": \\\"TUESDAY\\\"",
+                        "\"dayOfWeek\": \"MONDAY\""
+                )
+                .replaceFirst(
+                        "\\\"periods\\\": \\[2, 3\\]",
+                        "\"periods\": [0, 1]"
+                ));
+        CourseOffering required = offeringByCode(GENERAL_REQUIRED_CODE);
+        CourseOffering areaOne = offeringByCode(GENERAL_AREA_1_CODE);
+        long timetableId = createTimetable(2026, 1);
+        addCourse(timetableId, required.getId(), "REJECT");
+
+        expectTimetableError(
+                addCourseRequest(timetableId, areaOne.getId(), "REJECT"),
+                HttpStatus.CONFLICT,
+                "TIMETABLE_TIME_CONFLICT",
+                "기존 과목과 수업 시간이 겹칩니다.",
+                TIMETABLE_PATH + "/courses/" + timetableId
+        )
+                .andExpect(jsonPath("$.conflicts.length()").value(1))
+                .andExpect(jsonPath("$.conflicts[0].courseId")
+                        .value(required.getId().toString()))
+                .andExpect(jsonPath("$.conflicts[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.conflicts[0].generalCategory").value("REQUIRED"))
+                .andExpect(jsonPath("$.conflicts[0].eligibleDepartmentNames").isEmpty());
     }
 
     @Test
@@ -912,6 +1004,15 @@ class TimetableApiIntegrationTest {
         assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
         assertThat(response.databaseChanged()).isTrue();
         assertThat(response.offeringCount()).isEqualTo(5);
+    }
+
+    private void importGeneralFixture(UnaryOperator<String> modifier) throws Exception {
+        String payload = new ClassPathResource(GENERAL_FIXTURE)
+                .getContentAsString(StandardCharsets.UTF_8);
+        CourseImportResponse response = performImport(modifier.apply(payload));
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(response.databaseChanged()).isTrue();
+        assertThat(response.offeringCount()).isEqualTo(7);
     }
 
     private CourseImportResponse performImport(String payload) {

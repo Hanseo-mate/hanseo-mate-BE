@@ -4,6 +4,8 @@ import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
+import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentNameProjection;
+import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
 import hsu.hanseomate.domain.timetable.composition.currentuser.CurrentUserIdProvider;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseAddRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseResponse;
@@ -42,6 +44,7 @@ public class TimetableService {
     private final TimetableCourseRepository timetableCourseRepository;
     private final CourseOfferingRepository courseOfferingRepository;
     private final CourseScheduleRepository courseScheduleRepository;
+    private final OfferingEligibleDepartmentRepository offeringEligibleDepartmentRepository;
     private final TimetableConflictDetector conflictDetector;
     private final CurrentUserIdProvider currentUserIdProvider;
 
@@ -147,7 +150,12 @@ public class TimetableService {
             TimetableCourse created = timetableCourseRepository.saveAndFlush(
                     TimetableCourse.create(timetable, candidate)
             );
-            return TimetableCourseResponse.from(created, candidateSchedules);
+            return TimetableCourseResponse.from(
+                    created,
+                    candidateSchedules,
+                    loadEligibleDepartmentNames(List.of(candidate.getId()))
+                            .getOrDefault(candidate.getId(), List.of())
+            );
         } catch (DataIntegrityViolationException exception) {
             if (violatesConstraint(exception, "uk_timetable_course_offering")) {
                 throw new TimetableApiException(TimetableErrorCode.COURSE_ALREADY_ADDED);
@@ -272,15 +280,41 @@ public class TimetableService {
             List<TimetableCourse> timetableCourses,
             Map<UUID, List<CourseSchedule>> schedulesByOffering
     ) {
+        List<UUID> offeringIds = timetableCourses.stream()
+                .map(TimetableCourse::getCourseOffering)
+                .map(CourseOffering::getId)
+                .toList();
+        Map<UUID, List<String>> eligibleDepartmentsByOffering =
+                loadEligibleDepartmentNames(offeringIds);
         return timetableCourses.stream()
                 .map(timetableCourse -> TimetableCourseResponse.from(
                         timetableCourse,
                         schedulesByOffering.getOrDefault(
                                 timetableCourse.getCourseOffering().getId(),
                                 List.of()
+                        ),
+                        eligibleDepartmentsByOffering.getOrDefault(
+                                timetableCourse.getCourseOffering().getId(),
+                                List.of()
                         )
                 ))
                 .toList();
+    }
+
+    private Map<UUID, List<String>> loadEligibleDepartmentNames(List<UUID> offeringIds) {
+        if (offeringIds.isEmpty()) {
+            return Map.of();
+        }
+        return offeringEligibleDepartmentRepository.findNamesByOfferingIds(offeringIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        OfferingEligibleDepartmentNameProjection::getOfferingId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(
+                                OfferingEligibleDepartmentNameProjection::getDepartmentName,
+                                Collectors.toList()
+                        )
+                ));
     }
 
     private boolean violatesConstraint(
