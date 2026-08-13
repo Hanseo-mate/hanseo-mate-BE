@@ -151,7 +151,40 @@ class MyPageApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(current.userId()))
                 .andExpect(jsonPath("$.clubReviews").isArray())
-                .andExpect(jsonPath("$.clubReviews").isEmpty());
+                .andExpect(jsonPath("$.clubReviews").isEmpty())
+                .andExpect(jsonPath("$.likedClubs").isArray())
+                .andExpect(jsonPath("$.likedClubs").isEmpty());
+    }
+
+    @Test
+    void returnsOnlyMyLikedClubsInNewestOrder() throws Exception {
+        AuthSession current = signupAndLogin("liked-club-user");
+        AuthSession other = signupAndLogin("other-liked-club-user");
+
+        Club firstClub = clubRepository.saveAndFlush(
+                Club.create("첫 번째 좋아요 동아리", ClubCategory.ACADEMIC)
+        );
+        Club secondClub = clubRepository.saveAndFlush(
+                Club.create("두 번째 좋아요 동아리", ClubCategory.HOBBY)
+        );
+        Club otherClub = clubRepository.saveAndFlush(
+                Club.create("다른 사용자 좋아요 동아리", ClubCategory.SPORTS)
+        );
+
+        toggleLike(firstClub.getId(), current.accessToken());
+        toggleLike(secondClub.getId(), current.accessToken());
+        toggleLike(otherClub.getId(), other.accessToken());
+
+        mockMvc.perform(get(PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + current.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likedClubs.length()").value(2))
+                .andExpect(jsonPath("$.likedClubs[0].clubId").value(secondClub.getId()))
+                .andExpect(jsonPath("$.likedClubs[0].clubName")
+                        .value("두 번째 좋아요 동아리"))
+                .andExpect(jsonPath("$.likedClubs[1].clubId").value(firstClub.getId()))
+                .andExpect(jsonPath("$.likedClubs[1].clubName")
+                        .value("첫 번째 좋아요 동아리"));
     }
 
     @Test
@@ -233,7 +266,25 @@ class MyPageApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/auth/me'].get.responses['200']").exists())
                 .andExpect(jsonPath("$.paths['/api/auth/me'].get.responses['401']").exists())
                 .andExpect(jsonPath("$.components.schemas.MyPageResponse").exists())
-                .andExpect(jsonPath("$.components.schemas.MyClubReviewResponse").exists());
+                .andExpect(jsonPath("$.components.schemas.MyClubReviewResponse").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.MyPageResponse.properties.likedClubs.type"
+                ).value("array"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.MyPageResponse.properties.likedClubs.items['$ref']"
+                ).value("#/components/schemas/MyLikedClubResponse"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.MyLikedClubResponse.properties.clubId"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.MyLikedClubResponse.properties.clubName"
+                ).exists());
+    }
+
+    private void toggleLike(long clubId, String accessToken) throws Exception {
+        mockMvc.perform(post("/api/clubs/likes/{clubId}", clubId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
     }
 
     private AuthSession signupAndLogin(String loginId) throws Exception {
