@@ -23,6 +23,7 @@
 
 ```text
 domain
+├── courseenrichment       # 동일교과목·타학과 전공인정 엑셀 수입 및 상세조회 연동
 ├── course                  # 강좌·개설 강좌·수업 시간 등 공용 강좌 데이터
 ├── courseimport            # 관리자용 전공·교양 엑셀 수입
 └── timetable
@@ -102,6 +103,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
 
+동일교과목·타학과 전공인정 수입과 강좌 상세 응답 계약은
+[과목 정책 보강 API 명세서](docs/course-enrichment-api.md)에서 확인할 수 있습니다.
+
 동아리 기능의 Postman 테스트 순서와 요청·응답 계약은 [동아리 API 명세서](docs/club-api.md)에서 확인할 수 있습니다.
 
 학생회 공지 조회와 관리 계약은 [학생회 공지 API 명세서](docs/student-council-notice-api.md)에서 확인할 수 있습니다.
@@ -142,6 +146,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `DELETE` | `/api/admin/links/{linkId}` | 링크 삭제 |
 | `POST` | `/api/v1/timetables/major` | 관리자 전용 전공 시간표 엑셀 분석 및 일괄 저장 |
 | `POST` | `/api/v1/timetables/general-education` | 관리자 전용 교양 시간표 엑셀 분석 및 일괄 저장 |
+| `POST` | `/api/admin/course-enrichments/equivalent-courses/imports` | 관리자 전용 동일교과목 엑셀 자동 감지 및 스냅샷 저장 |
+| `POST` | `/api/admin/course-enrichments/cross-major-recognitions/imports` | 관리자 전용 타학과 전공인정 엑셀 자동 감지 및 연간 정책 저장 |
 | `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |

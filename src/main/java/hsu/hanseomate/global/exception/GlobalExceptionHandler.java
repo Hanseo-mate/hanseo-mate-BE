@@ -41,6 +41,8 @@ public class GlobalExceptionHandler {
             "TOO_MANY_SHEETS",
             "SEMESTER_CONFLICT",
             "SEMESTER_NOT_FOUND",
+            "SOURCE_SHEET_NOT_FOUND",
+            "SOURCE_SHEET_CONFLICT",
             "MIXED_CURRICULUM_WORKBOOK",
             "CURRICULUM_TYPE_NOT_DETECTED",
             "CURRICULUM_TYPE_MISMATCH"
@@ -172,10 +174,22 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MultipartException.class)
-    public ResponseEntity<ApiErrorResponse> handleMalformedMultipart(
+    public ResponseEntity<?> handleMalformedMultipart(
             MultipartException exception,
             HttpServletRequest request
     ) {
+        if (isWorkbookUploadRequest(request)) {
+            HttpStatus status = HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(CourseWorkbookErrorResponse.of(
+                            status,
+                            "MALFORMED_MULTIPART",
+                            "multipart 요청 형식이 올바르지 않습니다.",
+                            java.util.Map.of(),
+                            request.getRequestURI()
+                    ));
+        }
         return errorResponse(
                 HttpStatus.BAD_REQUEST,
                 "multipart 요청 형식이 올바르지 않습니다.",
@@ -266,7 +280,13 @@ public class GlobalExceptionHandler {
     private boolean isWorkbookUploadRequest(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.equals("/api/v1/timetables/major")
-                || path.equals("/api/v1/timetables/general-education");
+                || path.equals("/api/v1/timetables/general-education")
+                || path.equals(
+                        "/api/admin/course-enrichments/equivalent-courses/imports"
+                )
+                || path.equals(
+                        "/api/admin/course-enrichments/cross-major-recognitions/imports"
+                );
     }
 
     private boolean isImageUploadRequest(HttpServletRequest request) {

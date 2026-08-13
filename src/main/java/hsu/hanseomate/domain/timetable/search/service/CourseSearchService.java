@@ -7,6 +7,8 @@ import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentNameProjection;
 import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
 import hsu.hanseomate.domain.course.support.CoursePeriodPolicy;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.service.CrossMajorRecognitionQueryService;
+import hsu.hanseomate.domain.courseenrichment.equivalence.service.EquivalentCourseQueryService;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingDetailResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingPageResponse;
 import hsu.hanseomate.domain.timetable.search.dto.CourseOfferingResponse;
@@ -43,6 +45,8 @@ public class CourseSearchService {
     private final CourseOfferingRepository courseOfferingRepository;
     private final CourseScheduleRepository courseScheduleRepository;
     private final OfferingEligibleDepartmentRepository offeringEligibleDepartmentRepository;
+    private final EquivalentCourseQueryService equivalentCourseQueryService;
+    private final CrossMajorRecognitionQueryService crossMajorRecognitionQueryService;
 
     public CourseOfferingPageResponse search(
             CourseSearchCondition requestedCondition,
@@ -87,7 +91,7 @@ public class CourseSearchService {
     }
 
     public CourseOfferingDetailResponse getCourse(UUID offeringId) {
-        CourseOffering offering = courseOfferingRepository.findById(offeringId)
+        CourseOffering offering = courseOfferingRepository.findDetailedById(offeringId)
                 .orElseThrow(() -> new CourseOfferingNotFoundException(offeringId));
         List<CourseSchedule> schedules = courseScheduleRepository.findAllForOfferings(
                 List.of(offeringId)
@@ -97,7 +101,9 @@ public class CourseSearchService {
         return CourseOfferingDetailResponse.from(
                 offering,
                 schedules,
-                eligibleDepartmentNames
+                eligibleDepartmentNames,
+                equivalentCourseQueryService.findEquivalentCourses(offering),
+                crossMajorRecognitionQueryService.findRecognitions(offering)
         );
     }
 
