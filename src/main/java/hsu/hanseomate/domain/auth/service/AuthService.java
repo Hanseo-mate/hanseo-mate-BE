@@ -6,6 +6,7 @@ import hsu.hanseomate.domain.auth.dto.MyPageResponse;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
 import hsu.hanseomate.domain.auth.exception.DuplicateLoginIdException;
 import hsu.hanseomate.domain.auth.exception.InvalidCredentialsException;
+import hsu.hanseomate.domain.club.repository.ClubLikeRepository;
 import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
@@ -25,6 +26,7 @@ public class AuthService {
 
     private final UserAccountRepository userAccountRepository;
     private final ClubReviewRepository clubReviewRepository;
+    private final ClubLikeRepository clubLikeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -69,7 +71,8 @@ public class AuthService {
                 ));
         return MyPageResponse.from(
                 userAccount,
-                clubReviewRepository.findAllByReviewerIdWithClubAndReviewTags(userId)
+                clubReviewRepository.findAllByReviewerIdWithClubAndReviewTags(userId),
+                clubLikeRepository.findAllByLikerIdWithClubOrderByIdDesc(userId)
         );
     }
 

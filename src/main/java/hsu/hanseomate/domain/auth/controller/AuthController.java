@@ -43,8 +43,8 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "내 정보 및 동아리 후기 조회",
-            description = "로그인 사용자의 계정 정보와 본인이 작성한 동아리 후기 목록을 조회합니다."
+            summary = "내 정보, 동아리 후기 및 좋아요 목록 조회",
+            description = "로그인 사용자의 계정 정보, 본인이 작성한 동아리 후기, 좋아요한 동아리 목록을 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(
