@@ -2,7 +2,6 @@ package hsu.hanseomate.domain.timetable.search.dto;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionResponse;
 import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseResponse;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.timetable.search.type.GeneralCategoryFilter;
@@ -25,7 +24,7 @@ public record CourseOfferingDetailResponse(
         List<CourseSearchScheduleResponse> schedules,
         String note,
         List<EquivalentCourseResponse> equivalentCourses,
-        List<CrossMajorRecognitionResponse> crossMajorRecognitions
+        List<String> crossMajorRecognitions
 ) {
     public CourseOfferingDetailResponse {
         eligibleDepartmentNames = List.copyOf(eligibleDepartmentNames);
@@ -43,7 +42,7 @@ public record CourseOfferingDetailResponse(
             List<CourseSchedule> schedules,
             List<String> eligibleDepartmentNames,
             List<EquivalentCourseResponse> equivalentCourses,
-            List<CrossMajorRecognitionResponse> crossMajorRecognitions
+            List<String> crossMajorRecognitions
     ) {
         CourseOfferingResponse summary = CourseOfferingResponse.from(
                 offering,
