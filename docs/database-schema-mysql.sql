@@ -378,6 +378,124 @@ CREATE TABLE course_import_issues (
         FOREIGN KEY (import_history_id) REFERENCES course_import_histories (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE equivalent_course_import_histories (
+    id BINARY(16) NOT NULL,
+    import_id VARCHAR(100) NOT NULL,
+    active_scope_key VARCHAR(30) NULL,
+    canonical_hash VARCHAR(64) NOT NULL,
+    raw_file_sha256 VARCHAR(64) NOT NULL,
+    file_name VARCHAR(500) NOT NULL,
+    schema_version VARCHAR(20) NOT NULL,
+    parser_version VARCHAR(100) NOT NULL,
+    academic_year INT NOT NULL,
+    semester INT NOT NULL,
+    history_status VARCHAR(30) NOT NULL,
+    group_count INT NOT NULL,
+    member_count INT NOT NULL,
+    raw_payload_json LONGTEXT NOT NULL,
+    raw_issues_json LONGTEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_equivalent_import_id UNIQUE (import_id),
+    CONSTRAINT uk_equivalent_active_scope UNIQUE (active_scope_key),
+    INDEX ix_equivalent_import_scope (academic_year, semester)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE equivalent_course_groups (
+    id BINARY(16) NOT NULL,
+    import_history_id BINARY(16) NOT NULL,
+    source_serial INT NOT NULL,
+    group_order INT NOT NULL,
+    source_sheet VARCHAR(255) NOT NULL,
+    source_start_row INT NOT NULL,
+    source_end_row INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_equivalent_group_serial
+        UNIQUE (import_history_id, source_serial),
+    CONSTRAINT uk_equivalent_group_order
+        UNIQUE (import_history_id, group_order),
+    INDEX ix_equivalent_group_history (import_history_id),
+    CONSTRAINT fk_equivalent_group_history
+        FOREIGN KEY (import_history_id)
+        REFERENCES equivalent_course_import_histories (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE equivalent_course_members (
+    id BINARY(16) NOT NULL,
+    import_history_id BINARY(16) NOT NULL,
+    group_id BINARY(16) NOT NULL,
+    course_code VARCHAR(7) NOT NULL,
+    course_name VARCHAR(255) NOT NULL,
+    source_sheet VARCHAR(255) NOT NULL,
+    source_row INT NOT NULL,
+    member_order INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_equivalent_member_code
+        UNIQUE (import_history_id, course_code),
+    INDEX ix_equivalent_member_group_order (group_id, member_order),
+    CONSTRAINT fk_equivalent_member_history
+        FOREIGN KEY (import_history_id)
+        REFERENCES equivalent_course_import_histories (id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_equivalent_member_group
+        FOREIGN KEY (group_id)
+        REFERENCES equivalent_course_groups (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cross_major_recognition_import_histories (
+    id BINARY(16) NOT NULL,
+    policy_year INT NOT NULL,
+    uploaded_semester INT NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    active_scope_key VARCHAR(100) NULL,
+    file_name VARCHAR(500) NOT NULL,
+    raw_file_sha256 VARCHAR(64) NOT NULL,
+    canonical_data_sha256 VARCHAR(64) NOT NULL,
+    source_sheet VARCHAR(255) NOT NULL,
+    raw_row_count INT NOT NULL,
+    rule_count INT NOT NULL,
+    warning_count INT NOT NULL,
+    issues_json LONGTEXT NOT NULL,
+    raw_payload_json LONGTEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_cross_major_active_scope UNIQUE (active_scope_key),
+    INDEX ix_cross_major_import_policy_year (policy_year, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cross_major_recognition_rules (
+    id BINARY(16) NOT NULL,
+    import_history_id BINARY(16) NOT NULL,
+    rule_key VARCHAR(64) NOT NULL,
+    student_college_name VARCHAR(255) NOT NULL,
+    student_department_name VARCHAR(255) NOT NULL,
+    student_major_name VARCHAR(255) NOT NULL,
+    offering_college_name VARCHAR(255) NOT NULL,
+    offering_department_name VARCHAR(255) NOT NULL,
+    offering_major_name VARCHAR(255) NOT NULL,
+    offering_department_key VARCHAR(255) NOT NULL,
+    offering_major_key VARCHAR(255) NOT NULL,
+    course_code VARCHAR(7) NOT NULL,
+    course_name_snapshot VARCHAR(255) NOT NULL,
+    course_name_key VARCHAR(255) NOT NULL,
+    effective_year INT NOT NULL,
+    effective_semester INT NOT NULL,
+    source_sheet VARCHAR(255) NOT NULL,
+    source_row INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_cross_major_rule_history_key
+        UNIQUE (import_history_id, rule_key),
+    INDEX ix_cross_major_rule_history_code (import_history_id, course_code),
+    CONSTRAINT fk_cross_major_rule_history
+        FOREIGN KEY (import_history_id)
+        REFERENCES cross_major_recognition_import_histories (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE clubs (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
