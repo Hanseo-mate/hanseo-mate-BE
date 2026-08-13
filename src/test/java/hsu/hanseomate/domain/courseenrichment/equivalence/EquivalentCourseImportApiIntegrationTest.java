@@ -240,7 +240,11 @@ class EquivalentCourseImportApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.components.schemas.CourseOfferingDetailResponse.properties"
                                 + ".crossMajorRecognitions.type"
-                ).value("array"));
+                ).value("array"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.CourseOfferingDetailResponse.properties"
+                                + ".crossMajorRecognitions.items.type"
+                ).value("string"));
     }
 
     private CourseOffering courseOffering(String code, String name) {

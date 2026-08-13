@@ -227,21 +227,15 @@ class CrossMajorRecognitionImportApiIntegrationTest {
     }
 
     @Test
-    void courseDetailReturnsRecognitionAfterWorkbookImport() throws Exception {
+    void courseDetailMatchesRecognitionByCourseNameDespiteDifferentCodeAndOrganization()
+            throws Exception {
         CourseOffering offering = courseOffering();
         importAsAdmin("2026학년도 1학기.xlsx", workbook("자료구조"));
 
         mockMvc.perform(get("/api/courses/{offeringId}", offering.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.crossMajorRecognitions.length()").value(1))
-                .andExpect(jsonPath("$.crossMajorRecognitions[0].studentCollegeName")
-                        .value("공과대학"))
-                .andExpect(jsonPath("$.crossMajorRecognitions[0].studentDepartmentName")
-                        .value("학생학과"))
-                .andExpect(jsonPath("$.crossMajorRecognitions[0].studentMajorName")
-                        .value("학생전공"))
-                .andExpect(jsonPath("$.crossMajorRecognitions[0].effectiveYear").value(2020))
-                .andExpect(jsonPath("$.crossMajorRecognitions[0].effectiveSemester").value(1));
+                .andExpect(jsonPath("$.crossMajorRecognitions[0]").value("학생학과"));
     }
 
     private void importAsAdmin(String name, byte[] content) throws Exception {
@@ -256,14 +250,14 @@ class CrossMajorRecognitionImportApiIntegrationTest {
         Semester semester = semesterRepository.save(Semester.create(2026, 1));
         Course course = courseRepository.save(Course.create(
                 "cross-major-course",
-                "0004436",
-                "자료구조"
+                "9999999",
+                "자료 구조"
         ));
         AcademicUnit academicUnit = academicUnitRepository.save(AcademicUnit.create(
                 "cross-major-unit",
-                "개설학과 개설전공",
-                "개설학과",
-                "개설전공"
+                "다른학과 다른전공",
+                "다른학과",
+                "다른전공"
         ));
         CourseImportHistory importHistory = courseImportHistoryRepository.save(
                 CourseImportHistory.stored(
@@ -290,8 +284,8 @@ class CrossMajorRecognitionImportApiIntegrationTest {
                 CurriculumType.MAJOR,
                 "테스트",
                 1,
-                "0004436",
-                "자료구조",
+                "9999999",
+                "자료 구조",
                 "001",
                 BigDecimal.valueOf(3),
                 BigDecimal.valueOf(3),
