@@ -11,6 +11,7 @@ import hsu.hanseomate.domain.studentcouncilnotice.entity.StudentCouncilNotice;
 import hsu.hanseomate.domain.studentcouncilnotice.entity.StudentCouncilNoticeAttachment;
 import hsu.hanseomate.domain.studentcouncilnotice.entity.StudentCouncilNoticeImage;
 import hsu.hanseomate.domain.studentcouncilnotice.exception.StudentCouncilNoticeAttachmentNotFoundException;
+import hsu.hanseomate.domain.studentcouncilnotice.event.StudentCouncilNoticeCreatedEvent;
 import hsu.hanseomate.domain.studentcouncilnotice.exception.StudentCouncilNoticeNotFoundException;
 import hsu.hanseomate.domain.studentcouncilnotice.repository.StudentCouncilNoticeAttachmentRepository;
 import hsu.hanseomate.domain.studentcouncilnotice.repository.StudentCouncilNoticeImageRepository;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,7 @@ public class StudentCouncilNoticeService {
             "student-council-notices/%d/images";
 
     private final StudentCouncilNoticeRepository studentCouncilNoticeRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final StudentCouncilNoticeImageRepository studentCouncilNoticeImageRepository;
     private final StudentCouncilNoticeAttachmentRepository
             studentCouncilNoticeAttachmentRepository;
@@ -143,6 +146,10 @@ public class StudentCouncilNoticeService {
                 request.author(),
                 request.content()
         );
+        eventPublisher.publishEvent(new StudentCouncilNoticeCreatedEvent(
+                notice.getId(),
+                notice.getTitle()
+        ));
         return toDetailResponse(notice);
     }
 
@@ -161,6 +168,10 @@ public class StudentCouncilNoticeService {
 
         try {
             saveNewAssets(newAssets);
+            eventPublisher.publishEvent(new StudentCouncilNoticeCreatedEvent(
+                    notice.getId(),
+                    notice.getTitle()
+            ));
             registerAssetCleanup(newAssets, List.of(), List.of());
             return toDetailResponse(notice);
         } catch (RuntimeException exception) {

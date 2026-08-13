@@ -2,11 +2,14 @@ package hsu.hanseomate.domain.notices.service;
 
 import hsu.hanseomate.domain.notices.dto.NoticeDetailResponse;
 import hsu.hanseomate.domain.notices.dto.NoticePageResponse;
+import hsu.hanseomate.domain.notices.entity.Notice;
 import hsu.hanseomate.domain.notices.entity.NoticeType;
+import hsu.hanseomate.domain.notices.event.NoticeViewCountMilestoneEvent;
 import hsu.hanseomate.domain.notices.exception.NoticeNotFoundException;
 import hsu.hanseomate.domain.notices.repository.NoticeRepository;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,8 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class NoticeService {
 
     private static final int NOTICE_PAGE_SIZE = 10;
+    private static final long VIEW_COUNT_MILESTONE = 100L;
 
     private final NoticeRepository noticeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public NoticePageResponse getNoticesByCategory(String noticeType, int page) {
         NoticeType targetType = NoticeType.from(noticeType);
@@ -53,9 +58,20 @@ public class NoticeService {
             throw new NoticeNotFoundException(noticeId);
         }
 
-        return noticeRepository.findDetailById(noticeId)
-                .map(NoticeDetailResponse::from)
+        Notice notice = noticeRepository.findDetailById(noticeId)
                 .orElseThrow(() -> new NoticeNotFoundException(noticeId));
+
+        // 조회수가 정확히 100회가 된 순간에만 전체 푸시 알림 트리거
+        if (notice.getViewCount() == VIEW_COUNT_MILESTONE) {
+            eventPublisher.publishEvent(new NoticeViewCountMilestoneEvent(
+                    notice.getId(),
+                    notice.getNoticeType(),
+                    notice.getTitle(),
+                    VIEW_COUNT_MILESTONE
+            ));
+        }
+
+        return NoticeDetailResponse.from(notice);
     }
 
     private String normalizeKeyword(String keyword) {
