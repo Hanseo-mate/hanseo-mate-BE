@@ -2,6 +2,8 @@ package hsu.hanseomate.domain.timetable.search.dto;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionResponse;
+import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseResponse;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.timetable.search.type.GeneralCategoryFilter;
 import java.math.BigDecimal;
@@ -21,12 +23,27 @@ public record CourseOfferingDetailResponse(
         List<String> eligibleDepartmentNames,
         GeneralCategoryFilter generalCategory,
         List<CourseSearchScheduleResponse> schedules,
-        String note
+        String note,
+        List<EquivalentCourseResponse> equivalentCourses,
+        List<CrossMajorRecognitionResponse> crossMajorRecognitions
 ) {
+    public CourseOfferingDetailResponse {
+        eligibleDepartmentNames = List.copyOf(eligibleDepartmentNames);
+        schedules = List.copyOf(schedules);
+        equivalentCourses = equivalentCourses == null
+                ? List.of()
+                : List.copyOf(equivalentCourses);
+        crossMajorRecognitions = crossMajorRecognitions == null
+                ? List.of()
+                : List.copyOf(crossMajorRecognitions);
+    }
+
     public static CourseOfferingDetailResponse from(
             CourseOffering offering,
             List<CourseSchedule> schedules,
-            List<String> eligibleDepartmentNames
+            List<String> eligibleDepartmentNames,
+            List<EquivalentCourseResponse> equivalentCourses,
+            List<CrossMajorRecognitionResponse> crossMajorRecognitions
     ) {
         CourseOfferingResponse summary = CourseOfferingResponse.from(
                 offering,
@@ -46,7 +63,9 @@ public record CourseOfferingDetailResponse(
                 summary.eligibleDepartmentNames(),
                 summary.generalCategory(),
                 summary.schedules(),
-                offering.getNote()
+                offering.getNote(),
+                equivalentCourses,
+                crossMajorRecognitions
         );
     }
 }
