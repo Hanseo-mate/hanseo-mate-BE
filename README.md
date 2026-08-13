@@ -122,7 +122,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 | Method | Endpoint | 설명 |
 |---|---|---|
-| `GET` | `/api/auth/me` | 로그인 사용자의 계정 정보와 작성한 동아리 후기 조회 |
+| `GET` | `/api/auth/me` | 로그인 사용자의 계정 정보, 작성한 동아리 후기 및 좋아요한 동아리 조회 |
 | `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
 | `GET` | `/api/admin/calendars` | 관리자용 학생회 일정 전체 조회 |
 | `POST` | `/api/admin/calendars` | 학생회 일정 등록 |
