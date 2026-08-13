@@ -123,13 +123,8 @@ GET /api/courses/{offeringId}
     }
   ],
   "crossMajorRecognitions": [
-    {
-      "studentCollegeName": "항공융합학부",
-      "studentDepartmentName": "항공소프트웨어공학과",
-      "studentMajorName": "항공소프트웨어전공",
-      "effectiveYear": 2026,
-      "effectiveSemester": 1
-    }
+    "컴퓨터공학과",
+    "항공소프트웨어공학과"
   ]
 }
 ```
@@ -137,9 +132,10 @@ GET /api/courses/{offeringId}
 - `equivalentCourses`는 현재 과목 자신을 제외한 같은 그룹의 과목이다.
 - 동일교과목은 강좌의 학년도·학기와 같은 활성 스냅샷만 사용한다.
 - `crossMajorRecognitions`는 강좌 연도의 활성 정책 중 해당 학기까지 적용된 규칙만 반환한다.
-- 타학과 전공인정은 활성 정책연도, 7자리 과목코드, 개설학과, 개설전공이 모두 일치해야 한다.
-- 같은 코드·개설 조직에 여러 과목명이 있을 때만 과목명으로 대상을 구분한다.
-- 조직이 다르거나 과목명만 같은 규칙은 연결하지 않으며, 식별이 모호하면 빈 배열을 반환한다.
+- 타학과 전공인정은 강좌명과 규칙의 과목명을 정규화한 뒤 같은 이름인지 비교한다.
+- 과목명이 같으면 과목코드, 개설학과, 개설전공이 달라도 해당 인정 규칙을 반환한다.
+- 과목명 비교에서는 유니코드 표현, 영문 대소문자, 공백 차이를 무시한다.
+- `crossMajorRecognitions`는 인정받을 수 있는 학생 학과명만 중복 없이 이름 오름차순으로 반환한다.
 - `eligibleDepartmentNames`는 수강대상 학과이고, `crossMajorRecognitions`는 전공학점 인정 정책이므로 서로 다른 필드로 유지한다.
 - 강좌 목록 `GET /api/courses`에는 두 상세 전용 배열을 추가하지 않는다.
 

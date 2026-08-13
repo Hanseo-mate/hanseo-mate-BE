@@ -15,11 +15,11 @@ public interface CrossMajorRecognitionRuleRepository
             select rule from CrossMajorRecognitionRule rule
             where rule.importHistory.policyYear = :policyYear
               and rule.importHistory.status = :status
-              and rule.courseCode = :courseCode
+              and rule.courseNameKey = :courseNameKey
             """)
-    List<CrossMajorRecognitionRule> findActiveCandidates(
+    List<CrossMajorRecognitionRule> findActiveCandidatesByCourseName(
             @Param("policyYear") int policyYear,
-            @Param("courseCode") String courseCode,
+            @Param("courseNameKey") String courseNameKey,
             @Param("status") CrossMajorRecognitionImportStatus status
     );
 }
