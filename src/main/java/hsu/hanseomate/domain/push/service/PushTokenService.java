@@ -3,8 +3,10 @@ package hsu.hanseomate.domain.push.service;
 import hsu.hanseomate.domain.push.dto.RegisterPushTokenRequest;
 import hsu.hanseomate.domain.push.entity.PushDevice;
 import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
+import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PushTokenService {
 
     private final PushDeviceRepository pushDeviceRepository;
+    private final UserAccountRepository userAccountRepository;
 
     /**
      * 토큰 등록 또는 갱신 (upsert).
@@ -27,11 +30,18 @@ public class PushTokenService {
      */
     @Transactional
     public void registerOrUpdateToken(Long userId, RegisterPushTokenRequest request) {
+        requireExistingUserWhenAuthenticated(userId);
         pushDeviceRepository.findByInstallationId(request.installationId())
                 .ifPresentOrElse(
                         existing -> updateExistingDevice(existing, userId, request),
                         () -> createNewDevice(userId, request)
                 );
+    }
+
+    private void requireExistingUserWhenAuthenticated(Long userId) {
+        if (userId != null && !userAccountRepository.existsById(userId)) {
+            throw new AuthenticationCredentialsNotFoundException("로그인이 필요합니다.");
+        }
     }
 
     /**

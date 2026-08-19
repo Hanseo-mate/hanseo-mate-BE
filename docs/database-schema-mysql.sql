@@ -106,6 +106,54 @@ CREATE TABLE user_accounts (
     CONSTRAINT uk_user_account_login_id UNIQUE (login_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE notification_outbox (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payload TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    error_message VARCHAR(500) NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE push_devices (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NULL,
+    installation_id VARCHAR(100) NOT NULL,
+    expo_push_token VARCHAR(200) NOT NULL,
+    platform VARCHAR(10) NOT NULL,
+    project_id VARCHAR(100) NOT NULL,
+    app_version VARCHAR(20) NOT NULL,
+    is_active BIT(1) NOT NULL,
+    last_registered_at DATETIME(6) NOT NULL,
+    disabled_at DATETIME(6) NULL,
+    last_error_code VARCHAR(100) NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_push_devices_installation UNIQUE (installation_id),
+    CONSTRAINT uk_push_devices_expo_token UNIQUE (expo_push_token),
+    INDEX idx_push_devices_user (user_id),
+    CONSTRAINT fk_push_devices_user
+        FOREIGN KEY (user_id) REFERENCES user_accounts (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE push_tickets (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    expo_ticket_id VARCHAR(100) NOT NULL,
+    outbox_id BIGINT NOT NULL,
+    push_device_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    error_code VARCHAR(100) NULL,
+    checked_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_push_tickets_push_device (push_device_id),
+    CONSTRAINT fk_push_tickets_push_device
+        FOREIGN KEY (push_device_id) REFERENCES push_devices (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE personal_calendar_events (
     id BIGINT NOT NULL AUTO_INCREMENT,
     owner_id BIGINT NOT NULL,
@@ -144,7 +192,9 @@ CREATE TABLE timetables (
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_timetable_owner_term
-        UNIQUE (owner_id, academic_year, semester)
+        UNIQUE (owner_id, academic_year, semester),
+    CONSTRAINT fk_timetables_owner
+        FOREIGN KEY (owner_id) REFERENCES user_accounts (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE academic_units (

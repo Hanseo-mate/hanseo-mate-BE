@@ -4,13 +4,19 @@ import hsu.hanseomate.domain.auth.dto.AuthResponse;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
+import hsu.hanseomate.domain.auth.dto.WithdrawalRequest;
 import hsu.hanseomate.domain.auth.exception.DuplicateLoginIdException;
 import hsu.hanseomate.domain.auth.exception.InvalidCredentialsException;
 import hsu.hanseomate.domain.club.repository.ClubLikeRepository;
 import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
+import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
+import hsu.hanseomate.domain.push.repository.PushTicketRepository;
+import hsu.hanseomate.domain.timetable.composition.repository.TimetableCourseRepository;
+import hsu.hanseomate.domain.timetable.composition.repository.TimetableRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import hsu.hanseomate.global.security.JwtTokenProvider;
+import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +33,10 @@ public class AuthService {
     private final UserAccountRepository userAccountRepository;
     private final ClubReviewRepository clubReviewRepository;
     private final ClubLikeRepository clubLikeRepository;
+    private final TimetableCourseRepository timetableCourseRepository;
+    private final TimetableRepository timetableRepository;
+    private final PushDeviceRepository pushDeviceRepository;
+    private final PushTicketRepository pushTicketRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -74,6 +84,29 @@ public class AuthService {
                 clubReviewRepository.findAllByReviewerIdWithClubAndReviewTags(userId),
                 clubLikeRepository.findAllByLikerIdWithClubOrderByIdDesc(userId)
         );
+    }
+
+    @Transactional
+    public void withdraw(Long userId, WithdrawalRequest request) {
+        UserAccount userAccount = userAccountRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
+                        "로그인이 필요합니다."
+                ));
+        if (!passwordEncoder.matches(request.password(), userAccount.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        timetableCourseRepository.deleteAllByTimetableOwnerId(userId);
+        timetableRepository.deleteAllByOwnerId(userId);
+
+        List<Long> pushDeviceIds = pushDeviceRepository.findIdsByUserId(userId);
+        if (!pushDeviceIds.isEmpty()) {
+            pushTicketRepository.deleteAllByPushDeviceIdIn(pushDeviceIds);
+        }
+        pushDeviceRepository.deleteAllByUserId(userId);
+
+        userAccountRepository.delete(userAccount);
+        userAccountRepository.flush();
     }
 
     private String normalizeLoginId(String loginId) {

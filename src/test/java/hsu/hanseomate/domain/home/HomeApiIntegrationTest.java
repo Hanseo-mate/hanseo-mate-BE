@@ -94,6 +94,21 @@ class HomeApiIntegrationTest {
     @BeforeEach
     void cleanDatabaseBeforeTest() {
         cleanDatabase();
+        jdbcTemplate.update(
+                """
+                        INSERT INTO user_accounts (
+                            id, login_id, password_hash, role, created_at, updated_at
+                        ) VALUES
+                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                CURRENT_USER_ID,
+                "home-test-user",
+                "test-password-hash",
+                202L,
+                "home-other-test-user",
+                "test-password-hash"
+        );
     }
 
     @AfterEach
@@ -419,6 +434,7 @@ class HomeApiIntegrationTest {
             truncate("home_posters");
             truncate("timetable_courses");
             truncate("timetables");
+            truncate("user_accounts");
             truncate("course_import_issues");
             truncate("course_schedules");
             truncate("course_source_cells");

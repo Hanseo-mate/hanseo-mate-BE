@@ -97,7 +97,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 ## API
 
-로그인 사용자 마이페이지 조회 계약은 [마이페이지 API 명세서](docs/my-page-api.md)에서 확인할 수 있습니다.
+로그인 사용자 마이페이지 조회와 회원탈퇴 계약은 [마이페이지 API 명세서](docs/my-page-api.md)에서 확인할 수 있습니다.
+기존 운영 DB의 회원탈퇴 연쇄 삭제 FK는 [회원탈퇴 증분 DDL](docs/account-withdrawal-migration-mysql.sql)을 코드 배포 전에 적용합니다.
 
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
@@ -123,6 +124,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | Method | Endpoint | 설명 |
 |---|---|---|
 | `GET` | `/api/auth/me` | 로그인 사용자의 계정 정보, 작성한 동아리 후기 및 좋아요한 동아리 조회 |
+| `DELETE` | `/api/auth/me` | 비밀번호 확인 후 계정과 회원 관련 데이터 영구 삭제 |
 | `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
 | `GET` | `/api/admin/calendars` | 관리자용 학생회 일정 전체 조회 |
 | `POST` | `/api/admin/calendars` | 학생회 일정 등록 |
@@ -271,6 +273,8 @@ SWAGGER_API_DOCS_ENABLED=true
 ## 인증 및 권한 적용 범위
 
 - 회원가입과 로그인 성공 시 JWT Access Token을 발급합니다.
+- 회원탈퇴는 현재 비밀번호를 확인한 뒤 계정과 회원 관련 데이터를 영구 삭제하며, 탈퇴한 계정의 JWT도 즉시 무효화합니다.
+- 탈퇴 후 같은 로그인 아이디로 다시 가입할 수 있지만 새 계정으로 처리되고 과거 데이터는 복원되지 않습니다.
 - `/api/admin/**`는 `ADMIN` 역할만 접근할 수 있습니다.
 - 전공·교양 엑셀 수입 API는 `ADMIN` 역할만 접근할 수 있습니다.
 - 시간표 구성 API, 동아리 좋아요 및 활동 후기 작성에는 로그인 JWT가 필요합니다.

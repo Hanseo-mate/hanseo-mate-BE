@@ -116,6 +116,38 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void accountWithdrawalPreflightAllowsDeleteContentTypeAndAuthorization()
+            throws Exception {
+        mockMvc.perform(options("/api/auth/me")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.DELETE.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "Authorization, Content-Type"
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.DELETE.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.CONTENT_TYPE)
+                ));
+    }
+
+    @Test
     void publicNoticeDownloadPreflightAllowsConfiguredOrigin() throws Exception {
         mockMvc.perform(options(
                         "/api/notices/categories/admin/1/attachments/1/download"
