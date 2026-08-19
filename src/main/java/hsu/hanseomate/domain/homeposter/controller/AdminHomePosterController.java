@@ -3,13 +3,16 @@ package hsu.hanseomate.domain.homeposter.controller;
 import hsu.hanseomate.domain.homeposter.dto.HomePosterResponse;
 import hsu.hanseomate.domain.homeposter.service.HomePosterService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
+import hsu.hanseomate.global.validation.HttpUrl;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -40,13 +43,14 @@ public class AdminHomePosterController {
 
     @Operation(
             summary = "홈 포스터 등록",
-            description = "이미지 한 장을 새 포스터로 등록합니다. 등록 가능한 포스터 수에는 제한이 없습니다."
+            description = "이미지 한 장과 선택 링크를 새 포스터로 등록합니다. "
+                    + "등록 가능한 포스터 수에는 제한이 없습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "파일 누락 또는 잘못된 이미지",
+                    description = "파일 누락, 잘못된 이미지 또는 잘못된 링크 URL",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -67,9 +71,13 @@ public class AdminHomePosterController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<HomePosterResponse> createPoster(
-            @RequestPart("file") MultipartFile file
+            @RequestPart("file") MultipartFile file,
+            @Parameter(description = "포스터 클릭 시 이동할 선택 링크")
+            @Size(max = 2048, message = "링크 URL은 2048자 이하여야 합니다.")
+            @HttpUrl
+            @RequestPart(value = "linkUrl", required = false) String linkUrl
     ) {
-        HomePosterResponse response = homePosterService.createPoster(file);
+        HomePosterResponse response = homePosterService.createPoster(file, linkUrl);
         return ResponseEntity.created(
                 URI.create("/api/admin/home-posters/" + response.id())
         ).body(response);
@@ -99,13 +107,14 @@ public class AdminHomePosterController {
 
     @Operation(
             summary = "홈 포스터 이미지 교체",
-            description = "포스터 ID는 유지하고 이미지 파일과 URL만 교체합니다."
+            description = "포스터 ID는 유지하고 이미지 파일과 선택 링크를 함께 교체합니다. "
+                    + "linkUrl을 생략하거나 비워 보내면 링크를 제거합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "교체 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 포스터 ID, 파일 누락 또는 잘못된 이미지",
+                    description = "잘못된 포스터 ID, 파일 누락, 잘못된 이미지 또는 잘못된 링크 URL",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -136,9 +145,13 @@ public class AdminHomePosterController {
     public HomePosterResponse replacePoster(
             @Positive(message = "포스터 ID는 1 이상이어야 합니다.")
             @PathVariable Long posterId,
-            @RequestPart("file") MultipartFile file
+            @RequestPart("file") MultipartFile file,
+            @Parameter(description = "포스터 클릭 시 이동할 선택 링크")
+            @Size(max = 2048, message = "링크 URL은 2048자 이하여야 합니다.")
+            @HttpUrl
+            @RequestPart(value = "linkUrl", required = false) String linkUrl
     ) {
-        return homePosterService.replacePoster(posterId, file);
+        return homePosterService.replacePoster(posterId, file, linkUrl);
     }
 
     @Operation(

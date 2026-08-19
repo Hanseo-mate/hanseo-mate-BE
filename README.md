@@ -111,7 +111,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 학생회 공지 조회와 관리 계약은 [학생회 공지 API 명세서](docs/student-council-notice-api.md)에서 확인할 수 있습니다.
 
-관리자 홈 포스터 관리 계약은 [홈 포스터 API 명세서](docs/home-poster-api.md)에서 확인할 수 있습니다.
+관리자 홈 포스터 이미지·선택 링크 관리 계약은
+[홈 포스터 API 명세서](docs/home-poster-api.md)에서 확인할 수 있습니다.
 
 학생회 캘린더 조회와 관리 계약은 [학생회 캘린더 API 명세서](docs/calendar-api.md)에서 확인할 수 있습니다.
 
@@ -165,9 +166,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `DELETE` | `/api/admin/clubs/profile-images/{clubId}` | 프로필 이미지 삭제 |
 | `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리와 좋아요·후기 데이터 삭제 |
-| `POST` | `/api/admin/home-posters` | 홈 포스터 이미지 추가 |
+| `POST` | `/api/admin/home-posters` | 홈 포스터 이미지와 선택 링크 추가 |
 | `GET` | `/api/admin/home-posters` | 관리자용 홈 포스터 전체 조회 |
-| `PUT` | `/api/admin/home-posters/{posterId}` | 홈 포스터 이미지 교체 |
+| `PUT` | `/api/admin/home-posters/{posterId}` | 홈 포스터 이미지와 선택 링크 교체 |
 | `DELETE` | `/api/admin/home-posters/{posterId}` | 홈 포스터 삭제 |
 | `GET` | `/api/notices/categories/admin` | 학생회 공지 목록 조회 |
 | `GET` | `/api/notices/categories/admin/{noticeId}` | 학생회 공지 상세 조회 |
