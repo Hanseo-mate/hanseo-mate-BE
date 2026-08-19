@@ -5,7 +5,6 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
 import hsu.hanseomate.domain.cafeteria.entity.MenuCategory;
 import hsu.hanseomate.domain.cafeteria.entity.QDailyMenu;
-import hsu.hanseomate.domain.cafeteria.entity.QDish;
 import hsu.hanseomate.domain.cafeteria.entity.QMealSection;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import java.time.DayOfWeek;
@@ -30,7 +29,6 @@ public class DailyMenuRepositoryImpl implements DailyMenuRepositoryCustom {
     ) {
         QDailyMenu dailyMenu = QDailyMenu.dailyMenu;
         QMealSection mealSection = QMealSection.mealSection;
-        QDish dish = QDish.dish;
 
         // MealSection 필터(카테고리)를 포함한 Dish 까지 한 번에 fetch join.
         // N+1 을 막기 위해 두 단계로 쪼개어 조회한다:
@@ -56,7 +54,6 @@ public class DailyMenuRepositoryImpl implements DailyMenuRepositoryCustom {
         return queryFactory
                 .selectFrom(dailyMenu)
                 .join(dailyMenu.mealSections, mealSection).fetchJoin()
-                .join(mealSection.dishes, dish).fetchJoin()
                 .where(
                         dailyMenu.id.in(dailyMenuIds),
                         menuCategoryEq(mealSection, menuCategory)
