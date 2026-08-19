@@ -52,19 +52,20 @@ public class CorsConfig {
         loginConfiguration.setAllowCredentials(false);
         loginConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
-        CorsConfiguration authenticatedGetConfiguration = new CorsConfiguration();
-        authenticatedGetConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
-        authenticatedGetConfiguration.setAllowedMethods(List.of(
+        CorsConfiguration authenticatedUserConfiguration = new CorsConfiguration();
+        authenticatedUserConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        authenticatedUserConfiguration.setAllowedMethods(List.of(
                 HttpMethod.GET.name(),
+                HttpMethod.DELETE.name(),
                 HttpMethod.OPTIONS.name()
         ));
-        authenticatedGetConfiguration.setAllowedHeaders(List.of(
+        authenticatedUserConfiguration.setAllowedHeaders(List.of(
                 HttpHeaders.AUTHORIZATION,
                 HttpHeaders.CONTENT_TYPE,
                 HttpHeaders.ACCEPT
         ));
-        authenticatedGetConfiguration.setAllowCredentials(false);
-        authenticatedGetConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+        authenticatedUserConfiguration.setAllowCredentials(false);
+        authenticatedUserConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
         CorsConfiguration publicNoticeConfiguration = new CorsConfiguration();
         publicNoticeConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
@@ -99,7 +100,7 @@ public class CorsConfig {
         source.registerCorsConfiguration("/api/auth/login", loginConfiguration);
         source.registerCorsConfiguration(
                 "/api/auth/me",
-                authenticatedGetConfiguration
+                authenticatedUserConfiguration
         );
         source.registerCorsConfiguration(
                 "/api/notices/**",

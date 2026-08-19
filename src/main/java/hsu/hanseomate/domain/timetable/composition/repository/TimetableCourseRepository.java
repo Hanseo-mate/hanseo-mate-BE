@@ -39,4 +39,15 @@ public interface TimetableCourseRepository extends JpaRepository<TimetableCourse
     @Modifying
     @Query("delete from TimetableCourse tc where tc.timetable.id = :timetableId")
     int deleteAllByTimetableId(@Param("timetableId") Long timetableId);
+
+    @Modifying
+    @Query("""
+            delete from TimetableCourse tc
+            where tc.timetable.id in (
+                select timetable.id
+                from Timetable timetable
+                where timetable.ownerId = :ownerId
+            )
+            """)
+    int deleteAllByTimetableOwnerId(@Param("ownerId") Long ownerId);
 }

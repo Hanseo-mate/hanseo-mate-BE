@@ -15,6 +15,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -168,13 +169,17 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder(
             SecretKey jwtSecretKey,
-            JwtProperties jwtProperties
+            JwtProperties jwtProperties,
+            ActiveUserJwtValidator activeUserJwtValidator
     ) {
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
         jwtDecoder.setJwtValidator(
-                JwtValidators.createDefaultWithIssuer(jwtProperties.issuer())
+                new DelegatingOAuth2TokenValidator<>(
+                        JwtValidators.createDefaultWithIssuer(jwtProperties.issuer()),
+                        activeUserJwtValidator
+                )
         );
         return jwtDecoder;
     }

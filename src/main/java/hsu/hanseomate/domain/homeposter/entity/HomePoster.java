@@ -24,15 +24,24 @@ public class HomePoster extends BaseTimeEntity {
     @Column(name = "image_url", nullable = false, length = 2048)
     private String imageUrl;
 
-    private HomePoster(String imageUrl) {
+    @Column(name = "link_url", length = 2048)
+    private String linkUrl;
+
+    private HomePoster(String imageUrl, String linkUrl) {
         this.imageUrl = imageUrl;
+        this.linkUrl = linkUrl;
     }
 
     public static HomePoster create(String imageUrl) {
-        return new HomePoster(imageUrl);
+        return create(imageUrl, null);
     }
 
-    public void updateImageUrl(String imageUrl) {
+    public static HomePoster create(String imageUrl, String linkUrl) {
+        return new HomePoster(imageUrl, linkUrl);
+    }
+
+    public void update(String imageUrl, String linkUrl) {
         this.imageUrl = imageUrl;
+        this.linkUrl = linkUrl;
     }
 }

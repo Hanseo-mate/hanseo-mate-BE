@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.homeposter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -33,6 +34,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockPart;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -86,9 +88,19 @@ class HomePosterApiIntegrationTest {
         assertThat(columns).containsExactlyInAnyOrder(
                 "id",
                 "image_url",
+                "link_url",
                 "created_at",
                 "updated_at"
         );
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT is_nullable
+                        FROM information_schema.columns
+                        WHERE LOWER(table_name) = 'home_posters'
+                          AND LOWER(column_name) = 'link_url'
+                        """,
+                String.class
+        )).isEqualTo("YES");
     }
 
     @Test
@@ -141,9 +153,65 @@ class HomePosterApiIntegrationTest {
     }
 
     @Test
+    void storesOptionalLinkUrlAndNormalizesMissingOrBlankValueToNull()
+            throws Exception {
+        MvcResult linked = createPoster(
+                "linked.png",
+                "  https://www.hanseo.ac.kr/event/1  "
+        );
+        long linkedId = responseId(linked);
+
+        assertThat(JsonPath.<String>read(responseBody(linked), "$.linkUrl"))
+                .isEqualTo("https://www.hanseo.ac.kr/event/1");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                linkedId
+        )).isEqualTo("https://www.hanseo.ac.kr/event/1");
+
+        MvcResult missing = createPoster("missing-link.png");
+        Object missingLinkUrl = JsonPath.read(responseBody(missing), "$.linkUrl");
+        assertThat(missingLinkUrl).isNull();
+
+        MvcResult blank = mockMvc.perform(multipart("/api/admin/home-posters")
+                        .file(pngFile("blank-link.png"))
+                        .part(linkUrlPart("   ")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.linkUrl").value(nullValue()))
+                .andReturn();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                responseId(blank)
+        )).isNull();
+    }
+
+    @Test
+    void rejectsInvalidOrTooLongLinkUrlBeforeStoringPoster() throws Exception {
+        mockMvc.perform(multipart("/api/admin/home-posters")
+                        .file(pngFile("invalid-link.png"))
+                        .part(linkUrlPart("javascript:alert(1)")))
+                .andExpect(status().isBadRequest());
+
+        String tooLongUrl = "https://example.com/" + "a".repeat(2049);
+        mockMvc.perform(multipart("/api/admin/home-posters")
+                        .file(pngFile("too-long-link.png"))
+                        .part(linkUrlPart(tooLongUrl)))
+                .andExpect(status().isBadRequest());
+
+        assertThat(homePosterRepository.count()).isZero();
+    }
+
+    @Test
     void replacesOnlySelectedPosterAndDeletesPreviousManagedFile() throws Exception {
-        MvcResult firstPoster = createPoster("first.png");
-        MvcResult untouchedPoster = createPoster("untouched.png");
+        MvcResult firstPoster = createPoster(
+                "first.png",
+                "https://example.com/previous"
+        );
+        MvcResult untouchedPoster = createPoster(
+                "untouched.png",
+                "https://example.com/untouched"
+        );
         long firstPosterId = responseId(firstPoster);
         long untouchedPosterId = responseId(untouchedPoster);
         String previousImageUrl = JsonPath.read(responseBody(firstPoster), "$.imageUrl");
@@ -152,14 +220,17 @@ class HomePosterApiIntegrationTest {
         MvcResult replaced = mockMvc.perform(
                         multipart("/api/admin/home-posters/{posterId}", firstPosterId)
                                 .file(pngFile("replacement.png"))
+                                .part(linkUrlPart("https://example.com/replaced"))
                                 .with(request -> {
                                     request.setMethod("PUT");
                                     return request;
                                 })
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(4)))
+                .andExpect(jsonPath("$", aMapWithSize(5)))
                 .andExpect(jsonPath("$.id").value(firstPosterId))
+                .andExpect(jsonPath("$.linkUrl")
+                        .value("https://example.com/replaced"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists())
                 .andReturn();
@@ -168,10 +239,20 @@ class HomePosterApiIntegrationTest {
         assertThat(replacementUrl).isNotEqualTo(previousImageUrl);
         assertThat(homePosterRepository.count()).isEqualTo(2);
         assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                firstPosterId
+        )).isEqualTo("https://example.com/replaced");
+        assertThat(jdbcTemplate.queryForObject(
                 "SELECT image_url FROM home_posters WHERE id = ?",
                 String.class,
                 untouchedPosterId
         )).isEqualTo(untouchedImageUrl);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                untouchedPosterId
+        )).isEqualTo("https://example.com/untouched");
 
         mockMvc.perform(get(URI.create(previousImageUrl).getPath()))
                 .andExpect(status().isNotFound());
@@ -182,8 +263,35 @@ class HomePosterApiIntegrationTest {
     }
 
     @Test
+    void replacementWithoutLinkUrlRemovesExistingLink() throws Exception {
+        MvcResult created = createPoster(
+                "linked.png",
+                "https://example.com/linked"
+        );
+        long posterId = responseId(created);
+
+        mockMvc.perform(multipart("/api/admin/home-posters/{posterId}", posterId)
+                        .file(pngFile("replacement.png"))
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.linkUrl").value(nullValue()));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                posterId
+        )).isNull();
+    }
+
+    @Test
     void invalidReplacementKeepsExistingPosterAndFile() throws Exception {
-        MvcResult created = createPoster("poster.png");
+        MvcResult created = createPoster(
+                "poster.png",
+                "https://example.com/original"
+        );
         long posterId = responseId(created);
         String previousImageUrl = JsonPath.read(responseBody(created), "$.imageUrl");
         MockMultipartFile invalidImage = new MockMultipartFile(
@@ -206,8 +314,33 @@ class HomePosterApiIntegrationTest {
                 String.class,
                 posterId
         )).isEqualTo(previousImageUrl);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                posterId
+        )).isEqualTo("https://example.com/original");
         mockMvc.perform(get(URI.create(previousImageUrl).getPath()))
                 .andExpect(status().isOk());
+
+        mockMvc.perform(multipart("/api/admin/home-posters/{posterId}", posterId)
+                        .file(pngFile("valid-replacement.png"))
+                        .part(linkUrlPart("ftp://example.com/poster"))
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isBadRequest());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT image_url FROM home_posters WHERE id = ?",
+                String.class,
+                posterId
+        )).isEqualTo(previousImageUrl);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT link_url FROM home_posters WHERE id = ?",
+                String.class,
+                posterId
+        )).isEqualTo("https://example.com/original");
     }
 
     @Test
@@ -344,6 +477,11 @@ class HomePosterApiIntegrationTest {
                                 + ".content['multipart/form-data']"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.paths['/api/admin/home-posters'].post.requestBody"
+                                + ".content['multipart/form-data'].schema"
+                                + ".properties.linkUrl"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.paths['/api/admin/home-posters'].get.responses['200']"
                 ).exists())
                 .andExpect(jsonPath(
@@ -354,26 +492,48 @@ class HomePosterApiIntegrationTest {
                                 + ".content['multipart/form-data']"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.paths['/api/admin/home-posters/{posterId}'].put.requestBody"
+                                + ".content['multipart/form-data'].schema"
+                                + ".properties.linkUrl"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.paths['/api/admin/home-posters/{posterId}'].delete.responses['204']"
                 ).exists())
                 .andExpect(jsonPath("$.components.schemas.HomePosterResponse.properties",
-                        aMapWithSize(4)))
+                        aMapWithSize(5)))
                 .andExpect(jsonPath("$.components.schemas.HomePosterResponse.properties.id")
                         .exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.HomePosterResponse.properties.imageUrl"
                 ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePosterResponse.properties.linkUrl"
+                ).exists())
                 .andExpect(jsonPath("$.paths['/api/home-posters']").doesNotExist());
     }
 
     private MvcResult createPoster(String originalFileName) throws Exception {
-        return mockMvc.perform(multipart("/api/admin/home-posters")
-                        .file(pngFile(originalFileName)))
+        return createPoster(originalFileName, null);
+    }
+
+    private MvcResult createPoster(
+            String originalFileName,
+            String linkUrl
+    ) throws Exception {
+        var request = multipart("/api/admin/home-posters")
+                .file(pngFile(originalFileName));
+        if (linkUrl != null) {
+            request.part(linkUrlPart(linkUrl));
+        }
+        return mockMvc.perform(request)
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
-                .andExpect(jsonPath("$", aMapWithSize(4)))
+                .andExpect(jsonPath("$", aMapWithSize(5)))
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.imageUrl").isString())
+                .andExpect(linkUrl == null
+                        ? jsonPath("$.linkUrl").value(nullValue())
+                        : jsonPath("$.linkUrl").isString())
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists())
                 .andReturn();
@@ -386,6 +546,15 @@ class HomePosterApiIntegrationTest {
                 MediaType.IMAGE_PNG_VALUE,
                 TINY_PNG
         );
+    }
+
+    private MockPart linkUrlPart(String linkUrl) {
+        MockPart part = new MockPart(
+                "linkUrl",
+                linkUrl.getBytes(StandardCharsets.UTF_8)
+        );
+        part.getHeaders().setContentType(MediaType.TEXT_PLAIN);
+        return part;
     }
 
     private RequestPostProcessor userJwt() {

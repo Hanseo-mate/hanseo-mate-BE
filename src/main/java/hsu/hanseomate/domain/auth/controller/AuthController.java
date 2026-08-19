@@ -4,6 +4,7 @@ import hsu.hanseomate.domain.auth.dto.AuthResponse;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
+import hsu.hanseomate.domain.auth.dto.WithdrawalRequest;
 import hsu.hanseomate.domain.auth.service.AuthService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -61,6 +63,33 @@ public class AuthController {
     @GetMapping("/me")
     public MyPageResponse getMyPage(Authentication authentication) {
         return authService.getMyPage(currentUserId(authentication));
+    }
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "현재 비밀번호를 확인한 뒤 로그인 계정과 모든 귀속 데이터를 영구 삭제합니다. "
+                    + "삭제된 계정과 데이터는 복구되지 않습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "회원 탈퇴 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "요청 본문 누락 또는 잘못된 요청값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요, 유효하지 않은 토큰 또는 비밀번호 불일치",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> withdraw(
+            Authentication authentication,
+            @Valid @RequestBody WithdrawalRequest request
+    ) {
+        authService.withdraw(currentUserId(authentication), request);
+        return ResponseEntity.noContent().build();
     }
 
     private Long currentUserId(Authentication authentication) {

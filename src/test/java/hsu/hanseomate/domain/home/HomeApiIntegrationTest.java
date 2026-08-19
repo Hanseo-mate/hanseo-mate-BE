@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.home;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -94,6 +95,21 @@ class HomeApiIntegrationTest {
     @BeforeEach
     void cleanDatabaseBeforeTest() {
         cleanDatabase();
+        jdbcTemplate.update(
+                """
+                        INSERT INTO user_accounts (
+                            id, login_id, password_hash, role, created_at, updated_at
+                        ) VALUES
+                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                CURRENT_USER_ID,
+                "home-test-user",
+                "test-password-hash",
+                202L,
+                "home-other-test-user",
+                "test-password-hash"
+        );
     }
 
     @AfterEach
@@ -103,8 +119,14 @@ class HomeApiIntegrationTest {
 
     @Test
     void returnsPostersAndCategoryTopNoticesWithoutLogin() throws Exception {
-        homePosterRepository.saveAndFlush(HomePoster.create("https://cdn.test/poster-1.png"));
-        homePosterRepository.saveAndFlush(HomePoster.create("https://cdn.test/poster-2.png"));
+        HomePoster firstPoster = homePosterRepository.saveAndFlush(HomePoster.create(
+                "https://cdn.test/poster-1.png",
+                "https://www.hanseo.ac.kr/event/1"
+        ));
+        HomePoster secondPoster = homePosterRepository.saveAndFlush(HomePoster.create(
+                "https://cdn.test/poster-2.png",
+                null
+        ));
 
         insertStudentCouncilNotice("조회수 낮은 학생회 공지", 2L);
         insertStudentCouncilNotice("조회수 높은 학생회 공지", 20L);
@@ -138,6 +160,16 @@ class HomeApiIntegrationTest {
                         .value("https://cdn.test/poster-1.png"))
                 .andExpect(jsonPath("$.posterImageUrls[1]")
                         .value("https://cdn.test/poster-2.png"))
+                .andExpect(jsonPath("$.posters.length()").value(2))
+                .andExpect(jsonPath("$.posters[0].id").value(firstPoster.getId()))
+                .andExpect(jsonPath("$.posters[0].imageUrl")
+                        .value("https://cdn.test/poster-1.png"))
+                .andExpect(jsonPath("$.posters[0].linkUrl")
+                        .value("https://www.hanseo.ac.kr/event/1"))
+                .andExpect(jsonPath("$.posters[1].id").value(secondPoster.getId()))
+                .andExpect(jsonPath("$.posters[1].imageUrl")
+                        .value("https://cdn.test/poster-2.png"))
+                .andExpect(jsonPath("$.posters[1].linkUrl").value(nullValue()))
                 .andExpect(jsonPath("$.todayCourses").isEmpty())
                 .andExpect(jsonPath("$.popularNotices.length()").value(3))
                 .andExpect(jsonPath("$.popularNotices[0].noticeType")
@@ -252,6 +284,7 @@ class HomeApiIntegrationTest {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posterImageUrls").value(nullValue()))
+                .andExpect(jsonPath("$.posters").value(nullValue()))
                 .andExpect(jsonPath("$.todayCourses").isEmpty())
                 .andExpect(jsonPath("$.popularNotices.length()").value(3))
                 .andExpect(jsonPath("$.popularNotices[0].title").value(nullValue()))
@@ -307,7 +340,20 @@ class HomeApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/home'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/home'].get.responses['401']")
-                        .exists());
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePageResponse.properties.posters"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePosterItemResponse.properties.linkUrl"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePosterItemResponse.properties"
+                                + ".linkUrl.type"
+                ).value(hasItem("null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePageResponse.properties.posters.type"
+                ).value(hasItem("null")));
     }
 
     private void importMajorFixture() throws Exception {
@@ -419,6 +465,7 @@ class HomeApiIntegrationTest {
             truncate("home_posters");
             truncate("timetable_courses");
             truncate("timetables");
+            truncate("user_accounts");
             truncate("course_import_issues");
             truncate("course_schedules");
             truncate("course_source_cells");

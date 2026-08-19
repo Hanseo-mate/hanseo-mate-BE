@@ -1,16 +1,24 @@
 package hsu.hanseomate.domain.push.entity;
 
+import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * 기기별 Expo Push Token 저장 엔티티.
@@ -18,7 +26,10 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(name = "push_devices")
+@Table(
+        name = "push_devices",
+        indexes = @Index(name = "idx_push_devices_user", columnList = "user_id")
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PushDevice extends BaseTimeEntity {
 
@@ -29,6 +40,16 @@ public class PushDevice extends BaseTimeEntity {
     /** 로그인 사용자의 경우 연결된 user ID (비로그인 시 null) */
     @Column(name = "user_id")
     private Long userId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "user_id",
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_push_devices_user")
+    )
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private UserAccount user;
 
     /** 앱 설치 단위 UUID — 식별 기준 */
     @Column(name = "installation_id", nullable = false, unique = true, length = 100)
