@@ -31,12 +31,13 @@ public class HomePosterService {
     }
 
     @Transactional
-    public HomePosterResponse createPoster(MultipartFile file) {
+    public HomePosterResponse createPoster(MultipartFile file, String linkUrl) {
+        String normalizedLinkUrl = normalizeLinkUrl(linkUrl);
         StoredImage storedImage = imageStorageService.store(file, STORAGE_DIRECTORY);
 
         try {
             HomePoster poster = homePosterRepository.saveAndFlush(
-                    HomePoster.create(storedImage.url())
+                    HomePoster.create(storedImage.url(), normalizedLinkUrl)
             );
             registerCreatedImageCleanup(storedImage);
             return HomePosterResponse.from(poster);
@@ -47,13 +48,18 @@ public class HomePosterService {
     }
 
     @Transactional
-    public HomePosterResponse replacePoster(Long posterId, MultipartFile file) {
+    public HomePosterResponse replacePoster(
+            Long posterId,
+            MultipartFile file,
+            String linkUrl
+    ) {
         HomePoster poster = findPosterForUpdate(posterId);
         String previousImageUrl = poster.getImageUrl();
+        String normalizedLinkUrl = normalizeLinkUrl(linkUrl);
         StoredImage storedImage = imageStorageService.store(file, STORAGE_DIRECTORY);
 
         try {
-            poster.updateImageUrl(storedImage.url());
+            poster.update(storedImage.url(), normalizedLinkUrl);
             homePosterRepository.flush();
             registerReplacedImageCleanup(storedImage, previousImageUrl);
             return HomePosterResponse.from(poster);
@@ -76,6 +82,13 @@ public class HomePosterService {
     private HomePoster findPosterForUpdate(Long posterId) {
         return homePosterRepository.findByIdForUpdate(posterId)
                 .orElseThrow(() -> new HomePosterNotFoundException(posterId));
+    }
+
+    private String normalizeLinkUrl(String linkUrl) {
+        if (linkUrl == null || linkUrl.isBlank()) {
+            return null;
+        }
+        return linkUrl.trim();
     }
 
     private void registerCreatedImageCleanup(StoredImage storedImage) {

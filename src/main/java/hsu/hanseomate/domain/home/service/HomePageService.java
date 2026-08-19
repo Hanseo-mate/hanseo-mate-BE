@@ -9,6 +9,7 @@ import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
 import hsu.hanseomate.domain.home.dto.HomeNoticeResponse;
 import hsu.hanseomate.domain.home.dto.HomeNoticeType;
 import hsu.hanseomate.domain.home.dto.HomePageResponse;
+import hsu.hanseomate.domain.home.dto.HomePosterItemResponse;
 import hsu.hanseomate.domain.home.dto.HomeTodayCourseResponse;
 import hsu.hanseomate.domain.homeposter.dto.HomePosterResponse;
 import hsu.hanseomate.domain.homeposter.service.HomePosterService;
@@ -45,7 +46,13 @@ public class HomePageService {
     private final Clock clock;
 
     public HomePageResponse getHome(Optional<Long> currentUserId) {
-        List<String> posterImageUrls = posterImageUrls();
+        List<HomePosterResponse> posterResponses = homePosterService.getPosters();
+        List<String> posterImageUrls = posterResponses.stream()
+                .map(HomePosterResponse::imageUrl)
+                .toList();
+        List<HomePosterItemResponse> posters = posterResponses.stream()
+                .map(HomePosterItemResponse::from)
+                .toList();
         List<HomeTodayCourseResponse> todayCourses = currentUserId
                 .map(this::todayCourses)
                 .orElseGet(List::of);
@@ -53,15 +60,10 @@ public class HomePageService {
         return new HomePageResponse(
                 currentUserId.isPresent(),
                 posterImageUrls.isEmpty() ? null : posterImageUrls,
+                posters.isEmpty() ? null : posters,
                 todayCourses,
                 popularNotices()
         );
-    }
-
-    private List<String> posterImageUrls() {
-        return homePosterService.getPosters().stream()
-                .map(HomePosterResponse::imageUrl)
-                .toList();
     }
 
     private List<HomeTodayCourseResponse> todayCourses(Long ownerId) {
