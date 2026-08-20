@@ -10,12 +10,13 @@ public interface DailyMenuRepositoryCustom {
 
     /**
      * restaurantType 은 필수.
-     * menuDate 가 null 이면 해당 식당의 주 전체 식단을 반환.
+     * startDate 부터 endDate 까지 해당 식당의 식단을 반환.
      * menuCategory 가 null 이면 모든 카테고리의 MealSection 을 반환.
      */
     List<DailyMenu> findMenus(
             RestaurantType restaurantType,
-            LocalDate menuDate,
+            LocalDate startDate,
+            LocalDate endDate,
             MenuCategory menuCategory
     );
 }
