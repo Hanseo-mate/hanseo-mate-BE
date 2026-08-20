@@ -148,6 +148,50 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void cafeteriaPreferencePreflightAllowsPutContentTypeAndAuthorization()
+            throws Exception {
+        mockMvc.perform(options("/api/auth/me/cafeteria-preference")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.PUT.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "Authorization, Content-Type"
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.PUT.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.CONTENT_TYPE)
+                ));
+    }
+
+    @Test
+    void homePreflightAllowsPublicGetAndOptionalAuthorization()
+            throws Exception {
+        assertPublicReadPreflight("/api/home");
+    }
+
+    @Test
+    void cafeteriaPreflightAllowsPublicGetAndOptionalAuthorization()
+            throws Exception {
+        assertPublicReadPreflight("/api/cafeteria/menus");
+    }
+
+    @Test
     void publicNoticeDownloadPreflightAllowsConfiguredOrigin() throws Exception {
         mockMvc.perform(options(
                         "/api/notices/categories/admin/1/attachments/1/download"
@@ -173,6 +217,32 @@ class CorsIntegrationTest {
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
                         containsString(HttpHeaders.CONTENT_DISPOSITION)
+                ));
+    }
+
+    private void assertPublicReadPreflight(String path) throws Exception {
+        mockMvc.perform(options(path)
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                HttpHeaders.AUTHORIZATION
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.GET.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
                 ));
     }
 

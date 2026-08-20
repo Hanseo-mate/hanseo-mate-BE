@@ -8,6 +8,7 @@ import hsu.hanseomate.domain.cafeteria.entity.QDailyMenu;
 import hsu.hanseomate.domain.cafeteria.entity.QMealSection;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.stereotype.Repository;
 
@@ -22,7 +23,7 @@ public class DailyMenuRepositoryImpl implements DailyMenuRepositoryCustom {
 
     @Override
     public List<DailyMenu> findMenus(
-            RestaurantType restaurantType,
+            Collection<RestaurantType> restaurantTypes,
             LocalDate startDate,
             LocalDate endDate,
             MenuCategory menuCategory
@@ -41,7 +42,7 @@ public class DailyMenuRepositoryImpl implements DailyMenuRepositoryCustom {
                 .from(dailyMenu)
                 .join(dailyMenu.mealSections, mealSection)
                 .where(
-                        restaurantTypeEq(dailyMenu, restaurantType),
+                        dailyMenu.restaurantType.in(restaurantTypes),
                         menuDateRange(dailyMenu, startDate, endDate),
                         menuCategoryEq(mealSection, menuCategory)
                 )
@@ -60,15 +61,16 @@ public class DailyMenuRepositoryImpl implements DailyMenuRepositoryCustom {
                         menuCategoryEq(mealSection, menuCategory)
                 )
                 .distinct()
-                .orderBy(dailyMenu.menuDate.asc(), mealSection.mealTime.asc(), mealSection.menuCategory.asc())
+                .orderBy(
+                        dailyMenu.restaurantType.asc(),
+                        dailyMenu.menuDate.asc(),
+                        mealSection.mealTime.asc(),
+                        mealSection.menuCategory.asc()
+                )
                 .fetch();
     }
 
     // ─── 조건 헬퍼 ────────────────────────────────────────────────────────────
-
-    private BooleanExpression restaurantTypeEq(QDailyMenu dailyMenu, RestaurantType restaurantType) {
-        return dailyMenu.restaurantType.eq(restaurantType);
-    }
 
     private BooleanExpression menuDateRange(
             QDailyMenu dailyMenu,

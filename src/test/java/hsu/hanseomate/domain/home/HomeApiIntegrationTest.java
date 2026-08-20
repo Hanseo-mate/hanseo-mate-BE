@@ -98,10 +98,16 @@ class HomeApiIntegrationTest {
         jdbcTemplate.update(
                 """
                         INSERT INTO user_accounts (
-                            id, login_id, password_hash, role, created_at, updated_at
+                            id,
+                            login_id,
+                            password_hash,
+                            role,
+                            preferred_restaurant_type,
+                            created_at,
+                            updated_at
                         ) VALUES
-                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 CURRENT_USER_ID,
                 "home-test-user",
@@ -155,6 +161,7 @@ class HomeApiIntegrationTest {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(false))
+                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
                 .andExpect(jsonPath("$.posterImageUrls.length()").value(2))
                 .andExpect(jsonPath("$.posterImageUrls[0]")
                         .value("https://cdn.test/poster-1.png"))
@@ -183,11 +190,110 @@ class HomeApiIntegrationTest {
                 .andExpect(jsonPath("$.popularNotices[2].noticeType")
                         .value("SCHOLARSHIP"))
                 .andExpect(jsonPath("$.popularNotices[2].title")
-                        .value("조회수 높은 장학 공지"));
+                        .value("조회수 높은 장학 공지"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
 
         assertViewCount("student_council_notices", "조회수 높은 학생회 공지", 20L);
         assertViewCount("notices", "조회수 높은 학사 공지", 30L);
         assertViewCount("notices", "조회수 높은 장학 공지", 40L);
+    }
+
+    @Test
+    void returnsMainStudentMenuForAnonymousUser() throws Exception {
+        LocalDate today = LocalDate.of(2026, 5, 7);
+
+        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
+        insertMealSection(1_101L, 1_001L, "DINNER", "NORMAL");
+        insertMealSection(1_102L, 1_001L, "LUNCH", "SPECIAL");
+        insertMealSection(1_103L, 1_001L, "LUNCH", "KOREAN");
+        insertDish(1_201L, 1_101L, "김치볶음밥", true);
+        insertDish(1_202L, 1_102L, "돈가스", true);
+        insertDish(1_203L, 1_103L, "제육볶음", true);
+        insertDish(1_204L, 1_103L, "된장국", false);
+
+        insertDailyMenu(2_001L, "TAEAN_STUDENT", today);
+        insertMealSection(2_101L, 2_001L, "LUNCH", "NORMAL");
+        insertDish(2_201L, 2_101L, "태안 학생식당 메뉴", true);
+
+        mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loggedIn").value(false))
+                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
+                .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(1))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
+                        .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].menuDate")
+                        .value("2026-05-07"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections.length()")
+                        .value(3))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[0].mealTime")
+                        .value("LUNCH"))
+                .andExpect(jsonPath(
+                        "$.todayCafeteriaMenus[0].mealSections[0].menuCategory"
+                ).value("KOREAN"))
+                .andExpect(jsonPath(
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0].name"
+                ).value("제육볶음"))
+                .andExpect(jsonPath(
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[1].name"
+                ).value("된장국"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].mealTime")
+                        .value("LUNCH"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].menuCategory")
+                        .value("SPECIAL"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[2].mealTime")
+                        .value("DINNER"));
+    }
+
+    @Test
+    void returnsOnlyPreferredRestaurantMenuForLoggedInUser() throws Exception {
+        LocalDate today = LocalDate.of(2026, 5, 7);
+        setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
+
+        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
+        insertMealSection(1_101L, 1_001L, "LUNCH", "NORMAL");
+        insertDish(1_201L, 1_101L, "서산 메뉴", true);
+
+        insertDailyMenu(2_001L, "TAEAN_STUDENT", today);
+        insertMealSection(2_101L, 2_001L, "DINNER", "NORMAL");
+        insertDish(2_201L, 2_101L, "태안 메뉴", true);
+
+        mockMvc.perform(get("/api/home")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(CURRENT_USER_ID.toString())
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(1))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
+                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath(
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0].name"
+                ).value("태안 메뉴"));
+    }
+
+    @Test
+    void returnsEmptyMenusWhenPreferredRestaurantHasNoTodayMenu() throws Exception {
+        LocalDate today = LocalDate.of(2026, 5, 7);
+        setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
+
+        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
+        insertMealSection(1_101L, 1_001L, "LUNCH", "NORMAL");
+        insertDish(1_201L, 1_101L, "서산 메뉴", true);
+
+        mockMvc.perform(get("/api/home")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(CURRENT_USER_ID.toString())
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
     }
 
     @Test
@@ -220,6 +326,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("MAIN_STUDENT"))
                 .andExpect(jsonPath("$.todayCourses.length()").value(1))
                 .andExpect(jsonPath("$.todayCourses[0].startTime").value("12:00"))
                 .andExpect(jsonPath("$.todayCourses[0].endTime").value("13:00"))
@@ -227,7 +335,8 @@ class HomeApiIntegrationTest {
                         .value("델타프로젝트"))
                 .andExpect(jsonPath("$.todayCourses[0].buildingName")
                         .value("디자인관"))
-                .andExpect(jsonPath("$.todayCourses[0].roomNumber").value("401"));
+                .andExpect(jsonPath("$.todayCourses[0].roomNumber").value("401"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
     }
 
     @Test
@@ -275,6 +384,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("MAIN_STUDENT"))
                 .andExpect(jsonPath("$.todayCourses").isEmpty());
     }
 
@@ -283,13 +394,15 @@ class HomeApiIntegrationTest {
             throws Exception {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
                 .andExpect(jsonPath("$.posterImageUrls").value(nullValue()))
                 .andExpect(jsonPath("$.posters").value(nullValue()))
                 .andExpect(jsonPath("$.todayCourses").isEmpty())
                 .andExpect(jsonPath("$.popularNotices.length()").value(3))
                 .andExpect(jsonPath("$.popularNotices[0].title").value(nullValue()))
                 .andExpect(jsonPath("$.popularNotices[1].title").value(nullValue()))
-                .andExpect(jsonPath("$.popularNotices[2].title").value(nullValue()));
+                .andExpect(jsonPath("$.popularNotices[2].title").value(nullValue()))
+                .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
     }
 
     @Test
@@ -332,6 +445,18 @@ class HomeApiIntegrationTest {
     }
 
     @Test
+    void rejectsSignedTokenWhenSubjectUserDoesNotExist() throws Exception {
+        mockMvc.perform(get("/api/home")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken("999999")
+                        ))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value("/api/home"));
+    }
+
+    @Test
     void exposesHomeEndpointInOpenApi() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -353,7 +478,39 @@ class HomeApiIntegrationTest {
                 ).value(hasItem("null")))
                 .andExpect(jsonPath(
                         "$.components.schemas.HomePageResponse.properties.posters.type"
-                ).value(hasItem("null")));
+                ).value(hasItem("null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePageResponse.properties"
+                                + ".preferredRestaurantType"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePageResponse.properties"
+                                + ".todayCafeteriaMenus.type"
+                ).value("array"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePageResponse.properties"
+                                + ".todayCafeteriaMenus.items['$ref']"
+                ).value("#/components/schemas/HomeCafeteriaMenuResponse"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaMenuResponse"
+                                + ".properties.restaurantType"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaMenuResponse"
+                                + ".properties.menuDate"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaMenuResponse"
+                                + ".properties.mealSections.items['$ref']"
+                ).value("#/components/schemas/HomeCafeteriaMealSectionResponse"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaMealSectionResponse"
+                                + ".properties.dishes.items['$ref']"
+                ).value("#/components/schemas/HomeCafeteriaDishResponse"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaDishResponse"
+                                + ".properties.isMainDish"
+                ).exists());
     }
 
     private void importMajorFixture() throws Exception {
@@ -432,6 +589,72 @@ class HomeApiIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(actual).isEqualTo(expected);
     }
 
+    private void setPreferredRestaurantType(Long userId, String restaurantType) {
+        jdbcTemplate.update(
+                """
+                        UPDATE user_accounts
+                        SET preferred_restaurant_type = ?
+                        WHERE id = ?
+                        """,
+                restaurantType,
+                userId
+        );
+    }
+
+    private void insertDailyMenu(
+            long id,
+            String restaurantType,
+            LocalDate menuDate
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO daily_menus (id, restaurant_type, menu_date)
+                        VALUES (?, ?, ?)
+                        """,
+                id,
+                restaurantType,
+                Date.valueOf(menuDate)
+        );
+    }
+
+    private void insertMealSection(
+            long id,
+            long dailyMenuId,
+            String mealTime,
+            String menuCategory
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO meal_sections (
+                            id, daily_menu_id, meal_time, menu_category
+                        ) VALUES (?, ?, ?, ?)
+                        """,
+                id,
+                dailyMenuId,
+                mealTime,
+                menuCategory
+        );
+    }
+
+    private void insertDish(
+            long id,
+            long mealSectionId,
+            String name,
+            boolean isMainDish
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO dishes (
+                            id, meal_section_id, name, is_main_dish
+                        ) VALUES (?, ?, ?, ?)
+                        """,
+                id,
+                mealSectionId,
+                name,
+                isMainDish
+        );
+    }
+
     private String validAccessToken(String subject) {
         Instant now = Instant.now();
         return signedAccessToken(subject, now.minusSeconds(60), now.plusSeconds(3_600));
@@ -459,6 +682,9 @@ class HomeApiIntegrationTest {
     private void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
+            truncate("dishes");
+            truncate("meal_sections");
+            truncate("daily_menus");
             truncate("notice_files");
             truncate("notices");
             truncate("student_council_notices");

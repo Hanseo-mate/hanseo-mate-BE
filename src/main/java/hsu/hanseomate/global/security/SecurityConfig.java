@@ -73,6 +73,7 @@ public class SecurityConfig {
         http
                 .securityMatcher(
                         "/api/auth/me",
+                        "/api/auth/me/**",
                         "/api/timetables/**",
                         "/api/calendars/me",
                         "/api/calendars/me/**"
@@ -107,9 +108,11 @@ public class SecurityConfig {
                         "/api/clubs/**",
                         "/api/calendars/all",
                         "/api/home",
+                        "/api/cafeteria/**",
                         "/api/v1/push-tokens",
                         "/api/v1/push-tokens/**"
                 )
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))

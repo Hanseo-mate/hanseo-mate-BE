@@ -1,9 +1,11 @@
 package hsu.hanseomate.domain.auth.dto;
 
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.club.entity.ClubLike;
 import hsu.hanseomate.domain.club.entity.ClubReview;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.type.UserRole;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -11,6 +13,8 @@ public record MyPageResponse(
         Long userId,
         String loginId,
         UserRole role,
+        @Schema(allowableValues = {"MAIN_STUDENT", "TAEAN_STUDENT"})
+        RestaurantType preferredRestaurantType,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<MyClubReviewResponse> clubReviews,
@@ -31,6 +35,7 @@ public record MyPageResponse(
                 userAccount.getId(),
                 userAccount.getLoginId(),
                 userAccount.getRole(),
+                userAccount.getPreferredRestaurantType(),
                 userAccount.getCreatedAt(),
                 userAccount.getUpdatedAt(),
                 clubReviews.stream().map(MyClubReviewResponse::from).toList(),
