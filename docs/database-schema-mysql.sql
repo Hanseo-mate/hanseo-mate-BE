@@ -101,10 +101,17 @@ CREATE TABLE user_accounts (
     login_id VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'USER',
+    preferred_restaurant_type VARCHAR(20) NOT NULL DEFAULT 'MAIN_STUDENT',
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uk_user_account_login_id UNIQUE (login_id)
+    CONSTRAINT uk_user_account_login_id UNIQUE (login_id),
+    CONSTRAINT ck_user_account_preferred_restaurant_type CHECK (
+        BINARY preferred_restaurant_type IN (
+            BINARY 'MAIN_STUDENT',
+            BINARY 'TAEAN_STUDENT'
+        )
+    )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE notification_outbox (

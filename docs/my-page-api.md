@@ -2,13 +2,14 @@
 
 ## 1. 기능 개요
 
-로그인한 사용자의 기본 계정 정보, 본인이 작성한 동아리 활동 후기, 좋아요한 동아리 목록을 한 번에 조회하고, 비밀번호 확인 후 계정과 회원 관련 데이터를 영구 삭제할 수 있습니다.
+로그인한 사용자의 기본 계정 정보, 선호 학생식당, 본인이 작성한 동아리 활동 후기, 좋아요한 동아리 목록을 한 번에 조회하고, 선호 식당을 변경하거나 계정을 영구 삭제할 수 있습니다.
 
 - Bearer JWT 필수
 - 다른 사용자의 후기는 반환하지 않음
 - 다른 사용자의 좋아요는 반환하지 않음
 - 후기 미작성 시 빈 배열 반환
 - 좋아요한 동아리가 없을 때 빈 배열 반환
+- 신규 회원과 기존 회원의 기본 선호 식당은 서산 학생식당
 - 비밀번호, 비밀번호 해시 및 새 Access Token은 응답하지 않음
 - 회원탈퇴는 복구할 수 없는 물리 삭제 방식
 - 운영 DB는 시간표·푸시 데이터의 연쇄 삭제 FK를 배포 전에 보강해야 함
@@ -47,6 +48,7 @@ Query Parameter와 Request Body는 사용하지 않습니다.
   "userId": 1,
   "loginId": "user01",
   "role": "USER",
+  "preferredRestaurantType": "MAIN_STUDENT",
   "createdAt": "2026-08-11T10:00:00",
   "updatedAt": "2026-08-11T10:00:00",
   "clubReviews": [
@@ -75,6 +77,7 @@ Query Parameter와 Request Body는 사용하지 않습니다.
 | `userId` | Number | 로그인 사용자 ID |
 | `loginId` | String | 로그인 아이디 |
 | `role` | String | 사용자 권한, `USER` 또는 `ADMIN` |
+| `preferredRestaurantType` | String | 선호 학생식당, `MAIN_STUDENT`(서산) 또는 `TAEAN_STUDENT`(태안) |
 | `createdAt` | String | 계정 생성 일시 |
 | `updatedAt` | String | 계정 수정 일시 |
 | `clubReviews` | Array | 본인이 현재 작성한 동아리 후기 목록 |
@@ -96,6 +99,7 @@ Query Parameter와 Request Body는 사용하지 않습니다.
   "userId": 1,
   "loginId": "user01",
   "role": "USER",
+  "preferredRestaurantType": "MAIN_STUDENT",
   "createdAt": "2026-08-11T10:00:00",
   "updatedAt": "2026-08-11T10:00:00",
   "clubReviews": [],
@@ -134,7 +138,48 @@ Authorization: Bearer {accessToken}
 
 ---
 
-## 5. 회원탈퇴
+## 5. 선호 학생식당 변경
+
+| 항목 | 내용 |
+| --- | --- |
+| Method | `PUT` |
+| URL | `/api/auth/me/cafeteria-preference` |
+| 요청 형식 | `application/json` |
+| 응답 형식 | 응답 본문 없음 |
+| 인증 | `Authorization: Bearer {accessToken}` |
+
+```http
+PUT /api/auth/me/cafeteria-preference
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+서산 학생식당으로 설정:
+
+```json
+{
+  "preferredRestaurantType": "MAIN_STUDENT"
+}
+```
+
+태안 학생식당으로 설정:
+
+```json
+{
+  "preferredRestaurantType": "TAEAN_STUDENT"
+}
+```
+
+성공하면 `204 No Content`를 반환하며 다음 로그인이나 토큰 재발급 없이 즉시 반영됩니다.
+
+- 메인페이지는 로그인 사용자의 선호 식당 오늘 메뉴만 반환합니다.
+- 학식 상세페이지는 두 학생식당을 모두 반환하면서 이 설정값도 함께 제공합니다.
+- `MAIN_STAFF`, `TAEAN_STAFF`, 누락되거나 잘못된 값은 `400 Bad Request`입니다.
+- 회원탈퇴 시 설정도 계정 행과 함께 영구 삭제됩니다.
+
+---
+
+## 6. 회원탈퇴
 
 | 항목 | 내용 |
 | --- | --- |
@@ -182,7 +227,7 @@ Content-Type: application/json
 
 ---
 
-## 6. 오류 응답
+## 7. 오류 응답
 
 다음 경우 `401 Unauthorized`를 반환합니다.
 
@@ -203,6 +248,8 @@ Content-Type: application/json
 회원탈퇴 요청의 `password`가 누락되거나 공백이면 `400 Bad Request`를 반환합니다.
 현재 비밀번호와 일치하지 않으면 `401 Unauthorized`를 반환하며, 계정과 기존 데이터는 삭제되지 않습니다.
 
+선호 학생식당 변경 요청에서 필드가 누락되거나 지원하지 않는 식당을 전달하면 `400 Bad Request`를 반환하며 기존 설정은 유지됩니다.
+
 ```json
 {
   "status": 401,
@@ -214,11 +261,12 @@ Content-Type: application/json
 
 ---
 
-## 7. API 요약
+## 8. API 요약
 
 | Method | URL | 인증 | 기능 |
 | --- | --- | --- | --- |
-| `GET` | `/api/auth/me` | Bearer JWT 필수 | 내 계정 정보, 작성한 동아리 후기 및 좋아요한 동아리 조회 |
+| `GET` | `/api/auth/me` | Bearer JWT 필수 | 내 계정 정보, 선호 학생식당, 작성한 후기 및 좋아요한 동아리 조회 |
+| `PUT` | `/api/auth/me/cafeteria-preference` | Bearer JWT 필수 | 서산·태안 선호 학생식당 변경 |
 | `DELETE` | `/api/auth/me` | Bearer JWT 필수 | 비밀번호 확인 후 계정과 회원 관련 데이터 영구 삭제 |
 
 > 현재 회원 정보에는 이름, 닉네임, 학번, 학과, 이메일, 프로필 이미지가 저장되어 있지 않습니다. 해당 정보를 마이페이지에 추가하려면 회원 DB 모델을 별도로 확장해야 합니다.

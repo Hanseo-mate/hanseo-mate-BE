@@ -1,10 +1,13 @@
 package hsu.hanseomate.domain.home.dto;
 
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 public record HomePageResponse(
         boolean loggedIn,
+        @Schema(nullable = true, allowableValues = {"MAIN_STUDENT", "TAEAN_STUDENT"})
+        RestaurantType preferredRestaurantType,
         @Schema(nullable = true)
         List<String> posterImageUrls,
         @Schema(nullable = true)

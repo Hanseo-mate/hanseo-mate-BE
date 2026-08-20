@@ -1,12 +1,14 @@
 package hsu.hanseomate.domain.auth.service;
 
 import hsu.hanseomate.domain.auth.dto.AuthResponse;
+import hsu.hanseomate.domain.auth.dto.CafeteriaPreferenceUpdateRequest;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
 import hsu.hanseomate.domain.auth.dto.WithdrawalRequest;
 import hsu.hanseomate.domain.auth.exception.DuplicateLoginIdException;
 import hsu.hanseomate.domain.auth.exception.InvalidCredentialsException;
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.club.repository.ClubLikeRepository;
 import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
 import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
@@ -15,6 +17,7 @@ import hsu.hanseomate.domain.timetable.composition.repository.TimetableCourseRep
 import hsu.hanseomate.domain.timetable.composition.repository.TimetableRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
+import hsu.hanseomate.global.exception.BadRequestException;
 import hsu.hanseomate.global.security.JwtTokenProvider;
 import java.util.List;
 import java.util.Locale;
@@ -84,6 +87,28 @@ public class AuthService {
                 clubReviewRepository.findAllByReviewerIdWithClubAndReviewTags(userId),
                 clubLikeRepository.findAllByLikerIdWithClubOrderByIdDesc(userId)
         );
+    }
+
+    @Transactional
+    public void updateCafeteriaPreference(
+            Long userId,
+            CafeteriaPreferenceUpdateRequest request
+    ) {
+        RestaurantType preferredRestaurantType =
+                request.preferredRestaurantType();
+        if (preferredRestaurantType != RestaurantType.MAIN_STUDENT
+                && preferredRestaurantType != RestaurantType.TAEAN_STUDENT) {
+            throw new BadRequestException(
+                    "preferredRestaurantType은 MAIN_STUDENT 또는 "
+                            + "TAEAN_STUDENT만 사용할 수 있습니다."
+            );
+        }
+
+        UserAccount userAccount = userAccountRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
+                        "로그인이 필요합니다."
+                ));
+        userAccount.changePreferredRestaurantType(preferredRestaurantType);
     }
 
     @Transactional

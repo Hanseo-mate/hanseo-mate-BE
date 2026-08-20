@@ -124,6 +124,8 @@ class MyPageApiIntegrationTest {
                 .andExpect(jsonPath("$.userId").value(current.userId()))
                 .andExpect(jsonPath("$.loginId").value("mypage-user"))
                 .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("MAIN_STUDENT"))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andExpect(jsonPath("$.clubReviews.length()").value(2))
@@ -266,6 +268,10 @@ class MyPageApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/auth/me'].get.responses['200']").exists())
                 .andExpect(jsonPath("$.paths['/api/auth/me'].get.responses['401']").exists())
                 .andExpect(jsonPath("$.components.schemas.MyPageResponse").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.MyPageResponse.properties"
+                                + ".preferredRestaurantType"
+                ).exists())
                 .andExpect(jsonPath("$.components.schemas.MyClubReviewResponse").exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.MyPageResponse.properties.likedClubs.type"
