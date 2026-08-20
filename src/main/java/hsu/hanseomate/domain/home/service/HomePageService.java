@@ -22,6 +22,8 @@ import hsu.hanseomate.domain.notices.repository.NoticeRepository;
 import hsu.hanseomate.domain.notices.repository.NoticeTitleProjection;
 import hsu.hanseomate.domain.studentcouncilnotice.repository.StudentCouncilNoticeRepository;
 import hsu.hanseomate.domain.studentcouncilnotice.repository.StudentCouncilNoticeTitleProjection;
+import hsu.hanseomate.domain.user.entity.UserAccount;
+import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -31,6 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +51,7 @@ public class HomePageService {
     private final CourseScheduleRepository courseScheduleRepository;
     private final NoticeRepository noticeRepository;
     private final StudentCouncilNoticeRepository studentCouncilNoticeRepository;
+    private final UserAccountRepository userAccountRepository;
     private final Clock clock;
 
     public HomePageResponse getHome(Optional<Long> currentUserId) {
@@ -62,14 +66,21 @@ public class HomePageService {
         List<HomeTodayCourseResponse> todayCourses = currentUserId
                 .map(ownerId -> todayCourses(ownerId, today))
                 .orElseGet(List::of);
+        RestaurantType preferredRestaurantType = currentUserId
+                .map(this::preferredRestaurantType)
+                .orElse(null);
+        Optional<RestaurantType> selectedRestaurantType = currentUserId.isPresent()
+                ? Optional.ofNullable(preferredRestaurantType)
+                : Optional.of(RestaurantType.MAIN_STUDENT);
 
         return new HomePageResponse(
                 currentUserId.isPresent(),
+                preferredRestaurantType,
                 posterImageUrls.isEmpty() ? null : posterImageUrls,
                 posters.isEmpty() ? null : posters,
                 todayCourses,
                 popularNotices(),
-                todayCafeteriaMenus(today)
+                todayCafeteriaMenus(today, selectedRestaurantType)
         );
     }
 
@@ -96,27 +107,42 @@ public class HomePageService {
                 .toList();
     }
 
+    private RestaurantType preferredRestaurantType(Long userId) {
+        UserAccount userAccount = userAccountRepository.findById(userId)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
+                        "로그인이 필요합니다."
+                ));
+        return userAccount.getPreferredRestaurantType();
+    }
+
     private List<HomeCafeteriaMenuResponse> todayCafeteriaMenus(
-            LocalDate today
+            LocalDate today,
+            Optional<RestaurantType> selectedRestaurantType
+    ) {
+        return selectedRestaurantType
+                .filter(this::isSupportedStudentRestaurant)
+                .flatMap(restaurantType -> findTodayCafeteriaMenu(today, restaurantType)
+                        .map(HomeCafeteriaMenuResponse::from))
+                .stream()
+                .toList();
+    }
+
+    private Optional<DailyMenu> findTodayCafeteriaMenu(
+            LocalDate today,
+            RestaurantType restaurantType
     ) {
         return dailyMenuRepository
                 .findAllByMenuDateAndRestaurantTypeInOrderByIdAsc(
                         today,
-                        List.of(
-                                RestaurantType.MAIN_STUDENT,
-                                RestaurantType.TAEAN_STUDENT
-                        )
+                        List.of(restaurantType)
                 )
                 .stream()
-                .sorted(Comparator
-                        .comparingInt((DailyMenu menu) ->
-                                menu.getRestaurantType().ordinal())
-                        .thenComparing(
-                                DailyMenu::getId,
-                                Comparator.nullsLast(Comparator.naturalOrder())
-                        ))
-                .map(HomeCafeteriaMenuResponse::from)
-                .toList();
+                .findFirst();
+    }
+
+    private boolean isSupportedStudentRestaurant(RestaurantType restaurantType) {
+        return restaurantType == RestaurantType.MAIN_STUDENT
+                || restaurantType == RestaurantType.TAEAN_STUDENT;
     }
 
     private List<CourseSlot> toCourseSlots(CourseSchedule schedule) {

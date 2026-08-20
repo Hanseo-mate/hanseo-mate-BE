@@ -1,17 +1,23 @@
 package hsu.hanseomate.domain.cafeteria.controller;
 
-import hsu.hanseomate.domain.cafeteria.dto.DailyMenuDTO;
+import hsu.hanseomate.domain.cafeteria.dto.CafeteriaMenusResponse;
 import hsu.hanseomate.domain.cafeteria.entity.MenuCategory;
-import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.cafeteria.service.CafeteriaService;
+import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Optional;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
  * 모바일/웹 클라이언트에게 식단 데이터를 제공하는 Read-Only API.
  * <p>
  * GET /api/cafeteria/menus
- * - restaurantType (필수): MAIN_STUDENT | TAEAN_STUDENT
  * - menuDate       (선택): yyyy-MM-dd — 없으면 한국 기준 이번 주 월~금 반환
  * - menuCategory   (선택): KOREAN | SPECIAL | NORMAL — 없으면 모든 코너 반환
  */
@@ -37,31 +42,74 @@ public class CafeteriaController {
     }
 
     @Operation(
-            summary = "학생식당별 식단 조회",
-            description = "MAIN_STUDENT는 서산 학생식당, TAEAN_STUDENT는 태안 학생식당입니다."
+            summary = "서산·태안 학생식당 통합 조회",
+            description = "두 학생식당 버킷을 항상 반환합니다. "
+                    + "로그인하면 preferredRestaurantType이, "
+                    + "비로그인이면 null이 반환됩니다."
     )
-    @GetMapping("/menus")
-    public ResponseEntity<List<DailyMenuDTO>> getMenus(
-            @Parameter(
-                    description = "조회할 학생식당",
-                    required = true,
-                    schema = @Schema(allowableValues = {
-                            "MAIN_STUDENT",
-                            "TAEAN_STUDENT"
-                    })
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = CafeteriaMenusResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "날짜 또는 메뉴 카테고리 형식 오류",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "잘못되었거나 만료된 토큰",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
             )
-            @RequestParam RestaurantType restaurantType,
+    })
+    @GetMapping(value = "/menus", produces = MediaType.APPLICATION_JSON_VALUE)
+    public CafeteriaMenusResponse getMenus(
             @Parameter(
                     description = "특정 날짜만 조회합니다. 생략하면 한국 시간 기준 이번 주 월요일부터 금요일까지 조회합니다."
             )
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate menuDate,
-            @RequestParam(required = false) MenuCategory menuCategory
+            @RequestParam(required = false) MenuCategory menuCategory,
+            Authentication authentication
     ) {
-        List<DailyMenuDTO> result = cafeteriaService.getMenus(
-                restaurantType,
+        return cafeteriaService.getMenus(
+                optionalCurrentUserId(authentication),
                 menuDate,
                 menuCategory
         );
-        return ResponseEntity.ok(result);
+    }
+
+    private Optional<Long> optionalCurrentUserId(
+            Authentication authentication
+    ) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Long.valueOf(authentication.getName()));
+        } catch (NumberFormatException exception) {
+            throw new AuthenticationCredentialsNotFoundException(
+                    "유효하지 않은 인증 정보입니다.",
+                    exception
+            );
+        }
     }
 }

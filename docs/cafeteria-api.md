@@ -1,137 +1,213 @@
-# 학식 조회 API
+# 학식 통합 조회 API
 
 ## 1. 기능 개요
 
-서산 또는 태안 캠퍼스의 학생식당 메뉴를 조회합니다. DB와 크롤러에는 기존
-식당 구분 네 종류를 유지하지만, 공개 API에서는 학생식당 두 종류만 사용합니다.
+서산 학생식당과 태안 학생식당의 식단을 한 번에 조회합니다.
+응답에는 두 식당 버킷이 항상 포함되며, 해당 식당의 데이터가
+없으면 `dailyMenus` 는 빈 배열입니다.
 
 | `restaurantType` | 의미 |
 |---|---|
 | `MAIN_STUDENT` | 서산 학생식당 |
 | `TAEAN_STUDENT` | 태안 학생식당 |
 
-`MAIN_STAFF`, `TAEAN_STAFF` 데이터는 삭제하지 않으며 공개 조회 결과에서만
-제외합니다.
+DB와 크롤러의 `MAIN_STAFF`, `TAEAN_STAFF` 데이터는 유지하지만
+이 API 응답에는 포함하지 않습니다.
 
 ## 2. 요청
 
 ```http
-GET /api/cafeteria/menus?restaurantType=MAIN_STUDENT
+GET /api/cafeteria/menus
 ```
 
-인증은 필요하지 않습니다.
+인증은 선택 사항입니다.
 
-| Query Parameter | 필수 | 설명 |
-|---|---|---|
-| `restaurantType` | 필수 | `MAIN_STUDENT` 또는 `TAEAN_STUDENT` |
-| `menuDate` | 선택 | `yyyy-MM-dd`; 지정하면 해당 날짜만, 생략하면 한국 시간 기준 이번 주 월요일~금요일 |
-| `menuCategory` | 선택 | `KOREAN`, `SPECIAL`, `NORMAL` |
+- JWT 없음: `preferredRestaurantType` 은 `null`
+- 유효한 JWT 있음: 로그인 사용자의 선호 식당 반환
+- 잘못되었거나 만료된 JWT: `401 Unauthorized`
 
-`MAIN_STAFF`, `TAEAN_STAFF`를 요청하면 공개 조회 대상이 아니므로 `400 Bad Request`를 반환합니다.
+### Query Parameter
+
+| 파라미터 | 필수 | 설명 |
+|---|---:|---|
+| `menuDate` | X | `yyyy-MM-dd`; 지정하면 해당 날짜만 조회 |
+| `menuCategory` | X | `KOREAN`, `SPECIAL`, `NORMAL` |
+
+`menuDate` 를 생략하면 `Asia/Seoul` 기준 이번 주 월요일부터
+금요일까지 조회합니다. `menuDate` 를 지정하면 주말이나 과거·미래
+날짜도 조회할 수 있습니다.
+
+기존 `restaurantType` Query Parameter 는 제거되었습니다. 식당별로
+따로 요청하지 않고, 프론트에서는 응답의 `restaurants` 버킷을
+`restaurantType` 으로 구분합니다.
+
+### 요청 예시
+
+```http
+GET /api/cafeteria/menus?menuDate=2026-08-20
+```
+
+```http
+GET /api/cafeteria/menus?menuCategory=KOREAN
+Authorization: Bearer {accessToken}
+```
 
 ## 3. 성공 응답
 
-```json
-[
-  {
-    "id": 1,
-    "restaurantType": "MAIN_STUDENT",
-    "menuDate": "2026-08-17",
-    "dayOfWeek": "MONDAY",
-    "mealSections": [
-      {
-        "id": 10,
-        "mealTime": "LUNCH",
-        "menuCategory": "KOREAN",
-        "dishes": [
-          {
-            "id": 100,
-            "name": "제육볶음",
-            "isMainDish": true
-          }
-        ]
-      },
-      {
-        "id": 11,
-        "mealTime": "DINNER",
-        "menuCategory": "NORMAL",
-        "dishes": [
-          {
-            "id": 101,
-            "name": "김치볶음밥",
-            "isMainDish": true
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "id": 2,
-    "restaurantType": "MAIN_STUDENT",
-    "menuDate": "2026-08-18",
-    "dayOfWeek": "TUESDAY",
-    "mealSections": [
-      {
-        "id": 20,
-        "mealTime": "LUNCH",
-        "menuCategory": "NORMAL",
-        "dishes": [
-          {
-            "id": 200,
-            "name": "화요일 점심 메뉴",
-            "isMainDish": true
-          }
-        ]
-      },
-      {
-        "id": 21,
-        "mealTime": "DINNER",
-        "menuCategory": "NORMAL",
-        "dishes": [
-          {
-            "id": 201,
-            "name": "화요일 저녁 메뉴",
-            "isMainDish": true
-          }
-        ]
-      }
-    ]
-  }
-]
+```http
+200 OK
 ```
-
-- `menuDate`를 생략하면 월요일부터 금요일까지 날짜 오름차순으로 반환됩니다.
-- `dayOfWeek`은 `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY`, `FRIDAY`입니다.
-- `LUNCH`는 점심, `DINNER`는 저녁입니다.
-- 점심이 저녁보다 먼저 반환됩니다.
-- `KOREAN`은 한식, `SPECIAL`은 일품, `NORMAL`은 일반 메뉴입니다.
-- `isMainDish`는 대표 메뉴 여부입니다.
-
-## 4. 오류
-
-- `restaurantType` 누락 또는 허용되지 않은 값: `400 Bad Request`
-- 날짜·카테고리 형식 오류: `400 Bad Request`
-- 지정 날짜 또는 이번 주 평일에 학생식당 데이터가 전혀 없음: `404 Not Found`
-- 예상하지 못한 서버 오류: `500 Internal Server Error`
 
 ```json
 {
-  "status": 404,
-  "message": "식단 데이터를 찾을 수 없습니다. [restaurantType=MAIN_STUDENT, menuDate=2026-08-20]",
-  "path": "/api/cafeteria/menus",
-  "timestamp": "2026-08-20T12:00:00Z"
+  "preferredRestaurantType": "MAIN_STUDENT",
+  "restaurants": [
+    {
+      "restaurantType": "MAIN_STUDENT",
+      "dailyMenus": [
+        {
+          "id": 1,
+          "restaurantType": "MAIN_STUDENT",
+          "menuDate": "2026-08-20",
+          "dayOfWeek": "THURSDAY",
+          "mealSections": [
+            {
+              "id": 10,
+              "mealTime": "LUNCH",
+              "menuCategory": "KOREAN",
+              "dishes": [
+                {
+                  "id": 100,
+                  "name": "제육볶음",
+                  "isMainDish": true
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "mealTime": "DINNER",
+              "menuCategory": "NORMAL",
+              "dishes": [
+                {
+                  "id": 101,
+                  "name": "김치볶음밥",
+                  "isMainDish": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "restaurantType": "TAEAN_STUDENT",
+      "dailyMenus": []
+    }
+  ]
 }
 ```
 
-## 5. 메인 페이지 연동
+### 최상위 필드
 
-`GET /api/home`의 `todayCafeteriaMenus`에는 한국 날짜 기준 오늘의 서산·태안
-학생식당만 함께 반환합니다. 교직원식당은 제외되며, 오늘 데이터가 없으면 빈
-배열 `[]`입니다.
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `preferredRestaurantType` | String \| null | 로그인 사용자의 선호 식당; 비로그인은 `null` |
+| `restaurants` | Object[] | 서산·태안 학생식당 버킷 두 개 |
 
-## 6. 배포 영향
+### 식당 버킷
 
-- 기존 DB 데이터 삭제 또는 변환 없음
-- 신규 테이블·컬럼·인덱스 없음
-- 서버 properties 변경 없음
-- 크롤러와 스케줄러의 기존 네 식당 수집 구조는 유지
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `restaurantType` | String | `MAIN_STUDENT` 또는 `TAEAN_STUDENT` |
+| `dailyMenus` | Object[] | 조건에 맞는 날짜별 식단; 없으면 `[]` |
+
+### 날짜별 식단
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | Number | 날짜별 식단 ID |
+| `restaurantType` | String | 해당 식당 구분 |
+| `menuDate` | String | `yyyy-MM-dd` |
+| `dayOfWeek` | String | `MONDAY`~`SUNDAY` |
+| `mealSections` | Object[] | 식사 시간·카테고리별 메뉴 |
+| `mealSections[].id` | Number | 식사 구역 ID |
+| `mealSections[].mealTime` | String | `LUNCH`, `DINNER` |
+| `mealSections[].menuCategory` | String | `KOREAN`, `SPECIAL`, `NORMAL` |
+| `mealSections[].dishes` | Object[] | 음식 목록 |
+| `dishes[].id` | Number | 음식 ID |
+| `dishes[].name` | String | 음식명 |
+| `dishes[].isMainDish` | Boolean | 대표 메뉴 여부 |
+
+## 4. 응답 순서
+
+- `restaurants[0]`: `MAIN_STUDENT`
+- `restaurants[1]`: `TAEAN_STUDENT`
+- `dailyMenus`: 날짜 오름차순
+- `mealSections`: `LUNCH` → `DINNER`
+- 같은 식사 시간: `KOREAN` → `SPECIAL` → `NORMAL`
+- `dishes`: ID 오름차순
+
+## 5. 데이터가 없을 때
+
+데이터가 전혀 없어도 `404` 를 반환하지 않습니다. 두 식당
+버킷을 유지한 `200 OK` 응답을 반환합니다.
+
+```json
+{
+  "preferredRestaurantType": null,
+  "restaurants": [
+    {
+      "restaurantType": "MAIN_STUDENT",
+      "dailyMenus": []
+    },
+    {
+      "restaurantType": "TAEAN_STUDENT",
+      "dailyMenus": []
+    }
+  ]
+}
+```
+
+한 식당만 데이터가 있으면 나머지 식당의 `dailyMenus` 만 빈
+배열입니다. 특정 날짜가 없으면 해당 날짜 객체를 만들지
+않습니다.
+
+## 6. 프론트엔드 처리
+
+1. `preferredRestaurantType` 이 있으면 해당 버킷을 처음 표시합니다.
+2. `null` 이면 앱의 기본값 또는 로컬 선택값을 사용합니다.
+3. 선택한 `restaurantType` 과 같은 `restaurants` 항목을 찾습니다.
+4. 월~금 화면은 `menuDate` 또는 `dayOfWeek` 로 매칭합니다.
+5. 응답 인덱스를 요일로 간주하지 않습니다. 저장되지 않은 날짜는 빠집니다.
+6. 점심·저녁은 배열 위치가 아니라 `mealTime` 으로 구분합니다.
+
+## 7. 오류
+
+| 상황 | 상태 |
+|---|---:|
+| `menuDate` 형식 오류 | `400 Bad Request` |
+| `menuCategory` 허용값 아님 | `400 Bad Request` |
+| 잘못되었거나 만료된 JWT | `401 Unauthorized` |
+| 예상하지 못한 서버·DB 오류 | `500 Internal Server Error` |
+
+정상적인 빈 식단은 오류가 아니므로 `404` 는 사용하지 않습니다.
+
+## 8. 배포 영향
+
+- 식단 테이블 변경 없음
+- 식단 데이터 재업로드 불필요
+- 크롤러·스케줄러의 기존 네 식당 수집 구조 유지
+- `user_accounts.preferred_restaurant_type` 증분 DDL은 앱 배포 전 적용
+- 서버 properties 추가 없음
+
+## 9. CORS
+
+`/api/cafeteria/**`는 설정된 허용 Origin에서 브라우저로 호출할 수 있습니다.
+
+- 허용 Method: `GET`, `OPTIONS`
+- 허용 Header: `Authorization`, `Content-Type`, `Accept`
+- Credentials: `false`
+- Preflight max age: `3600`초
+
+허용되지 않은 Origin의 브라우저 요청은 차단됩니다. Postman, 네이티브 앱,
+서버 간 요청은 브라우저 CORS 정책의 적용 대상이 아닙니다.

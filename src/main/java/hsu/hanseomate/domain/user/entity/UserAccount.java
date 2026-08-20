@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.user.entity;
 
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.user.type.UserRole;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -41,13 +42,30 @@ public class UserAccount extends BaseTimeEntity {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_restaurant_type", nullable = false, length = 20)
+    private RestaurantType preferredRestaurantType;
+
     private UserAccount(String loginId, String passwordHash) {
         this.loginId = loginId;
         this.passwordHash = passwordHash;
         this.role = UserRole.USER;
+        this.preferredRestaurantType = RestaurantType.MAIN_STUDENT;
     }
 
     public static UserAccount create(String loginId, String passwordHash) {
         return new UserAccount(loginId, passwordHash);
+    }
+
+    public void changePreferredRestaurantType(
+            RestaurantType preferredRestaurantType
+    ) {
+        if (preferredRestaurantType != RestaurantType.MAIN_STUDENT
+                && preferredRestaurantType != RestaurantType.TAEAN_STUDENT) {
+            throw new IllegalArgumentException(
+                    "학생식당만 선호 식당으로 설정할 수 있습니다."
+            );
+        }
+        this.preferredRestaurantType = preferredRestaurantType;
     }
 }

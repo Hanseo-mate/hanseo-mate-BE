@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.auth.controller;
 
 import hsu.hanseomate.domain.auth.dto.AuthResponse;
+import hsu.hanseomate.domain.auth.dto.CafeteriaPreferenceUpdateRequest;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
@@ -21,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -63,6 +65,35 @@ public class AuthController {
     @GetMapping("/me")
     public MyPageResponse getMyPage(Authentication authentication) {
         return authService.getMyPage(currentUserId(authentication));
+    }
+
+    @Operation(
+            summary = "선호 학생식당 설정",
+            description = "로그인 사용자의 선호 학생식당을 서산 또는 태안 학생식당으로 설정합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "설정 성공"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "누락되었거나 지원하지 않는 식당 값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요 또는 유효하지 않은 토큰",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @PutMapping("/me/cafeteria-preference")
+    public ResponseEntity<Void> updateCafeteriaPreference(
+            Authentication authentication,
+            @Valid @RequestBody CafeteriaPreferenceUpdateRequest request
+    ) {
+        authService.updateCafeteriaPreference(
+                currentUserId(authentication),
+                request
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

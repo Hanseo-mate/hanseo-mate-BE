@@ -1,6 +1,5 @@
 package hsu.hanseomate.global.exception;
 
-import hsu.hanseomate.domain.cafeteria.exception.CafeteriaMenuNotFoundException;
 import hsu.hanseomate.domain.courseimport.exception.CourseImportContractException;
 import hsu.hanseomate.domain.courseimport.parser.common.CourseWorkbookParseException;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableErrorResponse;
@@ -60,14 +59,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(
             ResourceNotFoundException exception,
-            HttpServletRequest request
-    ) {
-        return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
-    }
-
-    @ExceptionHandler(CafeteriaMenuNotFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleCafeteriaMenuNotFound(
-            CafeteriaMenuNotFoundException exception,
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);

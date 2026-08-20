@@ -98,10 +98,16 @@ class HomeApiIntegrationTest {
         jdbcTemplate.update(
                 """
                         INSERT INTO user_accounts (
-                            id, login_id, password_hash, role, created_at, updated_at
+                            id,
+                            login_id,
+                            password_hash,
+                            role,
+                            preferred_restaurant_type,
+                            created_at,
+                            updated_at
                         ) VALUES
-                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                            (?, ?, ?, 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 CURRENT_USER_ID,
                 "home-test-user",
@@ -155,6 +161,7 @@ class HomeApiIntegrationTest {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(false))
+                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
                 .andExpect(jsonPath("$.posterImageUrls.length()").value(2))
                 .andExpect(jsonPath("$.posterImageUrls[0]")
                         .value("https://cdn.test/poster-1.png"))
@@ -192,8 +199,7 @@ class HomeApiIntegrationTest {
     }
 
     @Test
-    void returnsKoreanTodayMenusForSeosanAndTaeanStudentRestaurants()
-            throws Exception {
+    void returnsMainStudentMenuForAnonymousUser() throws Exception {
         LocalDate today = LocalDate.of(2026, 5, 7);
 
         insertDailyMenu(1_001L, "MAIN_STUDENT", today);
@@ -205,42 +211,23 @@ class HomeApiIntegrationTest {
         insertDish(1_203L, 1_103L, "제육볶음", true);
         insertDish(1_204L, 1_103L, "된장국", false);
 
-        insertDailyMenu(2_001L, "MAIN_STAFF", today);
+        insertDailyMenu(2_001L, "TAEAN_STUDENT", today);
         insertMealSection(2_101L, 2_001L, "LUNCH", "NORMAL");
-        insertDish(2_201L, 2_101L, "비빔밥", true);
-
-        insertDailyMenu(3_001L, "TAEAN_STUDENT", today);
-        insertMealSection(3_101L, 3_001L, "DINNER", "NORMAL");
-        insertDish(3_201L, 3_101L, "카레라이스", true);
-
-        insertDailyMenu(4_001L, "TAEAN_STAFF", today);
-        insertMealSection(4_101L, 4_001L, "LUNCH", "KOREAN");
-        insertDish(4_201L, 4_101L, "불고기", true);
-
-        insertDailyMenu(5_001L, "MAIN_STUDENT", today.minusDays(1));
-        insertMealSection(5_101L, 5_001L, "LUNCH", "NORMAL");
-        insertDish(5_201L, 5_101L, "어제 메뉴", true);
-
-        insertDailyMenu(6_001L, "MAIN_STUDENT", today.plusDays(1));
-        insertMealSection(6_101L, 6_001L, "LUNCH", "NORMAL");
-        insertDish(6_201L, 6_101L, "내일 메뉴", true);
+        insertDish(2_201L, 2_101L, "태안 학생식당 메뉴", true);
 
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(false))
-                .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(2))
+                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
+                .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(1))
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
                         .value("MAIN_STUDENT"))
-                .andExpect(jsonPath("$.todayCafeteriaMenus[0].campus")
-                        .doesNotExist())
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].menuDate")
                         .value("2026-05-07"))
-                .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections.length()"
-                ).value(3))
-                .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[0].mealTime"
-                ).value("LUNCH"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections.length()")
+                        .value(3))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[0].mealTime")
+                        .value("LUNCH"))
                 .andExpect(jsonPath(
                         "$.todayCafeteriaMenus[0].mealSections[0].menuCategory"
                 ).value("KOREAN"))
@@ -248,28 +235,65 @@ class HomeApiIntegrationTest {
                         "$.todayCafeteriaMenus[0].mealSections[0].dishes[0].name"
                 ).value("제육볶음"))
                 .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0]"
-                                + ".isMainDish"
-                ).value(true))
-                .andExpect(jsonPath(
                         "$.todayCafeteriaMenus[0].mealSections[0].dishes[1].name"
                 ).value("된장국"))
-                .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[1].mealTime"
-                ).value("LUNCH"))
-                .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[1].menuCategory"
-                ).value("SPECIAL"))
-                .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[2].mealTime"
-                ).value("DINNER"))
-                .andExpect(jsonPath("$.todayCafeteriaMenus[1].restaurantType")
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].mealTime")
+                        .value("LUNCH"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].menuCategory")
+                        .value("SPECIAL"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[2].mealTime")
+                        .value("DINNER"));
+    }
+
+    @Test
+    void returnsOnlyPreferredRestaurantMenuForLoggedInUser() throws Exception {
+        LocalDate today = LocalDate.of(2026, 5, 7);
+        setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
+
+        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
+        insertMealSection(1_101L, 1_001L, "LUNCH", "NORMAL");
+        insertDish(1_201L, 1_101L, "서산 메뉴", true);
+
+        insertDailyMenu(2_001L, "TAEAN_STUDENT", today);
+        insertMealSection(2_101L, 2_001L, "DINNER", "NORMAL");
+        insertDish(2_201L, 2_101L, "태안 메뉴", true);
+
+        mockMvc.perform(get("/api/home")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(CURRENT_USER_ID.toString())
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
                         .value("TAEAN_STUDENT"))
-                .andExpect(jsonPath("$.todayCafeteriaMenus[1].campus")
-                        .doesNotExist())
+                .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(1))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
+                        .value("TAEAN_STUDENT"))
                 .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[1].mealSections[0].mealTime"
-                ).value("DINNER"));
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0].name"
+                ).value("태안 메뉴"));
+    }
+
+    @Test
+    void returnsEmptyMenusWhenPreferredRestaurantHasNoTodayMenu() throws Exception {
+        LocalDate today = LocalDate.of(2026, 5, 7);
+        setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
+
+        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
+        insertMealSection(1_101L, 1_001L, "LUNCH", "NORMAL");
+        insertDish(1_201L, 1_101L, "서산 메뉴", true);
+
+        mockMvc.perform(get("/api/home")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(CURRENT_USER_ID.toString())
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
     }
 
     @Test
@@ -302,6 +326,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("MAIN_STUDENT"))
                 .andExpect(jsonPath("$.todayCourses.length()").value(1))
                 .andExpect(jsonPath("$.todayCourses[0].startTime").value("12:00"))
                 .andExpect(jsonPath("$.todayCourses[0].endTime").value("13:00"))
@@ -309,7 +335,8 @@ class HomeApiIntegrationTest {
                         .value("델타프로젝트"))
                 .andExpect(jsonPath("$.todayCourses[0].buildingName")
                         .value("디자인관"))
-                .andExpect(jsonPath("$.todayCourses[0].roomNumber").value("401"));
+                .andExpect(jsonPath("$.todayCourses[0].roomNumber").value("401"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
     }
 
     @Test
@@ -357,6 +384,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
+                .andExpect(jsonPath("$.preferredRestaurantType")
+                        .value("MAIN_STUDENT"))
                 .andExpect(jsonPath("$.todayCourses").isEmpty());
     }
 
@@ -365,6 +394,7 @@ class HomeApiIntegrationTest {
             throws Exception {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
                 .andExpect(jsonPath("$.posterImageUrls").value(nullValue()))
                 .andExpect(jsonPath("$.posters").value(nullValue()))
                 .andExpect(jsonPath("$.todayCourses").isEmpty())
@@ -415,6 +445,18 @@ class HomeApiIntegrationTest {
     }
 
     @Test
+    void rejectsSignedTokenWhenSubjectUserDoesNotExist() throws Exception {
+        mockMvc.perform(get("/api/home")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken("999999")
+                        ))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value("/api/home"));
+    }
+
+    @Test
     void exposesHomeEndpointInOpenApi() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -439,6 +481,10 @@ class HomeApiIntegrationTest {
                 ).value(hasItem("null")))
                 .andExpect(jsonPath(
                         "$.components.schemas.HomePageResponse.properties"
+                                + ".preferredRestaurantType"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomePageResponse.properties"
                                 + ".todayCafeteriaMenus.type"
                 ).value("array"))
                 .andExpect(jsonPath(
@@ -446,24 +492,24 @@ class HomeApiIntegrationTest {
                                 + ".todayCafeteriaMenus.items['$ref']"
                 ).value("#/components/schemas/HomeCafeteriaMenuResponse"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.HomeCafeteriaMenuResponse.properties"
-                                + ".restaurantType"
+                        "$.components.schemas.HomeCafeteriaMenuResponse"
+                                + ".properties.restaurantType"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.components.schemas.HomeCafeteriaMenuResponse.properties"
-                                + ".campus"
-                ).doesNotExist())
+                        "$.components.schemas.HomeCafeteriaMenuResponse"
+                                + ".properties.menuDate"
+                ).exists())
                 .andExpect(jsonPath(
-                        "$.components.schemas.HomeCafeteriaMenuResponse.properties"
-                                + ".mealSections.items['$ref']"
+                        "$.components.schemas.HomeCafeteriaMenuResponse"
+                                + ".properties.mealSections.items['$ref']"
                 ).value("#/components/schemas/HomeCafeteriaMealSectionResponse"))
                 .andExpect(jsonPath(
                         "$.components.schemas.HomeCafeteriaMealSectionResponse"
                                 + ".properties.dishes.items['$ref']"
                 ).value("#/components/schemas/HomeCafeteriaDishResponse"))
                 .andExpect(jsonPath(
-                        "$.components.schemas.HomeCafeteriaDishResponse.properties"
-                                + ".isMainDish"
+                        "$.components.schemas.HomeCafeteriaDishResponse"
+                                + ".properties.isMainDish"
                 ).exists());
     }
 
@@ -541,6 +587,18 @@ class HomeApiIntegrationTest {
                 title
         );
         org.assertj.core.api.Assertions.assertThat(actual).isEqualTo(expected);
+    }
+
+    private void setPreferredRestaurantType(Long userId, String restaurantType) {
+        jdbcTemplate.update(
+                """
+                        UPDATE user_accounts
+                        SET preferred_restaurant_type = ?
+                        WHERE id = ?
+                        """,
+                restaurantType,
+                userId
+        );
     }
 
     private void insertDailyMenu(

@@ -56,6 +56,7 @@ public class CorsConfig {
         authenticatedUserConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
         authenticatedUserConfiguration.setAllowedMethods(List.of(
                 HttpMethod.GET.name(),
+                HttpMethod.PUT.name(),
                 HttpMethod.DELETE.name(),
                 HttpMethod.OPTIONS.name()
         ));
@@ -86,6 +87,20 @@ public class CorsConfig {
         publicNoticeConfiguration.setAllowCredentials(false);
         publicNoticeConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
+        CorsConfiguration publicReadConfiguration = new CorsConfiguration();
+        publicReadConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        publicReadConfiguration.setAllowedMethods(List.of(
+                HttpMethod.GET.name(),
+                HttpMethod.OPTIONS.name()
+        ));
+        publicReadConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION,
+                HttpHeaders.CONTENT_TYPE,
+                HttpHeaders.ACCEPT
+        ));
+        publicReadConfiguration.setAllowCredentials(false);
+        publicReadConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
@@ -103,8 +118,17 @@ public class CorsConfig {
                 authenticatedUserConfiguration
         );
         source.registerCorsConfiguration(
+                "/api/auth/me/**",
+                authenticatedUserConfiguration
+        );
+        source.registerCorsConfiguration(
                 "/api/notices/**",
                 publicNoticeConfiguration
+        );
+        source.registerCorsConfiguration("/api/home", publicReadConfiguration);
+        source.registerCorsConfiguration(
+                "/api/cafeteria/**",
+                publicReadConfiguration
         );
         return source;
     }
