@@ -1,25 +1,28 @@
-package hsu.hanseomate.domain.cafeteria.dto;
+package hsu.hanseomate.domain.home.dto;
 
 import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
 import hsu.hanseomate.domain.cafeteria.entity.MealSection;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 
-public record DailyMenuDTO(
-        Long id,
+public record HomeCafeteriaMenuResponse(
         @Schema(allowableValues = {"MAIN_STUDENT", "TAEAN_STUDENT"})
         RestaurantType restaurantType,
         LocalDate menuDate,
-        DayOfWeek dayOfWeek,
-        List<MealSectionDTO> mealSections
+        List<HomeCafeteriaMealSectionResponse> mealSections
 ) {
 
-    public static DailyMenuDTO from(DailyMenu dailyMenu) {
-        List<MealSectionDTO> sectionDTOs = dailyMenu.getMealSections().stream()
+    public HomeCafeteriaMenuResponse {
+        mealSections = List.copyOf(mealSections);
+    }
+
+    public static HomeCafeteriaMenuResponse from(DailyMenu dailyMenu) {
+        List<HomeCafeteriaMealSectionResponse> sections = dailyMenu
+                .getMealSections()
+                .stream()
                 .sorted(Comparator
                         .comparingInt((MealSection section) ->
                                 section.getMealTime().ordinal())
@@ -29,14 +32,12 @@ public record DailyMenuDTO(
                                 MealSection::getId,
                                 Comparator.nullsLast(Comparator.naturalOrder())
                         ))
-                .map(MealSectionDTO::from)
+                .map(HomeCafeteriaMealSectionResponse::from)
                 .toList();
-        return new DailyMenuDTO(
-                dailyMenu.getId(),
+        return new HomeCafeteriaMenuResponse(
                 dailyMenu.getRestaurantType(),
                 dailyMenu.getMenuDate(),
-                dailyMenu.getMenuDate().getDayOfWeek(),
-                sectionDTOs
+                sections
         );
     }
 }

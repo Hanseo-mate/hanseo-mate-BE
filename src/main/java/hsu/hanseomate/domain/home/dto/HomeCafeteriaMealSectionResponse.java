@@ -1,4 +1,4 @@
-package hsu.hanseomate.domain.cafeteria.dto;
+package hsu.hanseomate.domain.home.dto;
 
 import hsu.hanseomate.domain.cafeteria.entity.Dish;
 import hsu.hanseomate.domain.cafeteria.entity.MealSection;
@@ -7,26 +7,28 @@ import hsu.hanseomate.domain.cafeteria.entity.MenuCategory;
 import java.util.Comparator;
 import java.util.List;
 
-public record MealSectionDTO(
-        Long id,
+public record HomeCafeteriaMealSectionResponse(
         MealTime mealTime,
         MenuCategory menuCategory,
-        List<DishDTO> dishes
+        List<HomeCafeteriaDishResponse> dishes
 ) {
 
-    public static MealSectionDTO from(MealSection section) {
-        List<DishDTO> dishDTOs = section.getDishes().stream()
+    public HomeCafeteriaMealSectionResponse {
+        dishes = List.copyOf(dishes);
+    }
+
+    public static HomeCafeteriaMealSectionResponse from(MealSection section) {
+        List<HomeCafeteriaDishResponse> dishes = section.getDishes().stream()
                 .sorted(Comparator.comparing(
                         Dish::getId,
                         Comparator.nullsLast(Comparator.naturalOrder())
                 ))
-                .map(DishDTO::from)
+                .map(HomeCafeteriaDishResponse::from)
                 .toList();
-        return new MealSectionDTO(
-                section.getId(),
+        return new HomeCafeteriaMealSectionResponse(
                 section.getMealTime(),
                 section.getMenuCategory(),
-                dishDTOs
+                dishes
         );
     }
 }
