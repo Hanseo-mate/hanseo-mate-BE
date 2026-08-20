@@ -2,6 +2,8 @@ package hsu.hanseomate.domain.push.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import hsu.hanseomate.domain.notification.entity.Notification;
+import hsu.hanseomate.domain.notification.repository.NotificationRepository;
 import hsu.hanseomate.domain.push.dto.NotificationPayload;
 import hsu.hanseomate.domain.push.entity.NotificationOutbox;
 import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationOutboxRepository outboxRepository;
+    private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
 
     /** 공지사항 알림 Enqueue */
@@ -63,8 +66,19 @@ public class NotificationService {
 
     private void enqueue(String title, String body, Map<String, Object> data) {
         try {
-            String json = objectMapper.writeValueAsString(new NotificationPayload(title, body, data));
-            outboxRepository.save(NotificationOutbox.create(json));
+            String dataJson = objectMapper.writeValueAsString(data);
+            String payloadJson = objectMapper.writeValueAsString(new NotificationPayload(title, body, data));
+
+            // 인앱 알림함에 저장
+            notificationRepository.save(Notification.builder()
+                    .title(title)
+                    .body(body)
+                    .payloadData(dataJson)
+                    .build());
+
+            // Expo 발송 Outbox에 저장
+            outboxRepository.save(NotificationOutbox.create(payloadJson));
+
             log.info("Enqueued notification title=\"{}\"", title);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize notification payload", e);
