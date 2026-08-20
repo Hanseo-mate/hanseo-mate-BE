@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(
         name = "메인 페이지",
-        description = "포스터, 오늘 시간표, 분야별 인기 공지를 통합 조회합니다."
+        description = "포스터, 오늘 시간표, 분야별 인기 공지, 오늘 학식을 통합 조회합니다."
 )
 @RestController
 @RequiredArgsConstructor
@@ -31,7 +31,7 @@ public class HomeController {
 
     @Operation(
             summary = "메인 페이지 통합 조회",
-            description = "로그인은 선택 사항이며, 로그인한 경우에만 한국 날짜 기준 오늘 시간표를 함께 반환합니다."
+            description = "로그인은 선택 사항입니다. 한국 날짜 기준 오늘 학식을 반환하고, 로그인한 경우 오늘 시간표도 함께 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),

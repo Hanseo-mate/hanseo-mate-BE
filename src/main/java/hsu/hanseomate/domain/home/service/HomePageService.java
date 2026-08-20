@@ -1,11 +1,15 @@
 package hsu.hanseomate.domain.home.service;
 
+import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
 import hsu.hanseomate.domain.course.entity.Classroom;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.support.CoursePeriodTimePolicy;
 import hsu.hanseomate.domain.course.support.CoursePeriodTimePolicy.TimeRange;
 import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
+import hsu.hanseomate.domain.home.dto.HomeCafeteriaMenuResponse;
 import hsu.hanseomate.domain.home.dto.HomeNoticeResponse;
 import hsu.hanseomate.domain.home.dto.HomeNoticeType;
 import hsu.hanseomate.domain.home.dto.HomePageResponse;
@@ -40,12 +44,14 @@ public class HomePageService {
             DateTimeFormatter.ofPattern("HH:mm");
 
     private final HomePosterService homePosterService;
+    private final DailyMenuRepository dailyMenuRepository;
     private final CourseScheduleRepository courseScheduleRepository;
     private final NoticeRepository noticeRepository;
     private final StudentCouncilNoticeRepository studentCouncilNoticeRepository;
     private final Clock clock;
 
     public HomePageResponse getHome(Optional<Long> currentUserId) {
+        LocalDate today = LocalDate.now(clock.withZone(KOREA_ZONE));
         List<HomePosterResponse> posterResponses = homePosterService.getPosters();
         List<String> posterImageUrls = posterResponses.stream()
                 .map(HomePosterResponse::imageUrl)
@@ -54,7 +60,7 @@ public class HomePageService {
                 .map(HomePosterItemResponse::from)
                 .toList();
         List<HomeTodayCourseResponse> todayCourses = currentUserId
-                .map(this::todayCourses)
+                .map(ownerId -> todayCourses(ownerId, today))
                 .orElseGet(List::of);
 
         return new HomePageResponse(
@@ -62,12 +68,15 @@ public class HomePageService {
                 posterImageUrls.isEmpty() ? null : posterImageUrls,
                 posters.isEmpty() ? null : posters,
                 todayCourses,
-                popularNotices()
+                popularNotices(),
+                todayCafeteriaMenus(today)
         );
     }
 
-    private List<HomeTodayCourseResponse> todayCourses(Long ownerId) {
-        LocalDate today = LocalDate.now(clock.withZone(KOREA_ZONE));
+    private List<HomeTodayCourseResponse> todayCourses(
+            Long ownerId,
+            LocalDate today
+    ) {
         int semester = today.getMonthValue() <= 6 ? 1 : 2;
         DayOfWeek dayOfWeek = DayOfWeek.valueOf(today.getDayOfWeek().name());
 
@@ -84,6 +93,29 @@ public class HomePageService {
                                 Comparator.nullsLast(String::compareTo))
                         .thenComparingInt(CourseSlot::scheduleOrder))
                 .map(CourseSlot::response)
+                .toList();
+    }
+
+    private List<HomeCafeteriaMenuResponse> todayCafeteriaMenus(
+            LocalDate today
+    ) {
+        return dailyMenuRepository
+                .findAllByMenuDateAndRestaurantTypeInOrderByIdAsc(
+                        today,
+                        List.of(
+                                RestaurantType.MAIN_STUDENT,
+                                RestaurantType.TAEAN_STUDENT
+                        )
+                )
+                .stream()
+                .sorted(Comparator
+                        .comparingInt((DailyMenu menu) ->
+                                menu.getRestaurantType().ordinal())
+                        .thenComparing(
+                                DailyMenu::getId,
+                                Comparator.nullsLast(Comparator.naturalOrder())
+                        ))
+                .map(HomeCafeteriaMenuResponse::from)
                 .toList();
     }
 

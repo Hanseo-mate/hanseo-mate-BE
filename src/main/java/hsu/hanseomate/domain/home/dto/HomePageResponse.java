@@ -10,7 +10,8 @@ public record HomePageResponse(
         @Schema(nullable = true)
         List<HomePosterItemResponse> posters,
         List<HomeTodayCourseResponse> todayCourses,
-        List<HomeNoticeResponse> popularNotices
+        List<HomeNoticeResponse> popularNotices,
+        List<HomeCafeteriaMenuResponse> todayCafeteriaMenus
 ) {
     public HomePageResponse {
         posterImageUrls = posterImageUrls == null
@@ -19,5 +20,6 @@ public record HomePageResponse(
         posters = posters == null ? null : List.copyOf(posters);
         todayCourses = List.copyOf(todayCourses);
         popularNotices = List.copyOf(popularNotices);
+        todayCafeteriaMenus = List.copyOf(todayCafeteriaMenus);
     }
 }
