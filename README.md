@@ -4,7 +4,7 @@
 
 현재 구현된 기능은 학교생활 필수 링크 관리, 학기별 강좌 일괄 수입·조회,
 중앙동아리 정보 관리, 로그인 사용자 기반 좋아요와 선택형 활동 후기, 동아리 이미지 업로드,
-학생회 공지 CRUD와 관리자용 홈 포스터 이미지 관리입니다.
+학생회 공지 CRUD, 시스템 공지 CRUD와 관리자용 홈 포스터 이미지 관리입니다.
 
 ## 기술 스택
 
@@ -115,6 +115,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 학생회 공지 조회와 관리 계약은 [학생회 공지 API 명세서](docs/student-council-notice-api.md)에서 확인할 수 있습니다.
 
+시스템 공지 조회와 관리 계약은 [시스템 공지 API 명세서](docs/system-notice-api.md)에서 확인할 수 있습니다.
+기존 운영 DB에는 [시스템 공지 증분 DDL](docs/system-notice-migration-mysql.sql)을 코드보다 먼저 적용합니다.
+
 관리자 홈 포스터 이미지·선택 링크 관리 계약은
 [홈 포스터 API 명세서](docs/home-poster-api.md)에서 확인할 수 있습니다.
 
@@ -182,6 +185,11 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `POST` | `/api/admin/notices` | 학생회공지 등록 |
 | `PUT` | `/api/admin/notices/{noticeId}` | 학생회공지 제목·내용 수정 |
 | `DELETE` | `/api/admin/notices/{noticeId}` | 학생회공지 삭제 |
+| `GET` | `/api/system-notices` | 로그인 없이 시스템 공지 전체 조회 |
+| `GET` | `/api/admin/system-notices` | 관리자용 시스템 공지 전체 조회 |
+| `POST` | `/api/admin/system-notices` | 관리자 전용 시스템 공지 등록 |
+| `PUT` | `/api/admin/system-notices/{noticeId}` | 관리자 전용 시스템 공지 전체 수정 |
+| `DELETE` | `/api/admin/system-notices/{noticeId}` | 관리자 전용 시스템 공지 삭제 |
 
 링크 데이터는 `id`, `name`, `url`, `category`, `created_at`, `updated_at` 여섯 컬럼만 사용합니다.
 

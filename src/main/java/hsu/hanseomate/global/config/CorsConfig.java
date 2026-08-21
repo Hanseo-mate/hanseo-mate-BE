@@ -125,6 +125,14 @@ public class CorsConfig {
                 "/api/notices/**",
                 publicNoticeConfiguration
         );
+        source.registerCorsConfiguration(
+                "/api/system-notices",
+                publicReadConfiguration
+        );
+        source.registerCorsConfiguration(
+                "/api/system-notices/**",
+                publicReadConfiguration
+        );
         source.registerCorsConfiguration("/api/home", publicReadConfiguration);
         source.registerCorsConfiguration(
                 "/api/cafeteria/**",

@@ -39,6 +39,16 @@ CREATE TABLE student_council_notices (
     INDEX idx_student_council_notices_created_at (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE system_notices (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    title VARCHAR(500) NOT NULL,
+    content LONGTEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_system_notices_created_at (created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE student_council_notice_images (
     id BIGINT NOT NULL AUTO_INCREMENT,
     notice_id BIGINT NOT NULL,
