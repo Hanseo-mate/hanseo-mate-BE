@@ -13,11 +13,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -27,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(
         name = "관리자 시스템 공지 관리",
-        description = "ADMIN 권한으로 시스템 공지를 등록, 수정, 삭제합니다."
+        description = "ADMIN 권한으로 시스템 공지를 조회, 등록, 수정, 삭제합니다."
 )
 @Validated
 @RestController
@@ -36,6 +38,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminSystemNoticeController {
 
     private final SystemNoticeService systemNoticeService;
+
+    @Operation(
+            summary = "관리자용 시스템 공지 전체 조회",
+            description = "제목과 내용을 포함한 모든 시스템 공지를 최신 작성순으로 반환합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 권한 필요",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @GetMapping
+    public List<SystemNoticeResponse> getNotices() {
+        return systemNoticeService.getNotices();
+    }
 
     @Operation(summary = "시스템 공지 등록")
     @ApiResponses({

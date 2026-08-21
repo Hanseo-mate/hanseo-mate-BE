@@ -186,6 +186,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `PUT` | `/api/admin/notices/{noticeId}` | 학생회공지 제목·내용 수정 |
 | `DELETE` | `/api/admin/notices/{noticeId}` | 학생회공지 삭제 |
 | `GET` | `/api/system-notices` | 로그인 없이 시스템 공지 전체 조회 |
+| `GET` | `/api/admin/system-notices` | 관리자용 시스템 공지 전체 조회 |
 | `POST` | `/api/admin/system-notices` | 관리자 전용 시스템 공지 등록 |
 | `PUT` | `/api/admin/system-notices/{noticeId}` | 관리자 전용 시스템 공지 전체 수정 |
 | `DELETE` | `/api/admin/system-notices/{noticeId}` | 관리자 전용 시스템 공지 삭제 |

@@ -15,6 +15,7 @@
 | Method | Endpoint | 인증 | 설명 |
 |---|---|---|---|
 | `GET` | `/api/system-notices` | 불필요 | 시스템 공지 전체 조회 |
+| `GET` | `/api/admin/system-notices` | ADMIN | 관리자용 시스템 공지 전체 조회 |
 | `POST` | `/api/admin/system-notices` | ADMIN | 시스템 공지 등록 |
 | `PUT` | `/api/admin/system-notices/{noticeId}` | ADMIN | 시스템 공지 전체 수정 |
 | `DELETE` | `/api/admin/system-notices/{noticeId}` | ADMIN | 시스템 공지 삭제 |
@@ -76,7 +77,18 @@ GET /api/system-notices
 []
 ```
 
-## 5. 시스템 공지 등록
+## 5. 관리자용 시스템 공지 전체 조회
+
+```http
+GET /api/admin/system-notices
+Authorization: Bearer {adminAccessToken}
+```
+
+- ADMIN 권한이 필요합니다.
+- 공개 조회와 동일하게 전체 공지를 `createdAt DESC`, `id DESC` 순으로 반환합니다.
+- 공지가 없으면 `200 OK`와 빈 배열 `[]`을 반환합니다.
+
+## 6. 시스템 공지 등록
 
 ```http
 POST /api/admin/system-notices
@@ -95,7 +107,7 @@ Content-Type: application/json
 - 성공 시 `201 Created`와 생성된 공지를 반환합니다.
 - 제목의 앞뒤 공백은 제거하고, 본문은 입력한 줄바꿈을 그대로 보존합니다.
 
-## 6. 시스템 공지 수정
+## 7. 시스템 공지 수정
 
 ```http
 PUT /api/admin/system-notices/12
@@ -114,7 +126,7 @@ Content-Type: application/json
 - 성공 시 `200 OK`와 수정된 공지를 반환합니다.
 - `id`, `createdAt`은 유지되고 `updatedAt`은 갱신됩니다.
 
-## 7. 시스템 공지 삭제
+## 8. 시스템 공지 삭제
 
 ```http
 DELETE /api/admin/system-notices/12
@@ -123,7 +135,7 @@ Authorization: Bearer {adminAccessToken}
 
 성공 시 `204 No Content`이며 응답 본문은 없습니다.
 
-## 8. 입력 검증
+## 9. 입력 검증
 
 | 조건 | 응답 |
 |---|---|
@@ -147,7 +159,7 @@ Authorization: Bearer {adminAccessToken}
 }
 ```
 
-## 9. DB 배포
+## 10. DB 배포
 
 운영은 `ddl-auto=validate`이므로 코드 배포 전에
 `docs/system-notice-migration-mysql.sql`을 실행해야 합니다.

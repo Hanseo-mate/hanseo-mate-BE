@@ -116,6 +116,19 @@ class SystemNoticeApiIntegrationTest {
     }
 
     @Test
+    void adminListReturnsEveryNoticeNewestFirst() throws Exception {
+        SystemNotice first = saveNotice("첫 공지", "첫 내용");
+        SystemNotice second = saveNotice("두 번째 공지", "두 번째 내용");
+
+        mockMvc.perform(get(ADMIN_PATH).with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(second.getId()))
+                .andExpect(jsonPath("$[0].content").value("두 번째 내용"))
+                .andExpect(jsonPath("$[1].id").value(first.getId()));
+    }
+
+    @Test
     void adminUpdatesEntireNoticeAndPreservesCreatedAt() throws Exception {
         SystemNotice notice = saveNotice("기존 제목", "기존 내용");
         LocalDateTime createdAt = jdbcTemplate.queryForObject(
@@ -232,9 +245,11 @@ class SystemNoticeApiIntegrationTest {
     }
 
     @Test
-    void everyAdminMutationRequiresAdminRole() throws Exception {
+    void everyAdminEndpointRequiresAdminRole() throws Exception {
         SystemNotice notice = saveNotice("권한 테스트", "내용");
 
+        mockMvc.perform(get(ADMIN_PATH).with(anonymous()))
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(post(ADMIN_PATH)
                         .with(anonymous())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -249,6 +264,8 @@ class SystemNoticeApiIntegrationTest {
                         .with(anonymous()))
                 .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(get(ADMIN_PATH).with(userJwt()))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post(ADMIN_PATH)
                         .with(userJwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -269,6 +286,9 @@ class SystemNoticeApiIntegrationTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/system-notices'].get").exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/system-notices'].get"
+                ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/system-notices'].post"
                 ).exists())
