@@ -192,6 +192,11 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void systemNoticePreflightAllowsPublicGet() throws Exception {
+        assertPublicReadPreflight("/api/system-notices");
+    }
+
+    @Test
     void publicNoticeDownloadPreflightAllowsConfiguredOrigin() throws Exception {
         mockMvc.perform(options(
                         "/api/notices/categories/admin/1/attachments/1/download"
