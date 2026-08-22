@@ -3,10 +3,12 @@ package hsu.hanseomate.domain.systemnotice.service;
 import hsu.hanseomate.domain.systemnotice.dto.SystemNoticeRequest;
 import hsu.hanseomate.domain.systemnotice.dto.SystemNoticeResponse;
 import hsu.hanseomate.domain.systemnotice.entity.SystemNotice;
+import hsu.hanseomate.domain.systemnotice.event.SystemNoticeCreatedEvent;
 import hsu.hanseomate.domain.systemnotice.exception.SystemNoticeNotFoundException;
 import hsu.hanseomate.domain.systemnotice.repository.SystemNoticeRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SystemNoticeService {
 
     private final SystemNoticeRepository systemNoticeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<SystemNoticeResponse> getNotices() {
         return systemNoticeRepository.findAllByOrderByCreatedAtDescIdDesc()
@@ -30,7 +33,12 @@ public class SystemNoticeService {
                 request.title().trim(),
                 request.content()
         );
-        return SystemNoticeResponse.from(systemNoticeRepository.saveAndFlush(notice));
+        SystemNotice savedNotice = systemNoticeRepository.saveAndFlush(notice);
+        eventPublisher.publishEvent(new SystemNoticeCreatedEvent(
+                savedNotice.getId(),
+                savedNotice.getTitle()
+        ));
+        return SystemNoticeResponse.from(savedNotice);
     }
 
     @Transactional
