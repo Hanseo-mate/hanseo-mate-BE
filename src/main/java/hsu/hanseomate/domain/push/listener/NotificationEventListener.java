@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.push.listener;
 import hsu.hanseomate.domain.notices.event.NoticeViewCountMilestoneEvent;
 import hsu.hanseomate.domain.push.service.NotificationService;
 import hsu.hanseomate.domain.studentcouncilnotice.event.StudentCouncilNoticeCreatedEvent;
+import hsu.hanseomate.domain.systemnotice.event.SystemNoticeCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -76,5 +77,24 @@ public class NotificationEventListener {
         log.info("[NotificationEvent] StudentCouncilNotice created: noticeId={}", event.noticeId());
 
         notificationService.enqueueNoticeNotification(title, body, event.noticeId().toString());
+    }
+
+    /** 시스템 공지 신규 등록 이벤트 처리. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onSystemNoticeCreated(SystemNoticeCreatedEvent event) {
+        String title = truncate("[시스템 공지] %s".formatted(event.title()), 255);
+        String body = "새로운 시스템 공지가 등록되었습니다.";
+
+        log.info("[NotificationEvent] SystemNotice created: noticeId={}", event.noticeId());
+
+        notificationService.enqueueSystemNoticeNotification(
+                title,
+                body,
+                event.noticeId().toString()
+        );
+    }
+
+    private String truncate(String value, int maxLength) {
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }

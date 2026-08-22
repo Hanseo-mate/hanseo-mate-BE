@@ -40,6 +40,18 @@ public class NotificationService {
         enqueue(title, body, data);
     }
 
+    /** 시스템 공지 알림 Enqueue */
+    @Transactional
+    public void enqueueSystemNoticeNotification(String title, String body, String entityId) {
+        Map<String, Object> data = Map.of(
+                "version", 1,
+                "type", "system_notice",
+                "route", "/system-notices",
+                "entityId", entityId
+        );
+        enqueue(title, body, data);
+    }
+
     /** 시간표 알림 Enqueue */
     @Transactional
     public void enqueueScheduleNotification(String title, String body) {

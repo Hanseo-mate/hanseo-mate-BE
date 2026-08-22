@@ -11,9 +11,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import hsu.hanseomate.domain.notification.entity.Notification;
+import hsu.hanseomate.domain.notification.repository.NotificationReadRepository;
+import hsu.hanseomate.domain.notification.repository.NotificationRepository;
+import hsu.hanseomate.domain.push.entity.NotificationOutbox;
+import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
 import hsu.hanseomate.domain.systemnotice.entity.SystemNotice;
 import hsu.hanseomate.domain.systemnotice.repository.SystemNoticeRepository;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,10 +53,22 @@ class SystemNoticeApiIntegrationTest {
     private SystemNoticeRepository systemNoticeRepository;
 
     @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private NotificationReadRepository notificationReadRepository;
+
+    @Autowired
+    private NotificationOutboxRepository notificationOutboxRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void cleanUp() {
+        notificationReadRepository.deleteAll();
+        notificationRepository.deleteAll();
+        notificationOutboxRepository.deleteAll();
         systemNoticeRepository.deleteAll();
     }
 
@@ -97,6 +115,55 @@ class SystemNoticeApiIntegrationTest {
         SystemNotice saved = systemNoticeRepository.findAll().get(0);
         assertThat(saved.getTitle()).isEqualTo("서비스 점검 안내");
         assertThat(saved.getContent()).isEqualTo(content);
+    }
+
+    @Test
+    void creatingSystemNoticeEnqueuesGlobalPushAndInboxNotification() throws Exception {
+        mockMvc.perform(post(ADMIN_PATH)
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request("서비스 점검 안내", "오늘 23시에 점검합니다.")))
+                .andExpect(status().isCreated());
+
+        SystemNotice notice = systemNoticeRepository.findAll().get(0);
+
+        List<Notification> notifications = notificationRepository.findAll();
+        assertThat(notifications).hasSize(1);
+        Notification notification = notifications.get(0);
+        assertThat(notification.getTitle()).isEqualTo("[시스템 공지] 서비스 점검 안내");
+        assertThat(notification.getBody()).isEqualTo("새로운 시스템 공지가 등록되었습니다.");
+        assertThat(notification.getPayloadData())
+                .contains("\"type\":\"system_notice\"")
+                .contains("\"route\":\"/system-notices\"")
+                .contains("\"entityId\":\"" + notice.getId() + "\"");
+
+        List<NotificationOutbox> outboxes = notificationOutboxRepository.findAll();
+        assertThat(outboxes).hasSize(1);
+        NotificationOutbox outbox = outboxes.get(0);
+        assertThat(outbox.getPayload())
+                .contains("\"title\":\"[시스템 공지] 서비스 점검 안내\"")
+                .contains("\"body\":\"새로운 시스템 공지가 등록되었습니다.\"")
+                .contains("\"type\":\"system_notice\"")
+                .contains("\"route\":\"/system-notices\"")
+                .contains("\"entityId\":\"" + notice.getId() + "\"");
+    }
+
+    @Test
+    void updatingAndDeletingSystemNoticeDoNotCreateAnotherNotification() throws Exception {
+        SystemNotice notice = saveNotice("기존 공지", "기존 내용");
+
+        mockMvc.perform(put(ADMIN_PATH + "/{noticeId}", notice.getId())
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request("수정 공지", "수정 내용")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete(ADMIN_PATH + "/{noticeId}", notice.getId())
+                        .with(adminJwt()))
+                .andExpect(status().isNoContent());
+
+        assertThat(notificationRepository.count()).isZero();
+        assertThat(notificationOutboxRepository.count()).isZero();
     }
 
     @Test
