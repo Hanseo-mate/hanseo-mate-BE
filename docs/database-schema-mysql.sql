@@ -386,12 +386,22 @@ CREATE TABLE timetable_courses (
     timetable_id BIGINT NOT NULL,
     course_offering_id BINARY(16) NOT NULL,
     expected_grade VARCHAR(20) NULL,
+    custom_course_name VARCHAR(255) NULL,
+    custom_credit DECIMAL(8,3) NULL,
     created_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_timetable_course_offering
         UNIQUE (timetable_id, course_offering_id),
     INDEX ix_timetable_course_timetable (timetable_id),
     INDEX ix_timetable_course_offering (course_offering_id),
+    CONSTRAINT ck_timetable_course_custom_name CHECK (
+        custom_course_name IS NULL
+        OR CHAR_LENGTH(TRIM(custom_course_name)) > 0
+    ),
+    CONSTRAINT ck_timetable_course_custom_credit CHECK (
+        custom_credit IS NULL
+        OR (custom_credit >= 0.001 AND custom_credit <= 20.000)
+    ),
     CONSTRAINT ck_timetable_course_expected_grade CHECK (
         expected_grade IS NULL
         OR BINARY expected_grade IN (

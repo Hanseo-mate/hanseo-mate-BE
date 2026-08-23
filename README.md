@@ -34,8 +34,9 @@ domain
 ```
 
 시간표 검색과 개인 편성은 `domain.timetable` 아래의 독립된 기능 패키지에서 관리하고,
-공용 강좌 정보는 `domain.course`를 참조한다. 학점 계산기는 시간표 과목별 예상 성적만
-저장하고, 과목명과 학점은 공용 강좌 데이터에서 자동으로 읽어 학기·누적 통계를 계산한다.
+공용 강좌 정보는 `domain.course`를 참조한다. 학점 계산기는 공용 강좌의 과목명과 학점을
+기본값으로 가져오며, 사용자별 과목명·학점 덮어쓰기와 예상 성적을 시간표 과목에 저장해
+학기·누적 통계를 계산한다.
 
 ## 로컬 실행 준비
 
@@ -114,6 +115,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 [학점 계산기 API 명세서](docs/grade-calculator-api.md)에서 확인할 수 있습니다.
 기존 운영 DB에는 [시간표 과목 예상 성적 증분 DDL](docs/timetable-course-expected-grade-migration-mysql.sql)을
 코드보다 먼저 적용합니다.
+과목명·학점 수정과 원본 시간표 다시 불러오기를 배포할 때는
+[시간표 과목명·학점 덮어쓰기 증분 DDL](docs/timetable-course-grade-overrides-migration-mysql.sql)을
+코드보다 먼저 추가 적용합니다.
 기존 운영 DB의 과목 공통 데이터·학기 매핑 구조 전환은
 [과목 저장 구조 증분 마이그레이션](docs/course-offering-dedup-migration.md)의 절차와
 [MySQL 실행 스크립트](docs/course-offering-dedup-migration-mysql.sql)를 코드 배포 전에 적용합니다.
@@ -172,8 +176,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
 | `GET` | `/api/grade-calculations/grades` | 로그인 사용자의 한서대학교 성적 선택 옵션 조회 |
 | `GET` | `/api/grade-calculations/overview` | 생성한 전체 시간표 학기와 학기·누적 통계 조회 |
-| `GET` | `/api/grade-calculations/timetable-courses` | 선택 학기의 과목·자동 학점·저장 성적·통계 조회 |
-| `PATCH` | `/api/grade-calculations/timetable-courses/{id}` | 본인 시간표 과목의 예상 성적 저장 또는 초기화 |
+| `GET` | `/api/grade-calculations/timetable-courses` | 선택 학기의 과목명·학점·저장 성적·통계 조회 |
+| `PATCH` | `/api/grade-calculations/timetable-courses/{id}` | 본인 시간표 과목의 과목명·학점·예상 성적 부분 수정 |
+| `POST` | `/api/grade-calculations/timetable-courses/import` | 선택 학기의 과목명·학점을 원본 시간표 값으로 다시 불러오기 |
 | `POST` | `/api/grade-calculations` | 로그인 사용자의 입력값 기반 호환용 예상 평점 계산 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |

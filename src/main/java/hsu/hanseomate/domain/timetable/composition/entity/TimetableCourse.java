@@ -16,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -63,6 +64,12 @@ public class TimetableCourse {
     @Column(name = "expected_grade", length = 20)
     private ExpectedGrade expectedGrade;
 
+    @Column(name = "custom_course_name", length = 255)
+    private String customCourseName;
+
+    @Column(name = "custom_credit", precision = 8, scale = 3)
+    private BigDecimal customCredit;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -78,5 +85,30 @@ public class TimetableCourse {
 
     public void updateExpectedGrade(ExpectedGrade expectedGrade) {
         this.expectedGrade = expectedGrade;
+    }
+
+    public void updateCustomCourseName(String customCourseName) {
+        this.customCourseName = customCourseName;
+    }
+
+    public void updateCustomCredit(BigDecimal customCredit) {
+        this.customCredit = customCredit;
+    }
+
+    public String getGradeCourseName() {
+        return customCourseName != null
+                ? customCourseName
+                : courseOffering.getCourseName();
+    }
+
+    public BigDecimal getGradeCredit() {
+        return customCredit != null
+                ? customCredit
+                : courseOffering.getCredit();
+    }
+
+    public void resetGradeCourseOverrides() {
+        this.customCourseName = null;
+        this.customCredit = null;
     }
 }

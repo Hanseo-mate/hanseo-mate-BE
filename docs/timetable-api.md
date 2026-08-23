@@ -160,6 +160,10 @@ GET /api/timetables?year=2026&semester=2
 각 강좌는 두 배열 중 하나에만 포함된다.
 `gradeSummary`는 시간표 화면 하단에 표시할 현재 학기와 전체 학기 누적 통계다. 계산
 규칙과 성적 설정 방법은 [학점 계산기 API 명세서](grade-calculator-api.md)를 따른다.
+학점 계산기에서 수정한 과목명과 학점은 사용자별 계산용 덮어쓰기다. 이 시간표 응답의
+`courses`와 `cyberCourses`에는 계속 공용 강좌의 원본 `courseName`, `credit`을 반환하지만,
+`gradeSummary` 계산에는 사용자 덮어쓰기가 있으면 수정 학점을 반영한다. 계산기 화면에서
+표시할 수정 과목명·학점은 `GET /api/grade-calculations/timetable-courses`로 조회한다.
 
 - `generalCategory`: 전공은 `null`, 교양은 `REQUIRED`, `AREA_1`, `AREA_2`,
   `AREA_3`, `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`,
