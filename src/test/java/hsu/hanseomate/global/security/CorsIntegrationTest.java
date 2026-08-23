@@ -197,6 +197,61 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void gradeCalculationPreflightAllowsPublicPost() throws Exception {
+        mockMvc.perform(options("/api/grade-calculations")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.POST.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                HttpHeaders.CONTENT_TYPE
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.POST.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.CONTENT_TYPE)
+                ));
+    }
+
+    @Test
+    void gradeCalculatorTimetablePreflightAllowsAuthenticatedGet()
+            throws Exception {
+        mockMvc.perform(options("/api/grade-calculations/timetable-courses")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                HttpHeaders.AUTHORIZATION
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.GET.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
+                ));
+    }
+
+    @Test
     void publicNoticeDownloadPreflightAllowsConfiguredOrigin() throws Exception {
         mockMvc.perform(options(
                         "/api/notices/categories/admin/1/attachments/1/download"

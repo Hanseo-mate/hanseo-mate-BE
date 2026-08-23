@@ -2,7 +2,8 @@
 
 한서대학교 학생들이 학교생활에 필요한 정보를 한곳에서 확인할 수 있도록 제공하는 REST API 서버입니다.
 
-현재 구현된 기능은 학교생활 필수 링크 관리, 학기별 강좌 일괄 수입·조회,
+현재 구현된 기능은 학교생활 필수 링크 관리, 학기별 강좌 일괄 수입·조회와 개인 시간표 구성,
+로그인 없이 사용하는 학점 계산 및 로그인 사용자 시간표 과목 가져오기,
 중앙동아리 정보 관리, 로그인 사용자 기반 좋아요와 선택형 활동 후기, 동아리 이미지 업로드,
 학생회 공지 CRUD, 시스템 공지 CRUD와 관리자용 홈 포스터 이미지 관리입니다.
 
@@ -26,13 +27,15 @@ domain
 ├── courseenrichment       # 동일교과목·타학과 전공인정 엑셀 수입 및 상세조회 연동
 ├── course                  # 강좌·개설 강좌·수업 시간 등 공용 강좌 데이터
 ├── courseimport            # 관리자용 전공·교양 엑셀 수입
+├── gradecalculator         # 공개 학점 계산·로그인 사용자 시간표 과목 프리필
 └── timetable
+    ├── composition         # 로그인 사용자 개인 시간표 구성과 충돌 검사
     └── search              # 사용자용 강좌 검색 API·서비스·DTO·검색 조건
 ```
 
-시간표 검색 기능은 `domain.timetable.search`에서 독립적으로 관리한다.
-향후 개인 시간표 편성, 시간 중복 검사 등은 `domain.timetable` 아래에 별도 기능 패키지로 추가하고,
-공용 강좌 정보는 `domain.course`를 참조한다.
+시간표 검색과 개인 편성은 `domain.timetable` 아래의 독립된 기능 패키지에서 관리하고,
+공용 강좌 정보는 `domain.course`를 참조한다. 학점 계산기는 입력을 저장하지 않으며
+시간표 프리필만 개인 편성 데이터를 읽는다.
 
 ## 로컬 실행 준비
 
@@ -107,6 +110,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
 강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
+학점 계산과 로그인 사용자 시간표 과목 프리필 계약은
+[학점 계산기 API 명세서](docs/grade-calculator-api.md)에서 확인할 수 있습니다.
 기존 운영 DB의 과목 공통 데이터·학기 매핑 구조 전환은
 [과목 저장 구조 증분 마이그레이션](docs/course-offering-dedup-migration.md)의 절차와
 [MySQL 실행 스크립트](docs/course-offering-dedup-migration-mysql.sql)를 코드 배포 전에 적용합니다.
@@ -163,6 +168,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `POST` | `/api/admin/course-enrichments/equivalent-courses/imports` | 관리자 전용 동일교과목 엑셀 자동 감지 및 스냅샷 저장 |
 | `POST` | `/api/admin/course-enrichments/cross-major-recognitions/imports` | 관리자 전용 타학과 전공인정 엑셀 자동 감지 및 연간 정책 저장 |
 | `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
+| `GET` | `/api/grade-calculations/grades` | 로그인 없이 한서대학교 성적 선택 옵션 조회 |
+| `POST` | `/api/grade-calculations` | 로그인 없이 신청·반영·취득학점과 예상 평점 계산 |
+| `GET` | `/api/grade-calculations/timetable-courses` | 로그인 사용자의 학기별 시간표 과목을 계산기 프리필로 조회 |
 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보와 후기 작성 수 조회 |
 | `POST` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 토글 |
@@ -298,7 +306,8 @@ SWAGGER_API_DOCS_ENABLED=true
 - 탈퇴 후 같은 로그인 아이디로 다시 가입할 수 있지만 새 계정으로 처리되고 과거 데이터는 복원되지 않습니다.
 - `/api/admin/**`는 `ADMIN` 역할만 접근할 수 있습니다.
 - 전공·교양 엑셀 수입 API는 `ADMIN` 역할만 접근할 수 있습니다.
-- 시간표 구성 API, 동아리 좋아요 및 활동 후기 작성에는 로그인 JWT가 필요합니다.
+- 시간표 구성과 학점 계산기 시간표 가져오기, 동아리 좋아요 및 활동 후기 작성에는 로그인 JWT가 필요합니다.
+- 학점 계산과 성적 선택 옵션 조회는 로그인 없이 사용할 수 있습니다.
 - 동아리 목록·상세와 활동 후기 통계 조회는 로그인 없이 사용할 수 있습니다.
 
 동아리 좋아요는 로그인 사용자별로 동아리당 한 건만 저장하며 토글 API를 호출할 때마다 등록 또는 취소됩니다.
