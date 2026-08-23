@@ -40,6 +40,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -447,6 +449,168 @@ class CourseImportApiIntegrationTest {
 
         assertThat(courseOfferingRepository.count()).isEqualTo(1);
         assertThat(courseImportHistoryRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void sameCourseCodeRowsWithinOneSemesterUseOnlyTheFirstRow() throws Exception {
+        ObjectNode payload = (ObjectNode) objectMapper.readTree(
+                fixture("major-ready-2026-1-a.json")
+        );
+        ArrayNode lectures = (ArrayNode) payload.path("lectures");
+        ObjectNode duplicate = ((ObjectNode) lectures.get(0)).deepCopy();
+        duplicate.put("sourceRow", 6);
+        duplicate.put("courseCode", " 001234 ");
+        duplicate.put("courseName", "후속 중복 과목명");
+        duplicate.put("sectionNo", "99");
+        duplicate.put("instructorName", "후속 중복 교수");
+        duplicate.put("scheduleText", "화4,5,6");
+        duplicate.put("classroomText", "후속관 909호");
+        duplicate.put("targetGrade", 4);
+        ArrayNode duplicateAllowedGrades = (ArrayNode) duplicate.path("allowedGrades");
+        duplicateAllowedGrades.removeAll();
+        duplicateAllowedGrades.add(4);
+        ArrayNode duplicateEligibleDepartments =
+                (ArrayNode) duplicate.path("eligibleDepartmentNames");
+        duplicateEligibleDepartments.removeAll();
+        duplicateEligibleDepartments.add("후속 중복 학과");
+        ObjectNode duplicateSchedule = (ObjectNode) duplicate.path("schedules").get(0);
+        duplicateSchedule.put("dayOfWeek", "TUESDAY");
+        ArrayNode duplicatePeriods = (ArrayNode) duplicateSchedule.path("periods");
+        duplicatePeriods.removeAll();
+        duplicatePeriods.add(4);
+        duplicatePeriods.add(5);
+        duplicatePeriods.add(6);
+        ObjectNode duplicateClassroom = (ObjectNode) duplicateSchedule.path("classroom");
+        duplicateClassroom.put("buildingName", "후속관");
+        duplicateClassroom.put("roomNumber", "909");
+        duplicateClassroom.put("originalValue", "후속관 909호");
+        ((ObjectNode) duplicate.path("sourceCells").get(0))
+                .put("value", " 001234 ");
+        ((ObjectNode) duplicate.path("sourceCells").get(1))
+                .put("value", "후속 중복 과목명");
+        ((ObjectNode) duplicate.path("sourceCells").get(2))
+                .put("value", "99");
+        lectures.add(duplicate);
+
+        ObjectNode statistics = (ObjectNode) payload.path("statistics");
+        statistics.put("totalRowCount", 2);
+        statistics.put("parsedLectureCount", 2);
+        statistics.put("scheduleCount", 2);
+        statistics.put("periodCount", 6);
+
+        CourseImportResponse response = performImport(
+                objectMapper.writeValueAsString(payload)
+        );
+
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(response.offeringCount()).isEqualTo(1);
+        assertThat(courseRepository.count()).isEqualTo(1);
+        assertThat(courseOfferingRepository.count()).isEqualTo(1);
+        assertThat(tableCount("course_schedules")).isEqualTo(1);
+        assertThat(tableCount("offering_allowed_grades")).isEqualTo(1);
+        assertThat(tableCount("offering_eligible_departments")).isEqualTo(1);
+
+        Course course = courseRepository.findAll().get(0);
+        assertThat(course.getCourseCode()).isEqualTo("001234");
+        assertThat(course.getCourseName()).isEqualTo("웹프로그래밍");
+        assertThat(course.getSectionNo()).isEqualTo("01");
+        assertThat(course.getInstructorName()).isEqualTo("홍길동");
+        assertThat(course.getTargetGrade()).isEqualTo(2);
+        assertThat(course.getScheduleText()).isEqualTo("월1,2,3");
+        assertThat(course.getClassroomText()).isEqualTo("본관 101호");
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select grade from offering_allowed_grades",
+                Integer.class
+        )).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "select department_name from offering_eligible_departments",
+                String.class
+        )).isEqualTo("항공소프트웨어공학과");
+        assertThat(tableCount("classrooms")).isEqualTo(1);
+
+        CourseOffering offering = courseOfferingRepository.findAll().get(0);
+        assertThat(offering.getSourceRow()).isEqualTo(5);
+        assertThat(courseSourceCellRepository.findAll())
+                .hasSize(4)
+                .extracting(CourseSourceCell::getValue)
+                .contains("웹프로그래밍")
+                .doesNotContain("후속 중복 과목명");
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].targetGrade").value(2))
+                .andExpect(jsonPath("$.items[0].eligibleDepartmentNames[0]")
+                        .value("항공소프트웨어공학과"))
+                .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek")
+                        .value("MONDAY"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(1))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[2]").value(3))
+                .andExpect(jsonPath("$.items[0].schedules[0].buildingName").value("본관"))
+                .andExpect(jsonPath("$.items[0].schedules[0].roomNumber").value("101"));
+
+        CourseImportHistory history = courseImportHistoryRepository.findAll().get(0);
+        assertThat(history.getOfferingCount()).isEqualTo(1);
+        JsonNode rawLectures = objectMapper.readTree(history.getRawPayloadJson())
+                .path("lectures");
+        assertThat(rawLectures.size()).isEqualTo(2);
+        assertThat(rawLectures.get(1).path("courseName").asString())
+                .isEqualTo("후속 중복 과목명");
+        assertThat(rawLectures.get(1).path("schedules").get(0)
+                .path("dayOfWeek").asString()).isEqualTo("TUESDAY");
+        assertThat(rawLectures.get(1).path("allowedGrades").get(0).asInt()).isEqualTo(4);
+        assertThat(rawLectures.get(1).path("eligibleDepartmentNames").get(0).asString())
+                .isEqualTo("후속 중복 학과");
+    }
+
+    @Test
+    void invalidLaterRowWithSameCourseCodeRequiresReviewAndStoresNoCourseData()
+            throws Exception {
+        ObjectNode payload = (ObjectNode) objectMapper.readTree(
+                fixture("major-ready-2026-1-a.json")
+        );
+        ArrayNode lectures = (ArrayNode) payload.path("lectures");
+        ObjectNode invalidDuplicate = ((ObjectNode) lectures.get(0)).deepCopy();
+        invalidDuplicate.put("sourceRow", 6);
+        invalidDuplicate.put("credit", 999_999_999.0);
+        lectures.add(invalidDuplicate);
+
+        ObjectNode statistics = (ObjectNode) payload.path("statistics");
+        statistics.put("totalRowCount", 2);
+        statistics.put("parsedLectureCount", 2);
+        statistics.put("scheduleCount", 2);
+        statistics.put("periodCount", 6);
+
+        CourseImportResponse response = performImport(
+                objectMapper.writeValueAsString(payload)
+        );
+
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.REVIEW_REQUIRED);
+        assertThat(response.databaseChanged()).isFalse();
+        assertThat(response.offeringCount()).isZero();
+        assertThat(response.reviewIssues()).anySatisfy(issue -> {
+            assertThat(issue.code()).isEqualTo("INVALID_CREDIT");
+            assertThat(issue.rowNumber()).isEqualTo(6);
+            assertThat(issue.field()).isEqualTo("credit");
+        });
+
+        assertThat(courseRepository.count()).isZero();
+        assertThat(courseOfferingRepository.count()).isZero();
+        assertThat(courseSourceCellRepository.count()).isZero();
+        assertThat(tableCount("course_schedules")).isZero();
+        assertThat(tableCount("offering_allowed_grades")).isZero();
+        assertThat(tableCount("offering_eligible_departments")).isZero();
+
+        List<CourseImportHistory> histories = courseImportHistoryRepository.findAll();
+        assertThat(histories).singleElement().satisfies(history -> {
+            assertThat(history.getStorageStatus()).isEqualTo(StorageStatus.REVIEW_REQUIRED);
+            assertThat(history.getOfferingCount()).isZero();
+        });
+        assertThat(objectMapper.readTree(histories.get(0).getRawPayloadJson())
+                .path("lectures").size()).isEqualTo(2);
     }
 
     @Test
