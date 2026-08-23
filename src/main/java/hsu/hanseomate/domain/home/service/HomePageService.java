@@ -179,14 +179,14 @@ public class HomePageService {
         HomeTodayCourseResponse response = new HomeTodayCourseResponse(
                 startTime,
                 endTime,
-                schedule.getOffering().getCourseName(),
+                schedule.getCourse().getCourseName(),
                 classroom == null ? null : classroom.getBuildingName(),
                 classroom == null ? null : classroom.getRoomNumber()
         );
         return new CourseSlot(
                 firstPeriod,
                 schedule.getScheduleOrder(),
-                schedule.getOffering().getCourseName(),
+                schedule.getCourse().getCourseName(),
                 response
         );
     }

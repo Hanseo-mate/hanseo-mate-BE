@@ -107,6 +107,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
 강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
+기존 운영 DB의 과목 공통 데이터·학기 매핑 구조 전환은
+[과목 저장 구조 증분 마이그레이션](docs/course-offering-dedup-migration.md)의 절차와
+[MySQL 실행 스크립트](docs/course-offering-dedup-migration-mysql.sql)를 코드 배포 전에 적용합니다.
 
 동일교과목·타학과 전공인정 수입과 강좌 상세 응답 계약은
 [과목 정책 보강 API 명세서](docs/course-enrichment-api.md)에서 확인할 수 있습니다.
@@ -247,7 +250,9 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
 }
 ```
 
-`offeringId`는 검색 결과의 강좌를 시간표에 추가하거나 상세 조회할 때 사용하는 식별자입니다.
+`offeringId`는 검색 결과의 강좌를 시간표에 추가하거나 상세 조회할 때 사용하는 학기별
+매핑 식별자입니다. 같은 과목코드는 최초 저장한 공통 과목 데이터를 여러 학기에서 공유하지만,
+학기별 `offeringId`는 서로 다릅니다. 같은 학기·같은 과목 재수입에서는 기존 ID를 유지합니다.
 교양 강좌는 `generalCategory` 하나로 `REQUIRED`, `AREA_1`, `AREA_2`, `AREA_3`,
 `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`, `OTHER` 중 하나를
 반환합니다. 상세 조회 `GET /api/courses/{offeringId}`는 같은 정보에 엑셀의 비고를

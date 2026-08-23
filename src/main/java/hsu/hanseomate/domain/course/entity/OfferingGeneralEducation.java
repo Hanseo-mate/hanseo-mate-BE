@@ -37,8 +37,8 @@ public class OfferingGeneralEducation {
     private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "offering_id", nullable = false, unique = true)
-    private CourseOffering offering;
+    @JoinColumn(name = "course_id", nullable = false, unique = true)
+    private Course course;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
@@ -72,7 +72,7 @@ public class OfferingGeneralEducation {
     private String sourcePathJson;
 
     private OfferingGeneralEducation(
-            CourseOffering offering,
+            Course course,
             GeneralClassification classification,
             String classificationName,
             String categoryCode,
@@ -83,7 +83,7 @@ public class OfferingGeneralEducation {
             String sourcePathJson
     ) {
         this.id = UUID.randomUUID();
-        this.offering = offering;
+        this.course = course;
         this.classification = classification;
         this.classificationName = classificationName;
         this.categoryCode = categoryCode;
@@ -105,8 +105,25 @@ public class OfferingGeneralEducation {
             String deliveryProviderName,
             String sourcePathJson
     ) {
+        return create(
+                offering.getCourse(), classification, classificationName, categoryCode,
+                categoryName, area, deliveryProvider, deliveryProviderName, sourcePathJson
+        );
+    }
+
+    public static OfferingGeneralEducation create(
+            Course course,
+            GeneralClassification classification,
+            String classificationName,
+            String categoryCode,
+            String categoryName,
+            GeneralArea area,
+            DeliveryProvider deliveryProvider,
+            String deliveryProviderName,
+            String sourcePathJson
+    ) {
         return new OfferingGeneralEducation(
-                offering, classification, classificationName, categoryCode, categoryName,
+                course, classification, classificationName, categoryCode, categoryName,
                 area, deliveryProvider, deliveryProviderName, sourcePathJson
         );
     }

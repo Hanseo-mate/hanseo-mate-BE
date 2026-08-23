@@ -63,20 +63,26 @@ public class CourseSearchService {
         );
         List<CourseOffering> offerings = offeringPage.getContent();
 
-        List<UUID> offeringIds = offerings.stream().map(CourseOffering::getId).toList();
-        Map<UUID, List<CourseSchedule>> schedulesByOffering = offeringIds.isEmpty()
+        List<UUID> courseIds = offerings.stream()
+                .map(offering -> offering.getCourse().getId())
+                .distinct()
+                .toList();
+        Map<UUID, List<CourseSchedule>> schedulesByCourse = courseIds.isEmpty()
                 ? Map.of()
-                : courseScheduleRepository.findAllForOfferings(offeringIds)
+                : courseScheduleRepository.findAllForCourses(courseIds)
                         .stream()
-                        .collect(Collectors.groupingBy(schedule -> schedule.getOffering().getId()));
-        Map<UUID, List<String>> eligibleDepartmentsByOffering =
-                loadEligibleDepartmentNames(offeringIds);
+                        .collect(Collectors.groupingBy(schedule -> schedule.getCourse().getId()));
+        Map<UUID, List<String>> eligibleDepartmentsByCourse =
+                loadEligibleDepartmentNames(courseIds);
 
         List<CourseOfferingResponse> items = offerings.stream()
                 .map(offering -> CourseOfferingResponse.from(
                         offering,
-                        schedulesByOffering.getOrDefault(offering.getId(), List.of()),
-                        eligibleDepartmentsByOffering.getOrDefault(offering.getId(), List.of())
+                        schedulesByCourse.getOrDefault(offering.getCourse().getId(), List.of()),
+                        eligibleDepartmentsByCourse.getOrDefault(
+                                offering.getCourse().getId(),
+                                List.of()
+                        )
                 ))
                 .toList();
 
@@ -93,11 +99,12 @@ public class CourseSearchService {
     public CourseOfferingDetailResponse getCourse(UUID offeringId) {
         CourseOffering offering = courseOfferingRepository.findDetailedById(offeringId)
                 .orElseThrow(() -> new CourseOfferingNotFoundException(offeringId));
-        List<CourseSchedule> schedules = courseScheduleRepository.findAllForOfferings(
-                List.of(offeringId)
+        UUID courseId = offering.getCourse().getId();
+        List<CourseSchedule> schedules = courseScheduleRepository.findAllForCourses(
+                List.of(courseId)
         );
-        List<String> eligibleDepartmentNames = loadEligibleDepartmentNames(List.of(offeringId))
-                .getOrDefault(offeringId, List.of());
+        List<String> eligibleDepartmentNames = loadEligibleDepartmentNames(List.of(courseId))
+                .getOrDefault(courseId, List.of());
         return CourseOfferingDetailResponse.from(
                 offering,
                 schedules,
@@ -107,14 +114,14 @@ public class CourseSearchService {
         );
     }
 
-    private Map<UUID, List<String>> loadEligibleDepartmentNames(List<UUID> offeringIds) {
-        if (offeringIds.isEmpty()) {
+    private Map<UUID, List<String>> loadEligibleDepartmentNames(List<UUID> courseIds) {
+        if (courseIds.isEmpty()) {
             return Map.of();
         }
-        return offeringEligibleDepartmentRepository.findNamesByOfferingIds(offeringIds)
+        return offeringEligibleDepartmentRepository.findNamesByCourseIds(courseIds)
                 .stream()
                 .collect(Collectors.groupingBy(
-                        OfferingEligibleDepartmentNameProjection::getOfferingId,
+                        OfferingEligibleDepartmentNameProjection::getCourseId,
                         LinkedHashMap::new,
                         Collectors.mapping(
                                 OfferingEligibleDepartmentNameProjection::getDepartmentName,
@@ -213,16 +220,16 @@ public class CourseSearchService {
             case COURSE_CODE -> List.of(
                     Sort.Order.desc("semester.academicYear"),
                     Sort.Order.desc("semester.semester"),
-                    Sort.Order.asc("courseCode"),
-                    Sort.Order.asc("sectionNo"),
+                    Sort.Order.asc("course.courseCode"),
+                    Sort.Order.asc("course.sectionNo"),
                     Sort.Order.asc("id")
             );
             case COURSE_NAME -> List.of(
                     Sort.Order.desc("semester.academicYear"),
                     Sort.Order.desc("semester.semester"),
-                    Sort.Order.asc("courseName"),
-                    Sort.Order.asc("courseCode"),
-                    Sort.Order.asc("sectionNo"),
+                    Sort.Order.asc("course.courseName"),
+                    Sort.Order.asc("course.courseCode"),
+                    Sort.Order.asc("course.sectionNo"),
                     Sort.Order.asc("id")
             );
         };
