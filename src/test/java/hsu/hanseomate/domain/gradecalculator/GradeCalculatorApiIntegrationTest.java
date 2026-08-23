@@ -87,6 +87,9 @@ class GradeCalculatorApiIntegrationTest {
         assertAuthenticationRequired(patch(TIMETABLE_COURSES_PATH + "/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"expectedGrade\":\"A+\"}"));
+        assertAuthenticationRequired(post(TIMETABLE_COURSES_PATH + "/import")
+                .param("year", "2026")
+                .param("semester", "1"));
     }
 
     @Test
@@ -180,7 +183,7 @@ class GradeCalculatorApiIntegrationTest {
     }
 
     @Test
-    void expectedGradeFieldMustBePresentWhenUpdatingCourse() throws Exception {
+    void atLeastOneEditableFieldMustBePresentWhenUpdatingCourse() throws Exception {
         importMajorFixture(2026, 1);
         String accessToken = registerAndLogin("grade-missing-field-user");
         long timetableId = createTimetable(accessToken, 2026, 1);
@@ -198,7 +201,142 @@ class GradeCalculatorApiIntegrationTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
-                        .value("expectedGrade 필드는 필수입니다."));
+                        .value("courseName, credit, expectedGrade 중 하나 이상의 필드가 필요합니다."));
+    }
+
+    @Test
+    void customizedCoursePersistsAndImportRestoresCanonicalValuesButKeepsGrade()
+            throws Exception {
+        importMajorFixture(2026, 1);
+        String accessToken = registerAndLogin("grade-customize-import-user");
+        long timetableId = createTimetable(accessToken, 2026, 1);
+        long timetableCourseId = addCourse(
+                accessToken,
+                timetableId,
+                offeringIdByTermAndCode(2026, 1, ALPHA_CODE)
+        );
+
+        updateGrade(accessToken, timetableCourseId, "\"A+\"")
+                .andExpect(status().isOk());
+
+        updateTimetableCourse(
+                accessToken,
+                timetableCourseId,
+                "{\"courseName\":\"  사용자 지정 과목  \"}"
+        )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].courseName")
+                        .value("사용자 지정 과목"))
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"));
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"credit\":2.5}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].courseName")
+                        .value("사용자 지정 과목"))
+                .andExpect(jsonPath("$.courses[0].credit").value(2.5))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.earnedCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(2.5))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa").value(4.50));
+
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].courseName")
+                        .value("사용자 지정 과목"))
+                .andExpect(jsonPath("$.courses[0].credit").value(2.5))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"));
+
+        performAuthenticated(accessToken, get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.gradeSummary.termSummary.totalCredits")
+                        .value(2.5));
+
+        performAuthenticated(accessToken, post(
+                        TIMETABLE_COURSES_PATH + "/import"
+                )
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.timetableId").value(timetableId))
+                .andExpect(jsonPath("$.courses[0].timetableCourseId")
+                        .value(timetableCourseId))
+                .andExpect(jsonPath("$.courses[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.earnedCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa").value(4.50));
+
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].courseName").value("알파개론"))
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"));
+    }
+
+    @Test
+    void customCourseNameAndCreditRejectNullOrInvalidValues() throws Exception {
+        importMajorFixture(2026, 1);
+        String accessToken = registerAndLogin("grade-custom-validation-user");
+        long timetableId = createTimetable(accessToken, 2026, 1);
+        long timetableCourseId = addCourse(
+                accessToken,
+                timetableId,
+                offeringIdByTermAndCode(2026, 1, ALPHA_CODE)
+        );
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"courseName\":null}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("과목명은 필수입니다."));
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"courseName\":\"   \"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("과목명은 필수입니다."));
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"credit\":null}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("학점은 필수입니다."));
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"credit\":0}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("학점은 0보다 커야 합니다."));
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"credit\":20.001}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("한 과목의 학점은 20 이하여야 합니다."));
+
+        updateTimetableCourse(accessToken, timetableCourseId, "{\"credit\":1.0001}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("학점은 소수 셋째 자리까지 입력할 수 있습니다."));
+
+        updateTimetableCourse(
+                accessToken,
+                timetableCourseId,
+                objectMapper.writeValueAsString(Map.of(
+                        "courseName",
+                        "가".repeat(256)
+                ))
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("과목명은 255자 이하여야 합니다."));
     }
 
     @Test
@@ -461,12 +599,24 @@ class GradeCalculatorApiIntegrationTest {
             long timetableCourseId,
             String expectedGradeJson
     ) throws Exception {
+        return updateTimetableCourse(
+                token,
+                timetableCourseId,
+                "{\"expectedGrade\":" + expectedGradeJson + "}"
+        );
+    }
+
+    private ResultActions updateTimetableCourse(
+            String token,
+            long timetableCourseId,
+            String requestJson
+    ) throws Exception {
         return performAuthenticated(token, patch(
                         TIMETABLE_COURSES_PATH + "/{timetableCourseId}",
                         timetableCourseId
                 )
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"expectedGrade\":" + expectedGradeJson + "}"));
+                        .content(requestJson));
     }
 
     private ResultActions performAuthenticated(

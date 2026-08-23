@@ -51,13 +51,21 @@ public class GradeCalculatorController {
     }
 
     @PatchMapping("/timetable-courses/{timetableCourseId}")
-    public TimetableGradeCoursesResponse updateExpectedGrade(
+    public TimetableGradeCoursesResponse updateTimetableCourse(
             @PathVariable Long timetableCourseId,
             @RequestBody GradeCourseUpdateRequest request
     ) {
-        return gradeCalculatorService.updateExpectedGrade(
+        return gradeCalculatorService.updateTimetableCourse(
                 timetableCourseId,
                 request
         );
+    }
+
+    @PostMapping("/timetable-courses/import")
+    public TimetableGradeCoursesResponse importTimetableCourses(
+            @RequestParam Integer year,
+            @RequestParam Integer semester
+    ) {
+        return gradeCalculatorService.importTimetableCourses(year, semester);
     }
 }

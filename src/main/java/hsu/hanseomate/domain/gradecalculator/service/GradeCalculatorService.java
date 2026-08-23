@@ -35,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class GradeCalculatorService {
 
     private static final BigDecimal MAXIMUM_GPA = new BigDecimal("4.5");
+    private static final BigDecimal MAXIMUM_COURSE_CREDIT = new BigDecimal("20.000");
+    private static final int MAXIMUM_COURSE_NAME_LENGTH = 255;
+    private static final int MAXIMUM_CREDIT_SCALE = 3;
     private static final int MIN_YEAR = 2000;
     private static final int MAX_YEAR = 2100;
 
@@ -145,21 +148,56 @@ public class GradeCalculatorService {
     }
 
     @Transactional
-    public TimetableGradeCoursesResponse updateExpectedGrade(
+    public TimetableGradeCoursesResponse updateTimetableCourse(
             Long timetableCourseId,
             GradeCourseUpdateRequest request
     ) {
-        if (request == null || !request.hasExpectedGrade()) {
-            throw new BadRequestException("expectedGrade 필드는 필수입니다.");
+        if (request == null || !request.hasAnyField()) {
+            throw new BadRequestException(
+                    "courseName, credit, expectedGrade 중 하나 이상의 필드가 필요합니다."
+            );
         }
+        String courseName = request.hasCourseName()
+                ? validateCourseName(request.courseName())
+                : null;
+        BigDecimal credit = request.hasCredit()
+                ? validateCredit(request.credit())
+                : null;
+
         Long ownerId = currentUserIdProvider.currentUserId();
         TimetableCourse timetableCourse = timetableCourseRepository
                 .findOwnedByIdForUpdate(timetableCourseId, ownerId)
                 .orElseThrow(() -> new TimetableApiException(
                         TimetableErrorCode.TIMETABLE_COURSE_NOT_FOUND
                 ));
-        timetableCourse.updateExpectedGrade(request.expectedGrade());
+        if (request.hasCourseName()) {
+            timetableCourse.updateCustomCourseName(courseName);
+        }
+        if (request.hasCredit()) {
+            timetableCourse.updateCustomCredit(credit);
+        }
+        if (request.hasExpectedGrade()) {
+            timetableCourse.updateExpectedGrade(request.expectedGrade());
+        }
         return buildTimetableResponse(timetableCourse.getTimetable(), ownerId);
+    }
+
+    @Transactional
+    public TimetableGradeCoursesResponse importTimetableCourses(
+            Integer year,
+            Integer semester
+    ) {
+        validateTerm(year, semester);
+        Long ownerId = currentUserIdProvider.currentUserId();
+        Timetable timetable = timetableRepository
+                .findByOwnerAndTermForGradeImport(ownerId, year, semester)
+                .orElseThrow(() -> new TimetableApiException(
+                        TimetableErrorCode.TIMETABLE_NOT_FOUND
+                ));
+        List<TimetableCourse> termCourses = timetableCourseRepository
+                .findAllByTimetableIdForGradeReset(timetable.getId());
+        termCourses.forEach(TimetableCourse::resetGradeCourseOverrides);
+        return buildTimetableResponse(timetable, ownerId, termCourses);
     }
 
     private TimetableGradeCoursesResponse buildTimetableResponse(
@@ -168,6 +206,14 @@ public class GradeCalculatorService {
     ) {
         List<TimetableCourse> termCourses = timetableCourseRepository
                 .findAllByTimetableIdOrderById(timetable.getId());
+        return buildTimetableResponse(timetable, ownerId, termCourses);
+    }
+
+    private TimetableGradeCoursesResponse buildTimetableResponse(
+            Timetable timetable,
+            Long ownerId,
+            List<TimetableCourse> termCourses
+    ) {
         List<TimetableGradeCourseResponse> courses = termCourses.stream()
                 .map(TimetableGradeCourseResponse::from)
                 .toList();
@@ -199,7 +245,7 @@ public class GradeCalculatorService {
         int unavailableCreditCourseCount = 0;
 
         for (TimetableCourse course : courses) {
-            BigDecimal credit = course.getCourseOffering().getCredit();
+            BigDecimal credit = course.getGradeCredit();
             ExpectedGrade grade = course.getExpectedGrade();
             if (grade == null) {
                 ungradedCourseCount++;
@@ -238,6 +284,33 @@ public class GradeCalculatorService {
                         unavailableCreditCourseCount
                 )
         );
+    }
+
+    private String validateCourseName(String courseName) {
+        if (courseName == null || courseName.isBlank()) {
+            throw new BadRequestException("과목명은 필수입니다.");
+        }
+        String normalizedCourseName = courseName.strip();
+        if (normalizedCourseName.length() > MAXIMUM_COURSE_NAME_LENGTH) {
+            throw new BadRequestException("과목명은 255자 이하여야 합니다.");
+        }
+        return normalizedCourseName;
+    }
+
+    private BigDecimal validateCredit(BigDecimal credit) {
+        if (credit == null) {
+            throw new BadRequestException("학점은 필수입니다.");
+        }
+        if (credit.signum() <= 0) {
+            throw new BadRequestException("학점은 0보다 커야 합니다.");
+        }
+        if (credit.compareTo(MAXIMUM_COURSE_CREDIT) > 0) {
+            throw new BadRequestException("한 과목의 학점은 20 이하여야 합니다.");
+        }
+        if (credit.stripTrailingZeros().scale() > MAXIMUM_CREDIT_SCALE) {
+            throw new BadRequestException("학점은 소수 셋째 자리까지 입력할 수 있습니다.");
+        }
+        return credit;
     }
 
     private BigDecimal averageGpa(

@@ -24,6 +24,20 @@ public interface TimetableRepository extends JpaRepository<Timetable, Long> {
             int semester
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select timetable
+            from Timetable timetable
+            where timetable.ownerId = :ownerId
+              and timetable.academicYear = :academicYear
+              and timetable.semester = :semester
+            """)
+    Optional<Timetable> findByOwnerAndTermForGradeImport(
+            @Param("ownerId") Long ownerId,
+            @Param("academicYear") int academicYear,
+            @Param("semester") int semester
+    );
+
     Optional<Timetable> findByIdAndOwnerId(Long id, Long ownerId);
 
     List<Timetable> findAllByOwnerIdOrderByAcademicYearDescSemesterDesc(Long ownerId);
