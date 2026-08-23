@@ -23,6 +23,22 @@ public interface TimetableCourseRepository extends JpaRepository<TimetableCourse
     })
     List<TimetableCourse> findAllByTimetableIdOrderById(Long timetableId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {
+            "courseOffering",
+            "courseOffering.course",
+            "courseOffering.course.generalEducation"
+    })
+    @Query("""
+            select tc
+            from TimetableCourse tc
+            where tc.timetable.id = :timetableId
+            order by tc.id
+            """)
+    List<TimetableCourse> findAllByTimetableIdForGradeReset(
+            @Param("timetableId") Long timetableId
+    );
+
     @EntityGraph(attributePaths = {
             "timetable",
             "courseOffering",

@@ -19,8 +19,8 @@ public record TimetableGradeCourseResponse(
         return new TimetableGradeCourseResponse(
                 timetableCourse.getId(),
                 offering.getId(),
-                offering.getCourseName(),
-                offering.getCredit(),
+                timetableCourse.getGradeCourseName(),
+                timetableCourse.getGradeCredit(),
                 offering.getScopeCurriculumType(),
                 timetableCourse.getExpectedGrade()
         );
