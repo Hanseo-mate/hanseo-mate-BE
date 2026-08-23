@@ -5,11 +5,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import hsu.hanseomate.domain.course.entity.Course;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSourceCell;
 import hsu.hanseomate.domain.course.entity.Semester;
 import hsu.hanseomate.domain.course.entity.SemesterGeneralCategoryNode;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
+import hsu.hanseomate.domain.course.repository.CourseRepository;
 import hsu.hanseomate.domain.course.repository.CourseSourceCellRepository;
 import hsu.hanseomate.domain.course.repository.SemesterGeneralCategoryNodeRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
@@ -59,6 +61,9 @@ class CourseImportApiIntegrationTest {
 
     @Autowired
     private CourseOfferingRepository courseOfferingRepository;
+
+    @Autowired
+    private CourseRepository courseRepository;
 
     @Autowired
     private CourseSourceCellRepository courseSourceCellRepository;
@@ -136,7 +141,7 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].sourceCells").doesNotExist())
                 .andExpect(jsonPath("$.items[0].fileSha256").doesNotExist());
 
-        CourseOffering offering = courseOfferingRepository.findAll().get(0);
+        CourseOffering offering = firstActiveOffering();
         assertThat(offering.getSectionNo()).isEqualTo("01");
         assertThat(offering.getTeamTeaching()).isNull();
         assertThat(offering.getScheduleText()).isEqualTo("월1,2,3");
@@ -164,7 +169,7 @@ class CourseImportApiIntegrationTest {
         String payload = fixture("major-ready-2026-1-a.json")
                 .replace("\"note\": null", "\"note\": \"온라인수업\"");
         performImport(payload);
-        CourseOffering offering = courseOfferingRepository.findAll().get(0);
+        CourseOffering offering = firstActiveOffering();
 
         var result = mockMvc.perform(get("/api/courses/{offeringId}", offering.getId()))
                 .andExpect(status().isOk())
@@ -220,10 +225,7 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].schedules[0].periods[1]").value(1))
                 .andExpect(jsonPath("$.items[0].note").doesNotExist());
 
-        CourseOffering ocuOffering = courseOfferingRepository.findAll().stream()
-                .filter(offering -> "105000".equals(offering.getCourseCode()))
-                .findFirst()
-                .orElseThrow();
+        CourseOffering ocuOffering = activeOfferingByCode("105000");
 
         mockMvc.perform(get("/api/courses/{offeringId}", ocuOffering.getId()))
                 .andExpect(status().isOk())
@@ -448,6 +450,126 @@ class CourseImportApiIntegrationTest {
     }
 
     @Test
+    void sameCourseCodeAcrossSemestersSharesCourseAndDetailsButCreatesTermOfferings()
+            throws Exception {
+        assertThat(performImport(fixture("major-ready-2026-1-a.json")).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+        assertThat(performImport(majorFixtureForSemester2(
+                "major-2026-2-same-course"
+        )).storageStatus()).isEqualTo(StorageStatus.STORED);
+
+        assertThat(courseRepository.count()).isEqualTo(1);
+        assertThat(courseOfferingRepository.findAll())
+                .hasSize(2)
+                .allMatch(CourseOffering::isActive);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(distinct course_id) from course_offerings",
+                Integer.class
+        )).isEqualTo(1);
+        assertThat(tableCount("course_schedules")).isEqualTo(1);
+        assertThat(tableCount("offering_allowed_grades")).isEqualTo(1);
+        assertThat(tableCount("offering_eligible_departments")).isEqualTo(1);
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"));
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"));
+    }
+
+    @Test
+    void sameCourseNameWithDifferentCodesCreatesDifferentCourses() throws Exception {
+        assertThat(performImport(fixture("major-ready-2026-1-a.json")).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+        String differentCode = majorFixtureForSemester2("major-2026-2-different-code")
+                .replace(
+                        "\"courseCode\": \"001234\"",
+                        "\"courseCode\": \"009999\""
+                )
+                .replace("\"value\": \"001234\"", "\"value\": \"009999\"");
+
+        assertThat(performImport(differentCode).storageStatus()).isEqualTo(StorageStatus.STORED);
+
+        List<Course> courses = courseRepository.findAll();
+        assertThat(courses).hasSize(2);
+        assertThat(courses).extracting(Course::getCourseCode)
+                .containsExactlyInAnyOrder("001234", "009999");
+        assertThat(courses).extracting(Course::getCourseName)
+                .containsOnly("웹프로그래밍");
+        assertThat(courseOfferingRepository.findAll())
+                .hasSize(2)
+                .allMatch(CourseOffering::isActive);
+    }
+
+    @Test
+    void sameCourseNameWithoutCodeCreatesDifferentCourses() throws Exception {
+        String first = fixture("major-ready-2026-1-a.json")
+                .replace("\"courseCode\": \"001234\"", "\"courseCode\": null")
+                .replace("\"value\": \"001234\"", "\"value\": null");
+        String second = majorFixtureForSemester2("major-2026-2-no-course-code")
+                .replace("\"courseCode\": \"001234\"", "\"courseCode\": null")
+                .replace("\"value\": \"001234\"", "\"value\": null");
+
+        assertThat(performImport(first).storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(performImport(second).storageStatus()).isEqualTo(StorageStatus.STORED);
+
+        List<Course> courses = courseRepository.findAll();
+        assertThat(courses).hasSize(2);
+        assertThat(courses).extracting(Course::getCourseCode).containsOnlyNulls();
+        assertThat(courses).extracting(Course::getCourseName)
+                .containsOnly("웹프로그래밍");
+        assertThat(courses).extracting(Course::getMasterKey).doesNotHaveDuplicates();
+        assertThat(courseOfferingRepository.findAll())
+                .hasSize(2)
+                .allMatch(CourseOffering::isActive);
+    }
+
+    @Test
+    void laterImportWithSameCourseCodeKeepsFirstStoredDetails() throws Exception {
+        assertThat(performImport(fixture("major-ready-2026-1-a.json")).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+        String changedDetails = majorFixtureForSemester2("major-2026-2-changed-details")
+                .replace("웹프로그래밍", "후속수입과목명")
+                .replace("\"sectionNo\": \"01\"", "\"sectionNo\": \"99\"")
+                .replace("\"value\": \"01\"", "\"value\": \"99\"")
+                .replace("\"credit\": 3.0", "\"credit\": 4.0")
+                .replace("\"instructorName\": \"홍길동\"", "\"instructorName\": \"후속교수\"")
+                .replace("\"note\": null", "\"note\": \"후속 비고\"");
+
+        assertThat(performImport(changedDetails).storageStatus()).isEqualTo(StorageStatus.STORED);
+
+        assertThat(courseRepository.findAll()).singleElement().satisfies(course -> {
+            assertThat(course.getCourseCode()).isEqualTo("001234");
+            assertThat(course.getCourseName()).isEqualTo("웹프로그래밍");
+            assertThat(course.getSectionNo()).isEqualTo("01");
+            assertThat(course.getCredit()).isEqualByComparingTo("3.0");
+            assertThat(course.getInstructorName()).isEqualTo("홍길동");
+            assertThat(course.getNote()).isNull();
+        });
+        assertThat(courseOfferingRepository.findAll())
+                .hasSize(2)
+                .allMatch(CourseOffering::isActive);
+        assertThat(tableCount("course_schedules")).isEqualTo(1);
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.items[0].credit").value(3))
+                .andExpect(jsonPath("$.items[0].instructorName").value("홍길동"));
+    }
+
+    @Test
     void oversizedCreditReturnsLocatedReviewAndKeepsTheWholeSnapshot() throws Exception {
         performImport(fixture("major-ready-2026-1-a.json"));
 
@@ -477,7 +599,8 @@ class CourseImportApiIntegrationTest {
     }
 
     @Test
-    void reimportReplacesOnlyMatchingSemesterAndCurriculum() throws Exception {
+    void reimportDeactivatesMissingMappingsOnlyWithinMatchingSemesterAndCurriculum()
+            throws Exception {
         performImport(fixture("major-ready-2026-1-a.json"));
         performImport(fixture("general-ready-2026-1-ocu.json"));
         performImport(fixture("major-ready-2025-2.json"));
@@ -500,7 +623,19 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].courseName").value("이전학기강좌"));
 
-        assertThat(courseOfferingRepository.count()).isEqualTo(3);
+        List<CourseOffering> offerings = courseOfferingRepository.findAll();
+        assertThat(offerings).hasSize(4);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                select offering.active
+                from course_offerings offering
+                join courses course on course.id = offering.course_id
+                where course.course_code = ?
+                """,
+                Boolean.class,
+                "001234"
+        )).isFalse();
+        assertThat(offerings.stream().filter(CourseOffering::isActive)).hasSize(3);
     }
 
     @Test
@@ -927,6 +1062,40 @@ class CourseImportApiIntegrationTest {
     private String fixture(String name) throws Exception {
         return new ClassPathResource(FIXTURE_ROOT + name)
                 .getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    private String majorFixtureForSemester2(String importId) throws Exception {
+        return fixture("major-ready-2026-1-a.json")
+                .replace("\"importId\": \"major-2026-1-a\"", "\"importId\": \"" + importId + "\"")
+                .replace("\"semester\": 1", "\"semester\": 2")
+                .replace("2026학년도 1학기", "2026학년도 2학기");
+    }
+
+    private CourseOffering firstActiveOffering() {
+        UUID offeringId = jdbcTemplate.queryForObject(
+                "select id from course_offerings where active = true limit 1",
+                UUID.class
+        );
+        return courseOfferingRepository.findDetailedById(offeringId).orElseThrow();
+    }
+
+    private CourseOffering activeOfferingByCode(String courseCode) {
+        UUID offeringId = jdbcTemplate.queryForObject(
+                """
+                select offering.id
+                from course_offerings offering
+                join courses course on course.id = offering.course_id
+                where offering.active = true and course.course_code = ?
+                limit 1
+                """,
+                UUID.class,
+                courseCode
+        );
+        return courseOfferingRepository.findDetailedById(offeringId).orElseThrow();
+    }
+
+    private int tableCount(String table) {
+        return jdbcTemplate.queryForObject("select count(*) from " + table, Integer.class);
     }
 
     private void truncate(String table) {

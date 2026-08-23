@@ -13,27 +13,27 @@ import org.springframework.data.repository.query.Param;
 public interface CourseScheduleRepository extends JpaRepository<CourseSchedule, UUID> {
 
     @Modifying
-    @Query("delete from CourseSchedule s where s.offering.id in :offeringIds")
-    int deleteByOfferingIds(@Param("offeringIds") Collection<UUID> offeringIds);
+    @Query("delete from CourseSchedule s where s.course.id in :courseIds")
+    int deleteByCourseIds(@Param("courseIds") Collection<UUID> courseIds);
 
     @Query("""
             select s from CourseSchedule s
             left join fetch s.classroom
-            where s.offering.id in :offeringIds
-            order by s.offering.id, s.scheduleOrder
+            where s.course.id in :courseIds
+            order by s.course.id, s.scheduleOrder
             """)
-    List<CourseSchedule> findAllForOfferings(@Param("offeringIds") Collection<UUID> offeringIds);
+    List<CourseSchedule> findAllForCourses(@Param("courseIds") Collection<UUID> courseIds);
 
     @Query("""
             select schedule
             from CourseSchedule schedule
-            join fetch schedule.offering offering
+            join fetch schedule.course course
             left join fetch schedule.classroom
             where schedule.dayOfWeek = :dayOfWeek
               and exists (
                   select timetableCourse.id
                   from TimetableCourse timetableCourse
-                  where timetableCourse.courseOffering = offering
+                  where timetableCourse.courseOffering.course = course
                     and timetableCourse.timetable.ownerId = :ownerId
                     and timetableCourse.timetable.academicYear = :academicYear
                     and timetableCourse.timetable.semester = :semester

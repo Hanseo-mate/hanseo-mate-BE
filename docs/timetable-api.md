@@ -36,8 +36,13 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-`Course`는 과목코드와 과목명의 마스터 정보이며, 실제 학기·분반·교수·수업 시간은
-`CourseOffering`에 저장되므로 시간표는 Offering UUID를 참조한다.
+`Course`는 과목코드뿐 아니라 최초 수입한 과목명·분반·교수·수업 시간·강의실·분류 등
+공통 과목 정보를 저장한다. `CourseOffering`은 이 과목이 개설된 학기와 수입 출처를
+나타내므로 시간표는 학기 유효성을 확인할 수 있는 Offering UUID를 참조한다.
+
+같은 과목코드가 여러 학기에 개설되면 공통 `Course`는 공유하지만 학기별 Offering UUID는
+서로 다르다. 같은 학기·같은 과목을 재수입할 때는 기존 Offering UUID를 유지하므로 이미
+시간표에 추가한 항목도 유지된다.
 
 ### 시간 충돌
 
@@ -276,14 +281,15 @@ DELETE /api/timetables/{timetableId}
 | 404 | `TIMETABLE_COURSE_NOT_FOUND` | 해당 시간표에 시간표 과목이 없음 |
 | 400 | `INVALID_TIMETABLE_TERM` | 연도 또는 학기 값이 유효하지 않음 |
 
-## 9. 현재 제한사항
+## 9. 현재 제한사항과 재수입 데이터 보존
 
 - Access Token만 발급하며 Refresh Token과 로그아웃은 아직 지원하지 않는다.
 - 한 사용자는 같은 연도·학기에 시간표 하나만 만들 수 있다.
 - 시간 충돌은 실제 시각이 아닌 현재 저장된 교시 목록을 기준으로 판단한다.
-- 과목 엑셀을 같은 학기·교육과정 범위로 다시 업로드하면 기존 Offering UUID가
-  교체된다. 업로드를 막지 않기 위해 FK에 `ON DELETE CASCADE`를 적용했으므로,
-  해당 범위의 시간표 과목 선택도 함께 제거된다.
+- 과목 엑셀을 같은 학기·교육과정 범위로 다시 업로드해도 같은 과목코드의 기존 Offering
+  UUID를 재사용한다. 새 파일에서 누락된 Offering은 삭제하지 않고 비활성화하므로 이미
+  저장한 시간표 과목 선택은 제거되지 않는다.
+- 비활성 Offering은 새 강좌 검색 결과에는 나타나지 않지만 기존 시간표에서는 조회할 수 있다.
 - 같은 학기에 여러 시간표를 지원할 때는
   `uk_timetable_owner_term` 유니크 제약조건을 제거하고 시간표 이름 등의 구분값을
   추가하면 된다. `timetable_courses` 구조는 그대로 사용할 수 있다.

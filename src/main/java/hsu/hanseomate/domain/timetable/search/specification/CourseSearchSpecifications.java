@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.timetable.search.specification;
 
 import hsu.hanseomate.domain.course.entity.Classroom;
+import hsu.hanseomate.domain.course.entity.Course;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.entity.OfferingGeneralEducation;
@@ -39,6 +40,9 @@ public final class CourseSearchSpecifications {
     public static Specification<CourseOffering> from(CourseSearchCondition condition) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            Join<CourseOffering, Course> course = root.join("course");
+
+            predicates.add(criteriaBuilder.isTrue(root.get("active")));
 
             if (condition.academicYear() != null) {
                 predicates.add(criteriaBuilder.equal(
@@ -54,16 +58,16 @@ public final class CourseSearchSpecifications {
             }
             if (condition.curriculumType() != null) {
                 predicates.add(criteriaBuilder.equal(
-                        root.get("curriculumType"),
+                        course.get("curriculumType"),
                         condition.curriculumType()
                 ));
             }
 
-            addCurriculumSelectionPredicate(condition, root, criteriaBuilder, predicates);
-            addKeywordPredicate(condition, root, query, criteriaBuilder, predicates);
-            addGradePredicate(condition.grades(), root, criteriaBuilder, predicates);
-            addCreditPredicate(condition.credits(), root, criteriaBuilder, predicates);
-            addTimeRangePredicate(condition, root, query, criteriaBuilder, predicates);
+            addCurriculumSelectionPredicate(condition, course, criteriaBuilder, predicates);
+            addKeywordPredicate(condition, course, query, criteriaBuilder, predicates);
+            addGradePredicate(condition.grades(), course, criteriaBuilder, predicates);
+            addCreditPredicate(condition.credits(), course, criteriaBuilder, predicates);
+            addTimeRangePredicate(condition, course, query, criteriaBuilder, predicates);
 
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
@@ -71,7 +75,7 @@ public final class CourseSearchSpecifications {
 
     private static void addCurriculumSelectionPredicate(
             CourseSearchCondition condition,
-            Root<CourseOffering> root,
+            Join<CourseOffering, Course> course,
             CriteriaBuilder criteriaBuilder,
             List<Predicate> predicates
     ) {
@@ -83,7 +87,7 @@ public final class CourseSearchSpecifications {
 
         Predicate majorSelection = null;
         if (hasAcademicUnits) {
-            Join<CourseOffering, ?> academicUnit = root.join("academicUnit", JoinType.LEFT);
+            Join<Course, ?> academicUnit = course.join("academicUnit", JoinType.LEFT);
             Predicate matchesAcademicUnit = criteriaBuilder.or(
                     criteriaBuilder.lower(academicUnit.get("originalName"))
                             .in(condition.academicUnits()),
@@ -93,18 +97,18 @@ public final class CourseSearchSpecifications {
                             .in(condition.academicUnits())
             );
             majorSelection = criteriaBuilder.and(
-                    criteriaBuilder.equal(root.get("curriculumType"), CurriculumType.MAJOR),
+                    criteriaBuilder.equal(course.get("curriculumType"), CurriculumType.MAJOR),
                     matchesAcademicUnit
             );
         }
 
         Predicate generalSelection = null;
         if (hasGeneralCategories) {
-            Join<CourseOffering, OfferingGeneralEducation> generalEducation =
-                    root.join("generalEducation", JoinType.LEFT);
+            Join<Course, OfferingGeneralEducation> generalEducation =
+                    course.join("generalEducation", JoinType.LEFT);
             generalSelection = criteriaBuilder.and(
                     criteriaBuilder.equal(
-                            root.get("curriculumType"),
+                            course.get("curriculumType"),
                             CurriculumType.GENERAL_EDUCATION
                     ),
                     generalCategoryPredicate(
@@ -124,7 +128,7 @@ public final class CourseSearchSpecifications {
 
     private static Predicate generalCategoryPredicate(
             Set<GeneralCategoryFilter> categories,
-            Join<CourseOffering, OfferingGeneralEducation> generalEducation,
+            Join<Course, OfferingGeneralEducation> generalEducation,
             CriteriaBuilder criteriaBuilder
     ) {
         Path<GeneralClassification> classification = generalEducation.get("classification");
@@ -195,7 +199,7 @@ public final class CourseSearchSpecifications {
 
     private static void addKeywordPredicate(
             CourseSearchCondition condition,
-            Root<CourseOffering> root,
+            Join<CourseOffering, Course> course,
             CriteriaQuery<?> query,
             CriteriaBuilder criteriaBuilder,
             List<Predicate> predicates
@@ -206,22 +210,22 @@ public final class CourseSearchSpecifications {
 
         Predicate keywordPredicate = switch (condition.searchField()) {
             case COURSE_NAME -> contains(
-                    root.get("courseName"),
+                    course.get("courseName"),
                     condition.keyword(),
                     criteriaBuilder
             );
             case INSTRUCTOR_NAME -> contains(
-                    root.get("instructorName"),
+                    course.get("instructorName"),
                     condition.keyword(),
                     criteriaBuilder
             );
             case COURSE_CODE -> contains(
-                    root.get("courseCode"),
+                    course.get("courseCode"),
                     condition.keyword(),
                     criteriaBuilder
             );
             case LOCATION -> locationContains(
-                    root,
+                    course,
                     query,
                     criteriaBuilder,
                     condition.keyword()
@@ -231,7 +235,7 @@ public final class CourseSearchSpecifications {
     }
 
     private static Predicate locationContains(
-            Root<CourseOffering> offering,
+            Join<CourseOffering, Course> course,
             CriteriaQuery<?> query,
             CriteriaBuilder criteriaBuilder,
             String keyword
@@ -247,12 +251,12 @@ public final class CourseSearchSpecifications {
         );
         locationQuery.select(schedule.get("id"))
                 .where(
-                        criteriaBuilder.equal(schedule.get("offering"), offering),
+                        criteriaBuilder.equal(schedule.get("course"), course),
                         structuredLocation
                 );
 
         return criteriaBuilder.or(
-                contains(offering.get("classroomText"), keyword, criteriaBuilder),
+                contains(course.get("classroomText"), keyword, criteriaBuilder),
                 criteriaBuilder.exists(locationQuery)
         );
     }
@@ -271,7 +275,7 @@ public final class CourseSearchSpecifications {
 
     private static void addGradePredicate(
             Set<CourseGradeFilter> grades,
-            Root<CourseOffering> root,
+            Join<CourseOffering, Course> course,
             CriteriaBuilder criteriaBuilder,
             List<Predicate> predicates
     ) {
@@ -287,16 +291,16 @@ public final class CourseSearchSpecifications {
 
         if (!selectedGrades.isEmpty()) {
             gradePredicates.add(criteriaBuilder.or(
-                    criteriaBuilder.isTrue(root.get("commonGrade")),
-                    root.get("targetGrade").in(selectedGrades)
+                    criteriaBuilder.isTrue(course.get("commonGrade")),
+                    course.get("targetGrade").in(selectedGrades)
             ));
         }
         if (grades.contains(CourseGradeFilter.OTHER)) {
             gradePredicates.add(criteriaBuilder.and(
-                    criteriaBuilder.isFalse(root.get("commonGrade")),
+                    criteriaBuilder.isFalse(course.get("commonGrade")),
                     criteriaBuilder.or(
-                            criteriaBuilder.isNull(root.get("targetGrade")),
-                            criteriaBuilder.not(root.get("targetGrade").in(STANDARD_GRADES))
+                            criteriaBuilder.isNull(course.get("targetGrade")),
+                            criteriaBuilder.not(course.get("targetGrade").in(STANDARD_GRADES))
                     )
             ));
         }
@@ -305,7 +309,7 @@ public final class CourseSearchSpecifications {
 
     private static void addCreditPredicate(
             Set<CourseCreditFilter> credits,
-            Root<CourseOffering> root,
+            Join<CourseOffering, Course> course,
             CriteriaBuilder criteriaBuilder,
             List<Predicate> predicates
     ) {
@@ -316,19 +320,19 @@ public final class CourseSearchSpecifications {
         List<Predicate> creditPredicates = credits.stream()
                 .map(credit -> switch (credit) {
                     case CREDIT_1 -> criteriaBuilder.equal(
-                            root.get("credit"),
+                            course.get("credit"),
                             BigDecimal.ONE
                     );
                     case CREDIT_2 -> criteriaBuilder.equal(
-                            root.get("credit"),
+                            course.get("credit"),
                             BigDecimal.valueOf(2)
                     );
                     case CREDIT_3 -> criteriaBuilder.equal(
-                            root.get("credit"),
+                            course.get("credit"),
                             BigDecimal.valueOf(3)
                     );
                     case CREDIT_4_OR_MORE -> criteriaBuilder.greaterThanOrEqualTo(
-                            root.get("credit"),
+                            course.get("credit"),
                             BigDecimal.valueOf(4)
                     );
                 })
@@ -338,7 +342,7 @@ public final class CourseSearchSpecifications {
 
     private static void addTimeRangePredicate(
             CourseSearchCondition condition,
-            Root<CourseOffering> offering,
+            Join<CourseOffering, Course> course,
             CriteriaQuery<?> query,
             CriteriaBuilder criteriaBuilder,
             List<Predicate> predicates
@@ -350,7 +354,7 @@ public final class CourseSearchSpecifications {
         Subquery<UUID> anyScheduleQuery = query.subquery(UUID.class);
         Root<CourseSchedule> anySchedule = anyScheduleQuery.from(CourseSchedule.class);
         anyScheduleQuery.select(anySchedule.get("id"))
-                .where(criteriaBuilder.equal(anySchedule.get("offering"), offering));
+                .where(criteriaBuilder.equal(anySchedule.get("course"), course));
         predicates.add(criteriaBuilder.exists(anyScheduleQuery));
 
         List<Integer> outsidePeriods = new ArrayList<>();
@@ -384,7 +388,7 @@ public final class CourseSearchSpecifications {
         );
         outsideScheduleQuery.select(outsideSchedule.get("id"))
                 .where(
-                        criteriaBuilder.equal(outsideSchedule.get("offering"), offering),
+                        criteriaBuilder.equal(outsideSchedule.get("course"), course),
                         outsideSelectedRange
                 );
         predicates.add(criteriaBuilder.not(criteriaBuilder.exists(outsideScheduleQuery)));

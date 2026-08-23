@@ -1,7 +1,7 @@
 package hsu.hanseomate.domain.course.entity;
 
-import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
+import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,8 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -25,10 +25,16 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(
         name = "course_offerings",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_offering_semester_course",
+                columnNames = {"semester_id", "course_id"}
+        ),
         indexes = {
-                @Index(name = "ix_offering_scope", columnList = "semester_id,curriculum_type"),
-                @Index(name = "ix_offering_course_name", columnList = "course_name_snapshot"),
-                @Index(name = "ix_offering_instructor", columnList = "instructor_name")
+                @Index(
+                        name = "ix_offering_scope",
+                        columnList = "semester_id,curriculum_type,active"
+                ),
+                @Index(name = "ix_offering_import", columnList = "import_history_id")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -45,18 +51,15 @@ public class CourseOffering {
     @JoinColumn(name = "course_id", nullable = false)
     private Course course;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "academic_unit_id")
-    private AcademicUnit academicUnit;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "import_history_id", nullable = false)
     private CourseImportHistory importHistory;
 
+    /** 수입 범위를 구분하기 위한 학기 매핑 메타데이터입니다. */
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "curriculum_type", nullable = false, length = 30)
-    private CurriculumType curriculumType;
+    private CurriculumType scopeCurriculumType;
 
     @Column(name = "source_sheet", nullable = false, length = 255)
     private String sourceSheet;
@@ -64,91 +67,43 @@ public class CourseOffering {
     @Column(name = "source_row", nullable = false)
     private int sourceRow;
 
-    @Column(name = "section_no", length = 100)
-    private String sectionNo;
-
-    @Column(name = "course_code_snapshot", length = 100)
-    private String courseCode;
-
-    @Column(name = "course_name_snapshot", length = 255)
-    private String courseName;
-
-    @Column(precision = 8, scale = 3)
-    private BigDecimal credit;
-
-    @Column(name = "class_hours", precision = 8, scale = 3)
-    private BigDecimal classHours;
-
-    @Column(name = "instructor_name", length = 255)
-    private String instructorName;
-
-    @Column(name = "target_grade")
-    private Integer targetGrade;
-
-    @Column(name = "common_grade", nullable = false)
-    private boolean commonGrade;
-
-    @Column(name = "team_teaching")
-    private Boolean teamTeaching;
-
-    @Column(length = 2000)
-    private String note;
-
-    @Column(name = "eligibility_note", length = 2000)
-    private String eligibilityNote;
-
-    @Column(name = "schedule_text", length = 2000)
-    private String scheduleText;
-
-    @Column(name = "classroom_text", length = 2000)
-    private String classroomText;
-
-    @OneToOne(mappedBy = "offering", fetch = FetchType.LAZY)
-    private OfferingGeneralEducation generalEducation;
+    @Column(nullable = false)
+    private boolean active;
 
     private CourseOffering(
             Semester semester,
             Course course,
-            AcademicUnit academicUnit,
             CourseImportHistory importHistory,
-            CurriculumType curriculumType,
+            CurriculumType scopeCurriculumType,
             String sourceSheet,
-            int sourceRow,
-            String courseCode,
-            String courseName,
-            String sectionNo,
-            BigDecimal credit,
-            BigDecimal classHours,
-            String instructorName,
-            Integer targetGrade,
-            boolean commonGrade,
-            Boolean teamTeaching,
-            String note,
-            String eligibilityNote,
-            String scheduleText,
-            String classroomText
+            int sourceRow
     ) {
         this.id = UUID.randomUUID();
         this.semester = semester;
         this.course = course;
-        this.academicUnit = academicUnit;
         this.importHistory = importHistory;
-        this.curriculumType = curriculumType;
+        this.scopeCurriculumType = scopeCurriculumType;
         this.sourceSheet = sourceSheet;
         this.sourceRow = sourceRow;
-        this.courseCode = courseCode;
-        this.courseName = courseName;
-        this.sectionNo = sectionNo;
-        this.credit = credit;
-        this.classHours = classHours;
-        this.instructorName = instructorName;
-        this.targetGrade = targetGrade;
-        this.commonGrade = commonGrade;
-        this.teamTeaching = teamTeaching;
-        this.note = note;
-        this.eligibilityNote = eligibilityNote;
-        this.scheduleText = scheduleText;
-        this.classroomText = classroomText;
+        this.active = true;
+    }
+
+    public static CourseOffering link(
+            Semester semester,
+            Course course,
+            CourseImportHistory importHistory,
+            CurriculumType scopeCurriculumType,
+            String sourceSheet,
+            int sourceRow
+    ) {
+        return new CourseOffering(
+                semester,
+                course,
+                importHistory,
+                scopeCurriculumType,
+                sourceSheet,
+                sourceRow
+        );
     }
 
     public static CourseOffering create(
@@ -173,12 +128,99 @@ public class CourseOffering {
             String scheduleText,
             String classroomText
     ) {
-        return new CourseOffering(
-                semester, course, academicUnit, importHistory, curriculumType,
-                sourceSheet, sourceRow, courseCode, courseName, sectionNo,
-                credit, classHours, instructorName,
-                targetGrade, commonGrade, teamTeaching, note, eligibilityNote,
-                scheduleText, classroomText
+        course.initializeDetailsIfMissing(
+                academicUnit, curriculumType, sectionNo, credit, classHours,
+                instructorName, targetGrade, commonGrade, teamTeaching, note,
+                eligibilityNote, scheduleText, classroomText
         );
+        return link(
+                semester,
+                course,
+                importHistory,
+                curriculumType,
+                sourceSheet,
+                sourceRow
+        );
+    }
+
+    public void refreshImportSource(
+            CourseImportHistory importHistory,
+            CurriculumType scopeCurriculumType,
+            String sourceSheet,
+            int sourceRow
+    ) {
+        this.importHistory = importHistory;
+        this.scopeCurriculumType = scopeCurriculumType;
+        this.sourceSheet = sourceSheet;
+        this.sourceRow = sourceRow;
+        this.active = true;
+    }
+
+    public void deactivate() {
+        this.active = false;
+    }
+
+    public AcademicUnit getAcademicUnit() {
+        return course.getAcademicUnit();
+    }
+
+    public CurriculumType getCurriculumType() {
+        return course.getCurriculumType();
+    }
+
+    public String getSectionNo() {
+        return course.getSectionNo();
+    }
+
+    public String getCourseCode() {
+        return course.getCourseCode();
+    }
+
+    public String getCourseName() {
+        return course.getCourseName();
+    }
+
+    public BigDecimal getCredit() {
+        return course.getCredit();
+    }
+
+    public BigDecimal getClassHours() {
+        return course.getClassHours();
+    }
+
+    public String getInstructorName() {
+        return course.getInstructorName();
+    }
+
+    public Integer getTargetGrade() {
+        return course.getTargetGrade();
+    }
+
+    public boolean isCommonGrade() {
+        return course.isCommonGrade();
+    }
+
+    public Boolean getTeamTeaching() {
+        return course.getTeamTeaching();
+    }
+
+    public String getNote() {
+        return course.getNote();
+    }
+
+    public String getEligibilityNote() {
+        return course.getEligibilityNote();
+    }
+
+    public String getScheduleText() {
+        return course.getScheduleText();
+    }
+
+    public String getClassroomText() {
+        return course.getClassroomText();
+    }
+
+    public OfferingGeneralEducation getGeneralEducation() {
+        return course.getGeneralEducation();
     }
 }

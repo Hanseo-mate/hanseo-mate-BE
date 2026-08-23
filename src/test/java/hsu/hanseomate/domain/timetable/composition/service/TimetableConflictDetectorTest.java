@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.timetable.composition.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import hsu.hanseomate.domain.course.entity.Course;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
 import java.util.List;
@@ -55,6 +56,6 @@ class TimetableConflictDetectorTest {
     }
 
     private CourseSchedule schedule(DayOfWeek dayOfWeek, Integer... periods) {
-        return CourseSchedule.create(null, 0, dayOfWeek, List.of(periods), null);
+        return CourseSchedule.create((Course) null, 0, dayOfWeek, List.of(periods), null);
     }
 }

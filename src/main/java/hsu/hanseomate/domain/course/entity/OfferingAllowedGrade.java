@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(name = "offering_allowed_grades", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_offering_allowed_grade", columnNames = {"offering_id", "grade"})
+        @UniqueConstraint(name = "uk_course_allowed_grade", columnNames = {"course_id", "grade"})
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OfferingAllowedGrade {
@@ -25,19 +25,23 @@ public class OfferingAllowedGrade {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "offering_id", nullable = false)
-    private CourseOffering offering;
+    @JoinColumn(name = "course_id", nullable = false)
+    private Course course;
 
     @Column(nullable = false)
     private int grade;
 
-    private OfferingAllowedGrade(CourseOffering offering, int grade) {
+    private OfferingAllowedGrade(Course course, int grade) {
         this.id = UUID.randomUUID();
-        this.offering = offering;
+        this.course = course;
         this.grade = grade;
     }
 
     public static OfferingAllowedGrade create(CourseOffering offering, int grade) {
-        return new OfferingAllowedGrade(offering, grade);
+        return create(offering.getCourse(), grade);
+    }
+
+    public static OfferingAllowedGrade create(Course course, int grade) {
+        return new OfferingAllowedGrade(course, grade);
     }
 }

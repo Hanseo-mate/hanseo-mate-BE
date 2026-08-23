@@ -11,6 +11,6 @@ import org.springframework.data.repository.query.Param;
 public interface OfferingGeneralEducationRepository extends JpaRepository<OfferingGeneralEducation, UUID> {
 
     @Modifying
-    @Query("delete from OfferingGeneralEducation g where g.offering.id in :offeringIds")
-    int deleteByOfferingIds(@Param("offeringIds") Collection<UUID> offeringIds);
+    @Query("delete from OfferingGeneralEducation g where g.course.id in :courseIds")
+    int deleteByCourseIds(@Param("courseIds") Collection<UUID> courseIds);
 }
