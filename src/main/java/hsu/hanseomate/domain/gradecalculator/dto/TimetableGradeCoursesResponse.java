@@ -7,17 +7,23 @@ public record TimetableGradeCoursesResponse(
         Long timetableId,
         int year,
         int semester,
-        List<TimetableGradeCourseResponse> courses
+        List<TimetableGradeCourseResponse> courses,
+        GradeSummaryResponse termSummary,
+        GradeSummaryResponse cumulativeSummary
 ) {
     public static TimetableGradeCoursesResponse from(
             Timetable timetable,
-            List<TimetableGradeCourseResponse> courses
+            List<TimetableGradeCourseResponse> courses,
+            GradeSummaryResponse termSummary,
+            GradeSummaryResponse cumulativeSummary
     ) {
         return new TimetableGradeCoursesResponse(
                 timetable.getId(),
                 timetable.getAcademicYear(),
                 timetable.getSemester(),
-                List.copyOf(courses)
+                List.copyOf(courses),
+                termSummary,
+                cumulativeSummary
         );
     }
 }

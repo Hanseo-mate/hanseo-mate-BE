@@ -197,7 +197,7 @@ class CorsIntegrationTest {
     }
 
     @Test
-    void gradeCalculationPreflightAllowsPublicPost() throws Exception {
+    void gradeCalculationPreflightAllowsAuthenticatedPost() throws Exception {
         mockMvc.perform(options("/api/grade-calculations")
                         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
                         .header(
@@ -206,7 +206,7 @@ class CorsIntegrationTest {
                         )
                         .header(
                                 HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
-                                HttpHeaders.CONTENT_TYPE
+                                "Authorization, Content-Type"
                         ))
                 .andExpect(status().isOk())
                 .andExpect(header().string(
@@ -216,6 +216,10 @@ class CorsIntegrationTest {
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
                         containsString(HttpMethod.POST.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
                 ))
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
@@ -248,6 +252,38 @@ class CorsIntegrationTest {
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
                         containsString(HttpHeaders.AUTHORIZATION)
+                ));
+    }
+
+    @Test
+    void gradeCalculatorExpectedGradePreflightAllowsAuthenticatedPatch()
+            throws Exception {
+        mockMvc.perform(options("/api/grade-calculations/timetable-courses/1")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.PATCH.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "Authorization, Content-Type"
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.PATCH.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.CONTENT_TYPE)
                 ));
     }
 

@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.timetable.composition.dto;
 
+import hsu.hanseomate.domain.gradecalculator.dto.GradeCompactSummaryResponse;
 import hsu.hanseomate.domain.timetable.composition.entity.Timetable;
 import java.util.List;
 
@@ -8,11 +9,13 @@ public record TimetableDetailResponse(
         int year,
         int semester,
         List<TimetableCourseResponse> courses,
-        List<TimetableCourseResponse> cyberCourses
+        List<TimetableCourseResponse> cyberCourses,
+        GradeCompactSummaryResponse gradeSummary
 ) {
     public static TimetableDetailResponse from(
             Timetable timetable,
-            List<TimetableCourseResponse> courses
+            List<TimetableCourseResponse> courses,
+            GradeCompactSummaryResponse gradeSummary
     ) {
         List<TimetableCourseResponse> regularCourses = courses.stream()
                 .filter(course -> !course.cyber())
@@ -25,7 +28,8 @@ public record TimetableDetailResponse(
                 timetable.getAcademicYear(),
                 timetable.getSemester(),
                 regularCourses,
-                cyberCourses
+                cyberCourses,
+                gradeSummary
         );
     }
 }

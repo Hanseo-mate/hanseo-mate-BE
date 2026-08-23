@@ -130,12 +130,36 @@ GET /api/timetables?year=2026&semester=2
       ]
     }
   ],
-  "cyberCourses": []
+  "cyberCourses": [],
+  "gradeSummary": {
+    "termSummary": {
+      "maximumGpa": 4.5,
+      "totalCredits": 3.000,
+      "gpaCredits": 3.000,
+      "earnedCredits": 3.000,
+      "averageGpa": 4.50,
+      "ungradedCourseCount": 0,
+      "unavailableCreditCourseCount": 0,
+      "status": "COMPLETE"
+    },
+    "cumulativeSummary": {
+      "maximumGpa": 4.5,
+      "totalCredits": 18.000,
+      "gpaCredits": 18.000,
+      "earnedCredits": 18.000,
+      "averageGpa": 3.90,
+      "ungradedCourseCount": 0,
+      "unavailableCreditCourseCount": 0,
+      "status": "COMPLETE"
+    }
+  }
 }
 ```
 
 `courses`에는 일반 강좌, `cyberCourses`에는 `cyber=true`인 사이버 강좌가 들어간다.
 각 강좌는 두 배열 중 하나에만 포함된다.
+`gradeSummary`는 시간표 화면 하단에 표시할 현재 학기와 전체 학기 누적 통계다. 계산
+규칙과 성적 설정 방법은 [학점 계산기 API 명세서](grade-calculator-api.md)를 따른다.
 
 - `generalCategory`: 전공은 `null`, 교양은 `REQUIRED`, `AREA_1`, `AREA_2`,
   `AREA_3`, `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`,
