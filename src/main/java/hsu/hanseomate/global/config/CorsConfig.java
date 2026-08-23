@@ -106,6 +106,7 @@ public class CorsConfig {
         gradeCalculatorConfiguration.setAllowedMethods(List.of(
                 HttpMethod.GET.name(),
                 HttpMethod.POST.name(),
+                HttpMethod.PATCH.name(),
                 HttpMethod.OPTIONS.name()
         ));
         gradeCalculatorConfiguration.setAllowedHeaders(List.of(

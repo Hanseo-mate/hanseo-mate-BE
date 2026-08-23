@@ -6,6 +6,7 @@ import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentNameProjection;
 import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
+import hsu.hanseomate.domain.gradecalculator.service.GradeCalculatorService;
 import hsu.hanseomate.domain.timetable.composition.currentuser.CurrentUserIdProvider;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseAddRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseResponse;
@@ -47,6 +48,7 @@ public class TimetableService {
     private final OfferingEligibleDepartmentRepository offeringEligibleDepartmentRepository;
     private final TimetableConflictDetector conflictDetector;
     private final CurrentUserIdProvider currentUserIdProvider;
+    private final GradeCalculatorService gradeCalculatorService;
 
     @Transactional
     public TimetableCreateResponse create(TimetableCreateRequest request) {
@@ -89,7 +91,8 @@ public class TimetableService {
                 timetableCourseRepository.findAllByTimetableIdOrderById(timetable.getId());
         return TimetableDetailResponse.from(
                 timetable,
-                toCourseResponses(timetableCourses)
+                toCourseResponses(timetableCourses),
+                gradeCalculatorService.getCompactSummary(timetable.getId())
         );
     }
 

@@ -2,12 +2,16 @@ package hsu.hanseomate.domain.gradecalculator.controller;
 
 import hsu.hanseomate.domain.gradecalculator.dto.GradeCalculationRequest;
 import hsu.hanseomate.domain.gradecalculator.dto.GradeCalculationResponse;
+import hsu.hanseomate.domain.gradecalculator.dto.GradeCourseUpdateRequest;
+import hsu.hanseomate.domain.gradecalculator.dto.GradeOverviewResponse;
 import hsu.hanseomate.domain.gradecalculator.dto.GradeScaleResponse;
 import hsu.hanseomate.domain.gradecalculator.dto.TimetableGradeCoursesResponse;
 import hsu.hanseomate.domain.gradecalculator.service.GradeCalculatorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +30,11 @@ public class GradeCalculatorController {
         return GradeScaleResponse.hanseoUniversity();
     }
 
+    @GetMapping("/overview")
+    public GradeOverviewResponse getOverview() {
+        return gradeCalculatorService.getOverview();
+    }
+
     @PostMapping
     public GradeCalculationResponse calculate(
             @Valid @RequestBody GradeCalculationRequest request
@@ -39,5 +48,16 @@ public class GradeCalculatorController {
             @RequestParam Integer semester
     ) {
         return gradeCalculatorService.getTimetableCourses(year, semester);
+    }
+
+    @PatchMapping("/timetable-courses/{timetableCourseId}")
+    public TimetableGradeCoursesResponse updateExpectedGrade(
+            @PathVariable Long timetableCourseId,
+            @RequestBody GradeCourseUpdateRequest request
+    ) {
+        return gradeCalculatorService.updateExpectedGrade(
+                timetableCourseId,
+                request
+        );
     }
 }

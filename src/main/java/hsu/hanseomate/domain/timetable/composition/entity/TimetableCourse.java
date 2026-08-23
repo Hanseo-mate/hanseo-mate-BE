@@ -1,9 +1,12 @@
 package hsu.hanseomate.domain.timetable.composition.entity;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
+import hsu.hanseomate.domain.gradecalculator.type.ExpectedGrade;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -19,6 +22,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -53,6 +58,11 @@ public class TimetableCourse {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private CourseOffering courseOffering;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "expected_grade", length = 20)
+    private ExpectedGrade expectedGrade;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -64,5 +74,9 @@ public class TimetableCourse {
 
     public static TimetableCourse create(Timetable timetable, CourseOffering courseOffering) {
         return new TimetableCourse(timetable, courseOffering);
+    }
+
+    public void updateExpectedGrade(ExpectedGrade expectedGrade) {
+        this.expectedGrade = expectedGrade;
     }
 }

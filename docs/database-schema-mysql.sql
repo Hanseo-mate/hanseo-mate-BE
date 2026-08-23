@@ -385,12 +385,28 @@ CREATE TABLE timetable_courses (
     id BIGINT NOT NULL AUTO_INCREMENT,
     timetable_id BIGINT NOT NULL,
     course_offering_id BINARY(16) NOT NULL,
+    expected_grade VARCHAR(20) NULL,
     created_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_timetable_course_offering
         UNIQUE (timetable_id, course_offering_id),
     INDEX ix_timetable_course_timetable (timetable_id),
     INDEX ix_timetable_course_offering (course_offering_id),
+    CONSTRAINT ck_timetable_course_expected_grade CHECK (
+        expected_grade IS NULL
+        OR BINARY expected_grade IN (
+            BINARY 'A_PLUS',
+            BINARY 'A',
+            BINARY 'B_PLUS',
+            BINARY 'B',
+            BINARY 'C_PLUS',
+            BINARY 'C',
+            BINARY 'D_PLUS',
+            BINARY 'D',
+            BINARY 'P',
+            BINARY 'F'
+        )
+    ),
     CONSTRAINT fk_timetable_course_timetable
         FOREIGN KEY (timetable_id) REFERENCES timetables (id) ON DELETE CASCADE,
     CONSTRAINT fk_timetable_course_offering

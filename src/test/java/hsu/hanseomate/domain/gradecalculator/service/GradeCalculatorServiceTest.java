@@ -39,7 +39,7 @@ class GradeCalculatorServiceTest {
     }
 
     @Test
-    void calculatesOfficialExampleAndDoesNotRequireTimetableOrLogin() {
+    void calculatesOfficialExampleWithoutRepositoryAccess() {
         GradeCalculationResponse response = calculate(
                 course("자료구조", "3", ExpectedGrade.A_PLUS),
                 course("모바일프로그래밍", "2", ExpectedGrade.B),

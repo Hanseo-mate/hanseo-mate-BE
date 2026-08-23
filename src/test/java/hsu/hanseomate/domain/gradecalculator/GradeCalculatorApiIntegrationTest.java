@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.gradecalculator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,14 +39,18 @@ import tools.jackson.databind.ObjectMapper;
 class GradeCalculatorApiIntegrationTest {
 
     private static final String CALCULATIONS_PATH = "/api/grade-calculations";
+    private static final String OVERVIEW_PATH = CALCULATIONS_PATH + "/overview";
     private static final String TIMETABLE_COURSES_PATH =
             CALCULATIONS_PATH + "/timetable-courses";
     private static final String TIMETABLE_PATH = "/api/timetables";
     private static final String FIXTURE =
             "fixtures/course-import/course-search-major-2026-1.json";
+    private static final String FIXTURE_IMPORT_ID = "course-search-major-2026-1";
+    private static final String FIXTURE_HASH =
+            "1111111111111111111111111111111111111111111111111111111111111111";
     private static final String ALPHA_CODE = "003000";
     private static final String CHARLIE_CODE = "001000";
-    private static final String OTHER_CODE = "005000";
+    private static final String BETA_CODE = "002000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -70,8 +75,26 @@ class GradeCalculatorApiIntegrationTest {
     }
 
     @Test
-    void gradeScaleIsAvailableWithoutAuthentication() throws Exception {
-        mockMvc.perform(get(CALCULATIONS_PATH + "/grades"))
+    void allGradeCalculatorApisRequireAuthentication() throws Exception {
+        assertAuthenticationRequired(get(CALCULATIONS_PATH + "/grades"));
+        assertAuthenticationRequired(get(OVERVIEW_PATH));
+        assertAuthenticationRequired(post(CALCULATIONS_PATH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"courses\":[]}"));
+        assertAuthenticationRequired(get(TIMETABLE_COURSES_PATH)
+                .param("year", "2026")
+                .param("semester", "1"));
+        assertAuthenticationRequired(patch(TIMETABLE_COURSES_PATH + "/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedGrade\":\"A+\"}"));
+    }
+
+    @Test
+    void authenticatedUserCanReadGradeScaleAndUseLegacyCalculation()
+            throws Exception {
+        String accessToken = registerAndLogin("grade-calculation-user");
+
+        performAuthenticated(accessToken, get(CALCULATIONS_PATH + "/grades"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.maximumGpa").value(4.5))
                 .andExpect(jsonPath("$.grades.length()").value(10))
@@ -87,38 +110,33 @@ class GradeCalculatorApiIntegrationTest {
                 .andExpect(jsonPath("$.grades[9].gradePoint").value(0.0))
                 .andExpect(jsonPath("$.grades[9].includedInGpa").value(true))
                 .andExpect(jsonPath("$.grades[9].creditEarned").value(false));
-    }
 
-    @Test
-    void calculatesOfficialExampleWithoutAuthentication() throws Exception {
-        String request = """
-                {
-                  "courses": [
-                    {
-                      "courseName": "자료구조",
-                      "credit": 3,
-                      "expectedGrade": "A+",
-                      "curriculumType": "MAJOR"
-                    },
-                    {
-                      "courseName": "모바일프로그래밍",
-                      "credit": 2,
-                      "expectedGrade": "B",
-                      "curriculumType": "MAJOR"
-                    },
-                    {
-                      "courseName": "봉사활동",
-                      "credit": 1,
-                      "expectedGrade": "P",
-                      "curriculumType": "GENERAL_EDUCATION"
-                    }
-                  ]
-                }
-                """;
-
-        mockMvc.perform(post(CALCULATIONS_PATH)
+        performAuthenticated(accessToken, post(CALCULATIONS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
+                        .content("""
+                                {
+                                  "courses": [
+                                    {
+                                      "courseName": "자료구조",
+                                      "credit": 3,
+                                      "expectedGrade": "A+",
+                                      "curriculumType": "MAJOR"
+                                    },
+                                    {
+                                      "courseName": "모바일프로그래밍",
+                                      "credit": 2,
+                                      "expectedGrade": "B",
+                                      "curriculumType": "MAJOR"
+                                    },
+                                    {
+                                      "courseName": "봉사활동",
+                                      "credit": 1,
+                                      "expectedGrade": "P",
+                                      "curriculumType": "GENERAL_EDUCATION"
+                                    }
+                                  ]
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.maximumGpa").value(4.5))
                 .andExpect(jsonPath("$.appliedCredits").value(6))
@@ -130,8 +148,11 @@ class GradeCalculatorApiIntegrationTest {
     }
 
     @Test
-    void rejectsUnsupportedGradeAndZeroCredit() throws Exception {
-        mockMvc.perform(post(CALCULATIONS_PATH)
+    void authenticatedLegacyCalculationStillValidatesGradeAndCredit()
+            throws Exception {
+        String accessToken = registerAndLogin("grade-validation-user");
+
+        performAuthenticated(accessToken, post(CALCULATIONS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -144,7 +165,7 @@ class GradeCalculatorApiIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        mockMvc.perform(post(CALCULATIONS_PATH)
+        performAuthenticated(accessToken, post(CALCULATIONS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -159,69 +180,210 @@ class GradeCalculatorApiIntegrationTest {
     }
 
     @Test
-    void timetableCourseImportRequiresAuthentication() throws Exception {
-        mockMvc.perform(get(TIMETABLE_COURSES_PATH)
-                        .param("year", "2026")
-                        .param("semester", "1"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."))
-                .andExpect(jsonPath("$.path").value(TIMETABLE_COURSES_PATH));
+    void expectedGradeFieldMustBePresentWhenUpdatingCourse() throws Exception {
+        importMajorFixture(2026, 1);
+        String accessToken = registerAndLogin("grade-missing-field-user");
+        long timetableId = createTimetable(accessToken, 2026, 1);
+        long timetableCourseId = addCourse(
+                accessToken,
+                timetableId,
+                offeringIdByTermAndCode(2026, 1, ALPHA_CODE)
+        );
+
+        performAuthenticated(accessToken, patch(
+                        TIMETABLE_COURSES_PATH + "/{timetableCourseId}",
+                        timetableCourseId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("expectedGrade 필드는 필수입니다."));
     }
 
     @Test
-    void returnsOnlyAuthenticatedUsersTimetableCoursesForRequestedTerm()
+    void selectedTermUsesOfferingCreditAndExpectedGradeCanBeSavedAndCleared()
             throws Exception {
-        importMajorFixture();
-        String ownerToken = registerAndLogin("grade-owner");
-        String otherOwnerToken = registerAndLogin("other-grade-owner");
-        UUID alphaId = offeringIdByCode(ALPHA_CODE);
-        UUID charlieId = offeringIdByCode(CHARLIE_CODE);
-        UUID otherId = offeringIdByCode(OTHER_CODE);
+        importMajorFixture(2026, 1);
+        String accessToken = registerAndLogin("grade-update-user");
+        UUID alphaId = offeringIdByTermAndCode(2026, 1, ALPHA_CODE);
+        long timetableId = createTimetable(accessToken, 2026, 1);
+        long timetableCourseId = addCourse(accessToken, timetableId, alphaId);
 
-        long ownerTimetableId = createTimetable(ownerToken, 2026, 1);
-        long alphaTimetableCourseId = addCourse(ownerToken, ownerTimetableId, alphaId);
-        long charlieTimetableCourseId = addCourse(ownerToken, ownerTimetableId, charlieId);
-        long otherTimetableId = createTimetable(otherOwnerToken, 2026, 1);
-        long otherTimetableCourseId = addCourse(
-                otherOwnerToken,
-                otherTimetableId,
-                otherId
-        );
-
-        performAuthenticated(ownerToken, get(TIMETABLE_COURSES_PATH)
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
                         .param("year", "2026")
                         .param("semester", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.timetableId").value(ownerTimetableId))
-                .andExpect(jsonPath("$.year").value(2026))
-                .andExpect(jsonPath("$.semester").value(1))
-                .andExpect(jsonPath("$.courses.length()").value(2))
+                .andExpect(jsonPath("$.timetableId").value(timetableId))
+                .andExpect(jsonPath("$.courses.length()").value(1))
                 .andExpect(jsonPath("$.courses[0].timetableCourseId")
-                        .value(alphaTimetableCourseId))
-                .andExpect(jsonPath("$.courses[0].courseId").value(alphaId.toString()))
+                        .value(timetableCourseId))
                 .andExpect(jsonPath("$.courses[0].courseName").value("알파개론"))
                 .andExpect(jsonPath("$.courses[0].credit").value(1.0))
-                .andExpect(jsonPath("$.courses[0].curriculumType").value("MAJOR"))
-                .andExpect(jsonPath("$.courses[1].timetableCourseId")
-                        .value(charlieTimetableCourseId))
-                .andExpect(jsonPath("$.courses[1].courseId").value(charlieId.toString()))
-                .andExpect(jsonPath("$.courses[1].courseName").value("찰리실습"))
-                .andExpect(jsonPath("$.courses[1].credit").value(2.0))
-                .andExpect(jsonPath("$.courses[1].curriculumType").value("MAJOR"));
+                .andExpect(jsonPath("$.courses[0].expectedGrade")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(0))
+                .andExpect(jsonPath("$.termSummary.averageGpa")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.termSummary.ungradedCourseCount").value(1))
+                .andExpect(jsonPath("$.termSummary.status").value("INCOMPLETE"));
 
-        performAuthenticated(otherOwnerToken, get(TIMETABLE_COURSES_PATH)
+        updateGrade(accessToken, timetableCourseId, "\"A+\"")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.earnedCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50))
+                .andExpect(jsonPath("$.termSummary.ungradedCourseCount").value(0))
+                .andExpect(jsonPath("$.termSummary.status").value("COMPLETE"))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa").value(4.50));
+
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"));
+
+        updateGrade(accessToken, timetableCourseId, "null")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].expectedGrade")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(0))
+                .andExpect(jsonPath("$.termSummary.earnedCredits").value(0))
+                .andExpect(jsonPath("$.termSummary.averageGpa")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.termSummary.ungradedCourseCount").value(1))
+                .andExpect(jsonPath("$.termSummary.status").value("INCOMPLETE"));
+
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].expectedGrade")
+                        .value(nullValue()));
+    }
+
+    @Test
+    void timetableGradeDataIsIsolatedByAuthenticatedOwner() throws Exception {
+        importMajorFixture(2026, 1);
+        String ownerToken = registerAndLogin("grade-owner");
+        String otherToken = registerAndLogin("other-grade-owner");
+        UUID alphaId = offeringIdByTermAndCode(2026, 1, ALPHA_CODE);
+        UUID charlieId = offeringIdByTermAndCode(2026, 1, CHARLIE_CODE);
+
+        long ownerTimetableId = createTimetable(ownerToken, 2026, 1);
+        long ownerCourseId = addCourse(ownerToken, ownerTimetableId, alphaId);
+        long otherTimetableId = createTimetable(otherToken, 2026, 1);
+        long otherCourseId = addCourse(otherToken, otherTimetableId, charlieId);
+        updateGrade(ownerToken, ownerCourseId, "\"A\"")
+                .andExpect(status().isOk());
+
+        updateGrade(otherToken, ownerCourseId, "\"F\"")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("TIMETABLE_COURSE_NOT_FOUND"));
+
+        performAuthenticated(otherToken, get(TIMETABLE_COURSES_PATH)
                         .param("year", "2026")
                         .param("semester", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.timetableId").value(otherTimetableId))
                 .andExpect(jsonPath("$.courses.length()").value(1))
                 .andExpect(jsonPath("$.courses[0].timetableCourseId")
-                        .value(otherTimetableCourseId))
-                .andExpect(jsonPath("$.courses[0].courseId").value(otherId.toString()))
-                .andExpect(jsonPath("$.courses[0].courseName").value("기타세미나"))
-                .andExpect(jsonPath("$.courses[0].credit").value(5.0))
-                .andExpect(jsonPath("$.courses[0].curriculumType").value("MAJOR"));
+                        .value(otherCourseId))
+                .andExpect(jsonPath("$.courses[0].courseName").value("찰리실습"))
+                .andExpect(jsonPath("$.courses[0].expectedGrade")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(2.0))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa")
+                        .value(nullValue()));
+
+        performAuthenticated(ownerToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.timetableId").value(ownerTimetableId))
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A"))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa").value(4.00));
+    }
+
+    @Test
+    void overviewIsNewestFirstAndTimetableDetailIncludesWeightedSummaries()
+            throws Exception {
+        importMajorFixture(2026, 1);
+        importMajorFixture(2025, 2);
+        String accessToken = registerAndLogin("grade-overview-user");
+
+        long latestTimetableId = createTimetable(accessToken, 2026, 1);
+        long latestCourseId = addCourse(
+                accessToken,
+                latestTimetableId,
+                offeringIdByTermAndCode(2026, 1, ALPHA_CODE)
+        );
+        long olderTimetableId = createTimetable(accessToken, 2025, 2);
+        long olderCourseId = addCourse(
+                accessToken,
+                olderTimetableId,
+                offeringIdByTermAndCode(2025, 2, BETA_CODE)
+        );
+        updateGrade(accessToken, latestCourseId, "\"A+\"")
+                .andExpect(status().isOk());
+        updateGrade(accessToken, olderCourseId, "\"B\"")
+                .andExpect(status().isOk());
+
+        performAuthenticated(accessToken, get(OVERVIEW_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maximumGpa").value(4.5))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(4.0))
+                .andExpect(jsonPath("$.cumulativeSummary.gpaCredits").value(4.0))
+                .andExpect(jsonPath("$.cumulativeSummary.earnedCredits").value(4.0))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa").value(3.38))
+                .andExpect(jsonPath("$.cumulativeSummary.status").value("COMPLETE"))
+                .andExpect(jsonPath("$.terms.length()").value(2))
+                .andExpect(jsonPath("$.terms[0].timetableId")
+                        .value(latestTimetableId))
+                .andExpect(jsonPath("$.terms[0].year").value(2026))
+                .andExpect(jsonPath("$.terms[0].semester").value(1))
+                .andExpect(jsonPath("$.terms[0].courseCount").value(1))
+                .andExpect(jsonPath("$.terms[0].summary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.terms[0].summary.averageGpa").value(4.50))
+                .andExpect(jsonPath("$.terms[1].timetableId")
+                        .value(olderTimetableId))
+                .andExpect(jsonPath("$.terms[1].year").value(2025))
+                .andExpect(jsonPath("$.terms[1].semester").value(2))
+                .andExpect(jsonPath("$.terms[1].courseCount").value(1))
+                .andExpect(jsonPath("$.terms[1].summary.totalCredits").value(3.0))
+                .andExpect(jsonPath("$.terms[1].summary.averageGpa").value(3.00));
+
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(1.0))
+                .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50))
+                .andExpect(jsonPath("$.cumulativeSummary.totalCredits").value(4.0))
+                .andExpect(jsonPath("$.cumulativeSummary.averageGpa").value(3.38));
+
+        performAuthenticated(accessToken, get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.timetableId").value(latestTimetableId))
+                .andExpect(jsonPath("$.courses[0].credit").value(1.0))
+                .andExpect(jsonPath("$.gradeSummary.termSummary.totalCredits")
+                        .value(1.0))
+                .andExpect(jsonPath("$.gradeSummary.termSummary.averageGpa")
+                        .value(4.50))
+                .andExpect(jsonPath("$.gradeSummary.cumulativeSummary.totalCredits")
+                        .value(4.0))
+                .andExpect(jsonPath("$.gradeSummary.cumulativeSummary.averageGpa")
+                        .value(3.38));
     }
 
     @Test
@@ -236,6 +398,14 @@ class GradeCalculatorApiIntegrationTest {
                 .andExpect(jsonPath("$.code").value("TIMETABLE_NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("시간표를 찾을 수 없습니다."))
                 .andExpect(jsonPath("$.path").value(TIMETABLE_COURSES_PATH));
+    }
+
+    private void assertAuthenticationRequired(MockHttpServletRequestBuilder request)
+            throws Exception {
+        mockMvc.perform(request)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
     }
 
     private String registerAndLogin(String loginId) throws Exception {
@@ -286,6 +456,19 @@ class GradeCalculatorApiIntegrationTest {
         return responseBody(result).path("timetableCourseId").asLong();
     }
 
+    private ResultActions updateGrade(
+            String token,
+            long timetableCourseId,
+            String expectedGradeJson
+    ) throws Exception {
+        return performAuthenticated(token, patch(
+                        TIMETABLE_COURSES_PATH + "/{timetableCourseId}",
+                        timetableCourseId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedGrade\":" + expectedGradeJson + "}"));
+    }
+
     private ResultActions performAuthenticated(
             String token,
             MockHttpServletRequestBuilder requestBuilder
@@ -296,9 +479,14 @@ class GradeCalculatorApiIntegrationTest {
         ));
     }
 
-    private void importMajorFixture() throws Exception {
+    private void importMajorFixture(int year, int semester) throws Exception {
+        String term = year + "-" + semester;
         String payload = new ClassPathResource(FIXTURE)
-                .getContentAsString(StandardCharsets.UTF_8);
+                .getContentAsString(StandardCharsets.UTF_8)
+                .replace(FIXTURE_IMPORT_ID, "course-search-major-" + term)
+                .replace(FIXTURE_HASH, String.format("%064x", year * 10 + semester))
+                .replace("\"academicYear\": 2026", "\"academicYear\": " + year)
+                .replace("\"semester\": 1", "\"semester\": " + semester);
         CourseImportResponse response = courseImportService.importCourses(
                 objectMapper.readValue(payload, TimetableParseResultRequest.class)
         );
@@ -307,16 +495,22 @@ class GradeCalculatorApiIntegrationTest {
         assertThat(response.offeringCount()).isEqualTo(5);
     }
 
-    private UUID offeringIdByCode(String courseCode) {
+    private UUID offeringIdByTermAndCode(int year, int semester, String courseCode) {
         return jdbcTemplate.queryForObject(
                 """
                 select offering.id
                 from course_offerings offering
                 join courses course on course.id = offering.course_id
-                where offering.active = true and course.course_code = ?
+                join semesters semester on semester.id = offering.semester_id
+                where offering.active = true
+                  and semester.academic_year = ?
+                  and semester.semester = ?
+                  and course.course_code = ?
                 limit 1
                 """,
                 UUID.class,
+                year,
+                semester,
                 courseCode
         );
     }
