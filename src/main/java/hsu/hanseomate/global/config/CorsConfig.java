@@ -101,6 +101,21 @@ public class CorsConfig {
         publicReadConfiguration.setAllowCredentials(false);
         publicReadConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
+        CorsConfiguration gradeCalculatorConfiguration = new CorsConfiguration();
+        gradeCalculatorConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
+        gradeCalculatorConfiguration.setAllowedMethods(List.of(
+                HttpMethod.GET.name(),
+                HttpMethod.POST.name(),
+                HttpMethod.OPTIONS.name()
+        ));
+        gradeCalculatorConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION,
+                HttpHeaders.CONTENT_TYPE,
+                HttpHeaders.ACCEPT
+        ));
+        gradeCalculatorConfiguration.setAllowCredentials(false);
+        gradeCalculatorConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
@@ -137,6 +152,14 @@ public class CorsConfig {
         source.registerCorsConfiguration(
                 "/api/cafeteria/**",
                 publicReadConfiguration
+        );
+        source.registerCorsConfiguration(
+                "/api/grade-calculations",
+                gradeCalculatorConfiguration
+        );
+        source.registerCorsConfiguration(
+                "/api/grade-calculations/**",
+                gradeCalculatorConfiguration
         );
         return source;
     }

@@ -75,6 +75,8 @@ public class SecurityConfig {
                         "/api/auth/me",
                         "/api/auth/me/**",
                         "/api/timetables/**",
+                        "/api/grade-calculations/timetable-courses",
+                        "/api/grade-calculations/timetable-courses/**",
                         "/api/calendars/me",
                         "/api/calendars/me/**"
                 )
