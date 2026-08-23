@@ -1,11 +1,13 @@
 package hsu.hanseomate.domain.timetable.composition.repository;
 
 import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +22,37 @@ public interface TimetableCourseRepository extends JpaRepository<TimetableCourse
             "courseOffering.course.generalEducation"
     })
     List<TimetableCourse> findAllByTimetableIdOrderById(Long timetableId);
+
+    @EntityGraph(attributePaths = {
+            "timetable",
+            "courseOffering",
+            "courseOffering.course",
+            "courseOffering.course.generalEducation"
+    })
+    @Query("""
+            select tc
+            from TimetableCourse tc
+            where tc.timetable.ownerId = :ownerId
+            order by tc.timetable.academicYear desc,
+                     tc.timetable.semester desc,
+                     tc.id
+            """)
+    List<TimetableCourse> findAllByOwnerIdForGradeCalculation(
+            @Param("ownerId") Long ownerId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select tc
+            from TimetableCourse tc
+            join fetch tc.timetable timetable
+            where tc.id = :timetableCourseId
+              and timetable.ownerId = :ownerId
+            """)
+    Optional<TimetableCourse> findOwnedByIdForUpdate(
+            @Param("timetableCourseId") Long timetableCourseId,
+            @Param("ownerId") Long ownerId
+    );
 
     @Query("select tc.timetable.id from TimetableCourse tc where tc.id = :timetableCourseId")
     Optional<Long> findTimetableIdById(

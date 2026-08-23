@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.gradecalculator.dto;
 
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
+import hsu.hanseomate.domain.gradecalculator.type.ExpectedGrade;
 import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -10,7 +11,8 @@ public record TimetableGradeCourseResponse(
         UUID courseId,
         String courseName,
         BigDecimal credit,
-        CurriculumType curriculumType
+        CurriculumType curriculumType,
+        ExpectedGrade expectedGrade
 ) {
     public static TimetableGradeCourseResponse from(TimetableCourse timetableCourse) {
         var offering = timetableCourse.getCourseOffering();
@@ -19,7 +21,8 @@ public record TimetableGradeCourseResponse(
                 offering.getId(),
                 offering.getCourseName(),
                 offering.getCredit(),
-                offering.getScopeCurriculumType()
+                offering.getScopeCurriculumType(),
+                timetableCourse.getExpectedGrade()
         );
     }
 }
