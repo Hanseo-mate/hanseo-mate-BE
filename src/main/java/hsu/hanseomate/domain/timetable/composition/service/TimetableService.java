@@ -153,7 +153,7 @@ public class TimetableService {
             return TimetableCourseResponse.from(
                     created,
                     candidateSchedules,
-                    loadEligibleDepartmentNames(List.of(candidate.getId()))
+                    loadEligibleDepartmentNames(List.of(candidate))
                             .getOrDefault(candidate.getId(), List.of())
             );
         } catch (DataIntegrityViolationException exception) {
@@ -240,19 +240,12 @@ public class TimetableService {
             List<TimetableCourse> existingCourses,
             CourseOffering candidate
     ) {
-        List<UUID> offeringIds = new ArrayList<>(existingCourses.size() + 1);
-        offeringIds.add(candidate.getId());
+        List<CourseOffering> offerings = new ArrayList<>(existingCourses.size() + 1);
+        offerings.add(candidate);
         existingCourses.stream()
                 .map(TimetableCourse::getCourseOffering)
-                .map(CourseOffering::getId)
-                .forEach(offeringIds::add);
-        return courseScheduleRepository.findAllForOfferings(offeringIds)
-                .stream()
-                .collect(Collectors.groupingBy(
-                        schedule -> schedule.getOffering().getId(),
-                        LinkedHashMap::new,
-                        Collectors.toList()
-                ));
+                .forEach(offerings::add);
+        return loadSchedulesForOfferings(offerings);
     }
 
     private List<TimetableCourseResponse> toCourseResponses(
@@ -261,18 +254,11 @@ public class TimetableService {
         if (timetableCourses.isEmpty()) {
             return List.of();
         }
-        List<UUID> offeringIds = timetableCourses.stream()
+        List<CourseOffering> offerings = timetableCourses.stream()
                 .map(TimetableCourse::getCourseOffering)
-                .map(CourseOffering::getId)
                 .toList();
         Map<UUID, List<CourseSchedule>> schedulesByOffering =
-                courseScheduleRepository.findAllForOfferings(offeringIds)
-                        .stream()
-                        .collect(Collectors.groupingBy(
-                                schedule -> schedule.getOffering().getId(),
-                                LinkedHashMap::new,
-                                Collectors.toList()
-                        ));
+                loadSchedulesForOfferings(offerings);
         return toCourseResponses(timetableCourses, schedulesByOffering);
     }
 
@@ -280,12 +266,11 @@ public class TimetableService {
             List<TimetableCourse> timetableCourses,
             Map<UUID, List<CourseSchedule>> schedulesByOffering
     ) {
-        List<UUID> offeringIds = timetableCourses.stream()
+        List<CourseOffering> offerings = timetableCourses.stream()
                 .map(TimetableCourse::getCourseOffering)
-                .map(CourseOffering::getId)
                 .toList();
         Map<UUID, List<String>> eligibleDepartmentsByOffering =
-                loadEligibleDepartmentNames(offeringIds);
+                loadEligibleDepartmentNames(offerings);
         return timetableCourses.stream()
                 .map(timetableCourse -> TimetableCourseResponse.from(
                         timetableCourse,
@@ -301,20 +286,59 @@ public class TimetableService {
                 .toList();
     }
 
-    private Map<UUID, List<String>> loadEligibleDepartmentNames(List<UUID> offeringIds) {
-        if (offeringIds.isEmpty()) {
+    private Map<UUID, List<CourseSchedule>> loadSchedulesForOfferings(
+            List<CourseOffering> offerings
+    ) {
+        if (offerings.isEmpty()) {
             return Map.of();
         }
-        return offeringEligibleDepartmentRepository.findNamesByOfferingIds(offeringIds)
+        List<UUID> courseIds = offerings.stream()
+                .map(offering -> offering.getCourse().getId())
+                .distinct()
+                .toList();
+        Map<UUID, List<CourseSchedule>> schedulesByCourse = courseScheduleRepository
+                .findAllForCourses(courseIds)
                 .stream()
                 .collect(Collectors.groupingBy(
-                        OfferingEligibleDepartmentNameProjection::getOfferingId,
+                        schedule -> schedule.getCourse().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        Map<UUID, List<CourseSchedule>> schedulesByOffering = new LinkedHashMap<>();
+        offerings.forEach(offering -> schedulesByOffering.put(
+                offering.getId(),
+                schedulesByCourse.getOrDefault(offering.getCourse().getId(), List.of())
+        ));
+        return schedulesByOffering;
+    }
+
+    private Map<UUID, List<String>> loadEligibleDepartmentNames(
+            List<CourseOffering> offerings
+    ) {
+        if (offerings.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> courseIds = offerings.stream()
+                .map(offering -> offering.getCourse().getId())
+                .distinct()
+                .toList();
+        Map<UUID, List<String>> namesByCourse = offeringEligibleDepartmentRepository
+                .findNamesByCourseIds(courseIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        OfferingEligibleDepartmentNameProjection::getCourseId,
                         LinkedHashMap::new,
                         Collectors.mapping(
                                 OfferingEligibleDepartmentNameProjection::getDepartmentName,
                                 Collectors.toList()
                         )
                 ));
+        Map<UUID, List<String>> namesByOffering = new LinkedHashMap<>();
+        offerings.forEach(offering -> namesByOffering.put(
+                offering.getId(),
+                namesByCourse.getOrDefault(offering.getCourse().getId(), List.of())
+        ));
+        return namesByOffering;
     }
 
     private boolean violatesConstraint(

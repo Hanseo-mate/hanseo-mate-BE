@@ -17,11 +17,7 @@ import hsu.hanseomate.domain.course.repository.AcademicUnitRepository;
 import hsu.hanseomate.domain.course.repository.ClassroomRepository;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseRepository;
-import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.repository.CourseSourceCellRepository;
-import hsu.hanseomate.domain.course.repository.OfferingAllowedGradeRepository;
-import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
-import hsu.hanseomate.domain.course.repository.OfferingGeneralEducationRepository;
 import hsu.hanseomate.domain.course.repository.SemesterAcademicUnitRepository;
 import hsu.hanseomate.domain.course.repository.SemesterGeneralCategoryNodeRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
@@ -50,8 +46,10 @@ import java.util.Collection;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -71,11 +69,7 @@ public class CourseImportService {
     private final CourseRepository courseRepository;
     private final ClassroomRepository classroomRepository;
     private final CourseOfferingRepository courseOfferingRepository;
-    private final CourseScheduleRepository courseScheduleRepository;
     private final CourseSourceCellRepository courseSourceCellRepository;
-    private final OfferingGeneralEducationRepository offeringGeneralEducationRepository;
-    private final OfferingAllowedGradeRepository offeringAllowedGradeRepository;
-    private final OfferingEligibleDepartmentRepository offeringEligibleDepartmentRepository;
     private final SemesterAcademicUnitRepository semesterAcademicUnitRepository;
     private final SemesterGeneralCategoryNodeRepository semesterGeneralCategoryNodeRepository;
     private final CourseImportHistoryRepository courseImportHistoryRepository;
@@ -143,11 +137,20 @@ public class CourseImportService {
         }
         entityManager.flush();
 
-        Map<String, AcademicUnit> academicUnits = resolveAcademicUnits(request);
-        Map<String, Course> courses = resolveCourses(request);
-        Map<String, Classroom> classrooms = resolveClassrooms(request);
+        List<LectureRequest> lectures = deduplicateLectures(request);
+        Map<String, AcademicUnit> academicUnits = resolveAcademicUnits(request, lectures);
+        List<ResolvedCourse> courses = resolveCourses(
+                request,
+                lectures,
+                academicUnits
+        );
+        List<LectureRequest> newlyInitializedLectures = courses.stream()
+                .filter(ResolvedCourse::detailsInitialized)
+                .map(ResolvedCourse::lecture)
+                .toList();
+        Map<String, Classroom> classrooms = resolveClassrooms(newlyInitializedLectures);
 
-        replaceScope(semester, request.curriculumType());
+        replaceScopeTaxonomy(semester, request.curriculumType());
 
         String rawPayload = serialize(request);
         CourseImportHistory history = CourseImportHistory.stored(
@@ -162,7 +165,7 @@ public class CourseImportService {
                 request.curriculumType(),
                 request.displayName(),
                 BigDecimal.valueOf(request.confidence()),
-                request.lectures().size(),
+                lectures.size(),
                 rawPayload
         );
         entityManager.persist(history);
@@ -170,10 +173,14 @@ public class CourseImportService {
         persistSemesterAcademicUnits(semester, request.curriculumType(), academicUnits.values());
         persistGeneralCategoryNodes(semester, request, history);
 
-        List<CourseOffering> offerings = persistOfferings(
-                semester, request, history, academicUnits, courses
+        List<ResolvedOffering> offerings = syncOfferings(
+                semester,
+                request,
+                history,
+                courses
         );
-        persistOfferingDetails(request.lectures(), offerings, classrooms);
+        persistSharedCourseDetails(courses, classrooms);
+        replaceSourceCells(offerings);
         persistImportIssues(request.issues(), history);
 
         entityManager.flush();
@@ -181,7 +188,7 @@ public class CourseImportService {
                 request.importId(),
                 StorageStatus.STORED,
                 true,
-                request.lectures().size(),
+                lectures.size(),
                 successMessage(request),
                 List.of()
         );
@@ -222,10 +229,22 @@ public class CourseImportService {
         return semester;
     }
 
-    private Map<String, AcademicUnit> resolveAcademicUnits(TimetableParseResultRequest request) {
+    private List<LectureRequest> deduplicateLectures(TimetableParseResultRequest request) {
+        LinkedHashMap<String, LectureRequest> uniqueLectures = new LinkedHashMap<>();
+        request.lectures().forEach(lecture -> uniqueLectures.putIfAbsent(
+                courseKey(request.importId(), lecture),
+                lecture
+        ));
+        return List.copyOf(uniqueLectures.values());
+    }
+
+    private Map<String, AcademicUnit> resolveAcademicUnits(
+            TimetableParseResultRequest request,
+            List<LectureRequest> lectures
+    ) {
         LinkedHashMap<String, AcademicUnitRequest> requested = new LinkedHashMap<>();
         request.academicUnits().forEach(unit -> requested.put(academicUnitKey(unit), unit));
-        request.lectures().stream()
+        lectures.stream()
                 .map(LectureRequest::academicUnit)
                 .filter(Objects::nonNull)
                 .forEach(unit -> requested.put(academicUnitKey(unit), unit));
@@ -246,30 +265,96 @@ public class CourseImportService {
         return result;
     }
 
-    private Map<String, Course> resolveCourses(TimetableParseResultRequest request) {
-        LinkedHashMap<String, LectureRequest> requested = new LinkedHashMap<>();
-        for (LectureRequest lecture : request.lectures()) {
-            requested.put(courseKey(request.importId(), lecture), lecture);
-        }
-        Map<String, Course> result = courseRepository.findAllByMasterKeyIn(requested.keySet())
-                .stream()
-                .collect(Collectors.toMap(Course::getMasterKey, Function.identity()));
-        requested.forEach((key, lecture) -> {
-            Course existing = result.get(key);
-            if (existing == null) {
-                Course created = Course.create(key, lecture.courseCode(), lecture.courseName());
-                entityManager.persist(created);
-                result.put(key, created);
-            } else {
-                existing.updateName(lecture.courseName());
+    private List<ResolvedCourse> resolveCourses(
+            TimetableParseResultRequest request,
+            List<LectureRequest> lectures,
+            Map<String, AcademicUnit> academicUnits
+    ) {
+        Set<String> masterKeys = lectures.stream()
+                .map(lecture -> courseKey(request.importId(), lecture))
+                .collect(Collectors.toSet());
+        Map<String, Course> byMasterKey = masterKeys.isEmpty()
+                ? Map.of()
+                : courseRepository.findAllByMasterKeyIn(masterKeys)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                Course::getMasterKey,
+                                Function.identity()
+                        ));
+
+        Set<String> courseCodes = lectures.stream()
+                .map(LectureRequest::courseCode)
+                .map(this::normalizeCourseCode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, Course> byCourseCode = courseCodes.isEmpty()
+                ? Map.of()
+                : courseRepository.findAllByCourseCodeIn(courseCodes).stream()
+                        .collect(Collectors.toMap(
+                                course -> normalizeCourseCode(course.getCourseCode()),
+                                Function.identity(),
+                                (first, ignored) -> first
+                        ));
+
+        List<ResolvedCourse> result = new ArrayList<>(lectures.size());
+        for (LectureRequest lecture : lectures) {
+            String masterKey = courseKey(request.importId(), lecture);
+            String courseCode = normalizeCourseCode(lecture.courseCode());
+            Course course = byMasterKey.get(masterKey);
+            if (course == null && courseCode != null) {
+                course = byCourseCode.get(courseCode);
             }
-        });
+
+            AcademicUnit academicUnit = lecture.academicUnit() == null
+                    ? null
+                    : academicUnits.get(academicUnitKey(lecture.academicUnit()));
+            boolean detailsInitialized;
+            if (course == null) {
+                course = Course.createWithDetails(
+                        masterKey,
+                        courseCode,
+                        lecture.courseName(),
+                        academicUnit,
+                        request.curriculumType(),
+                        lecture.sectionNo(),
+                        decimal(lecture.credit()),
+                        decimal(lecture.classHours()),
+                        lecture.instructorName(),
+                        lecture.targetGrade(),
+                        lecture.commonGrade(),
+                        lecture.teamTeaching(),
+                        lecture.note(),
+                        lecture.eligibilityNote(),
+                        lecture.scheduleText(),
+                        lecture.classroomText()
+                );
+                entityManager.persist(course);
+                detailsInitialized = true;
+            } else {
+                detailsInitialized = course.initializeDetailsIfMissing(
+                        academicUnit,
+                        request.curriculumType(),
+                        lecture.sectionNo(),
+                        decimal(lecture.credit()),
+                        decimal(lecture.classHours()),
+                        lecture.instructorName(),
+                        lecture.targetGrade(),
+                        lecture.commonGrade(),
+                        lecture.teamTeaching(),
+                        lecture.note(),
+                        lecture.eligibilityNote(),
+                        lecture.scheduleText(),
+                        lecture.classroomText()
+                );
+            }
+            result.add(new ResolvedCourse(lecture, course, detailsInitialized));
+        }
         return result;
     }
 
-    private Map<String, Classroom> resolveClassrooms(TimetableParseResultRequest request) {
+    private Map<String, Classroom> resolveClassrooms(List<LectureRequest> lectures) {
         LinkedHashMap<String, ClassroomRequest> requested = new LinkedHashMap<>();
-        request.lectures().stream()
+        lectures.stream()
                 .flatMap(lecture -> lecture.schedules().stream())
                 .map(schedule -> schedule.classroom())
                 .filter(Objects::nonNull)
@@ -294,16 +379,7 @@ public class CourseImportService {
         return result;
     }
 
-    private void replaceScope(Semester semester, CurriculumType curriculumType) {
-        List<UUID> offeringIds = courseOfferingRepository.findIdsByScope(semester.getId(), curriculumType);
-        if (!offeringIds.isEmpty()) {
-            courseScheduleRepository.deleteByOfferingIds(offeringIds);
-            courseSourceCellRepository.deleteByOfferingIds(offeringIds);
-            offeringAllowedGradeRepository.deleteByOfferingIds(offeringIds);
-            offeringEligibleDepartmentRepository.deleteByOfferingIds(offeringIds);
-            offeringGeneralEducationRepository.deleteByOfferingIds(offeringIds);
-            courseOfferingRepository.deleteAllByIdIn(offeringIds);
-        }
+    private void replaceScopeTaxonomy(Semester semester, CurriculumType curriculumType) {
         semesterAcademicUnitRepository.deleteByScope(semester.getId(), curriculumType);
         semesterGeneralCategoryNodeRepository.deleteByScope(semester.getId(), curriculumType);
         entityManager.flush();
@@ -347,93 +423,117 @@ public class CourseImportService {
         }
     }
 
-    private List<CourseOffering> persistOfferings(
+    private List<ResolvedOffering> syncOfferings(
             Semester semester,
             TimetableParseResultRequest request,
             CourseImportHistory history,
-            Map<String, AcademicUnit> academicUnits,
-            Map<String, Course> courses
+            List<ResolvedCourse> courses
     ) {
-        List<CourseOffering> offerings = new ArrayList<>(request.lectures().size());
-        for (LectureRequest lecture : request.lectures()) {
-            AcademicUnit academicUnit = lecture.academicUnit() == null
-                    ? null
-                    : academicUnits.get(academicUnitKey(lecture.academicUnit()));
-            CourseOffering offering = CourseOffering.create(
-                    semester,
-                    courses.get(courseKey(request.importId(), lecture)),
-                    academicUnit,
-                    history,
-                    request.curriculumType(),
-                    lecture.sourceSheet(),
-                    lecture.sourceRow(),
-                    lecture.courseCode(),
-                    lecture.courseName(),
-                    lecture.sectionNo(),
-                    decimal(lecture.credit()),
-                    decimal(lecture.classHours()),
-                    lecture.instructorName(),
-                    lecture.targetGrade(),
-                    lecture.commonGrade(),
-                    lecture.teamTeaching(),
-                    lecture.note(),
-                    lecture.eligibilityNote(),
-                    lecture.scheduleText(),
-                    lecture.classroomText()
-            );
-            entityManager.persist(offering);
-            offerings.add(offering);
+        List<CourseOffering> existingOfferings = courseOfferingRepository
+                .findAllBySemesterId(semester.getId());
+        Map<UUID, CourseOffering> existingByCourse = existingOfferings.stream()
+                .collect(Collectors.toMap(
+                        offering -> offering.getCourse().getId(),
+                        Function.identity()
+                ));
+        Set<UUID> incomingCourseIds = courses.stream()
+                .map(resolved -> resolved.course().getId())
+                .collect(Collectors.toSet());
+
+        List<ResolvedOffering> result = new ArrayList<>(courses.size());
+        for (ResolvedCourse resolved : courses) {
+            LectureRequest lecture = resolved.lecture();
+            CourseOffering offering = existingByCourse.get(resolved.course().getId());
+            if (offering == null) {
+                offering = CourseOffering.link(
+                        semester,
+                        resolved.course(),
+                        history,
+                        request.curriculumType(),
+                        lecture.sourceSheet(),
+                        lecture.sourceRow()
+                );
+                entityManager.persist(offering);
+            } else {
+                offering.refreshImportSource(
+                        history,
+                        request.curriculumType(),
+                        lecture.sourceSheet(),
+                        lecture.sourceRow()
+                );
+            }
+            result.add(new ResolvedOffering(resolved, offering));
         }
-        return offerings;
+
+        existingOfferings.stream()
+                .filter(offering -> offering.getScopeCurriculumType()
+                        == request.curriculumType())
+                .filter(offering -> !incomingCourseIds.contains(offering.getCourse().getId()))
+                .forEach(CourseOffering::deactivate);
+        return result;
     }
 
-    private void persistOfferingDetails(
-            List<LectureRequest> lectures,
-            List<CourseOffering> offerings,
+    private void persistSharedCourseDetails(
+            List<ResolvedCourse> courses,
             Map<String, Classroom> classrooms
     ) {
-        for (int index = 0; index < lectures.size(); index++) {
-            LectureRequest lecture = lectures.get(index);
-            CourseOffering offering = offerings.get(index);
+        for (ResolvedCourse resolved : courses) {
+            if (!resolved.detailsInitialized()) {
+                continue;
+            }
+            LectureRequest lecture = resolved.lecture();
+            Course course = resolved.course();
 
             if (lecture.generalEducation() != null) {
-                persistGeneralEducation(offering, lecture.generalEducation());
+                persistGeneralEducation(course, lecture.generalEducation());
             }
             lecture.allowedGrades().stream()
                     .distinct()
-                    .map(grade -> OfferingAllowedGrade.create(offering, grade))
+                    .map(grade -> OfferingAllowedGrade.create(course, grade))
                     .forEach(entityManager::persist);
             lecture.eligibleDepartmentNames().stream()
                     .distinct()
-                    .map(name -> OfferingEligibleDepartment.create(offering, name))
+                    .map(name -> OfferingEligibleDepartment.create(course, name))
                     .forEach(entityManager::persist);
-            for (SourceCellRequest cell : lecture.sourceCells()) {
-                entityManager.persist(CourseSourceCell.create(
-                        offering,
-                        cell.columnIndex(),
-                        cell.headerName(),
-                        cell.canonicalField(),
-                        cell.value()
-                ));
-            }
             for (int scheduleIndex = 0; scheduleIndex < lecture.schedules().size(); scheduleIndex++) {
                 var schedule = lecture.schedules().get(scheduleIndex);
                 Classroom classroom = schedule.classroom() == null
                         ? null
                         : classrooms.get(classroomKey(schedule.classroom()));
                 entityManager.persist(CourseSchedule.create(
-                        offering, scheduleIndex, schedule.dayOfWeek(), schedule.periods(), classroom
+                        course, scheduleIndex, schedule.dayOfWeek(), schedule.periods(), classroom
+                ));
+            }
+        }
+    }
+
+    private void replaceSourceCells(List<ResolvedOffering> offerings) {
+        List<UUID> offeringIds = offerings.stream()
+                .map(resolved -> resolved.offering().getId())
+                .toList();
+        if (!offeringIds.isEmpty()) {
+            courseSourceCellRepository.deleteByOfferingIds(offeringIds);
+            entityManager.flush();
+        }
+        for (ResolvedOffering resolved : offerings) {
+            for (SourceCellRequest cell : resolved.course().lecture().sourceCells()) {
+                entityManager.persist(CourseSourceCell.create(
+                        resolved.offering(),
+                        cell.columnIndex(),
+                        cell.headerName(),
+                        cell.canonicalField(),
+                        cell.value()
                 ));
             }
         }
     }
 
     private void persistGeneralEducation(
-            CourseOffering offering,
+            Course course,
             GeneralEducationContextRequest context
     ) {
         entityManager.persist(OfferingGeneralEducation.create(
-                offering,
+                course,
                 context.classification(),
                 context.classificationName(),
                 context.categoryCode(),
@@ -501,15 +601,20 @@ public class CourseImportService {
     }
 
     private String courseKey(String importId, LectureRequest lecture) {
-        if (lecture.courseCode() != null) {
-            return sha256("CODE|" + lecture.courseCode());
-        }
-        if (lecture.courseName() != null) {
-            return sha256("NAME|" + lecture.courseName());
+        String normalizedCourseCode = normalizeCourseCode(lecture.courseCode());
+        if (normalizedCourseCode != null) {
+            return sha256("CODE|" + normalizedCourseCode);
         }
         return sha256("IMPORT|%s|%s|%d".formatted(
                 importId, lecture.sourceSheet(), lecture.sourceRow()
         ));
+    }
+
+    private String normalizeCourseCode(String courseCode) {
+        if (courseCode == null || courseCode.isBlank()) {
+            return null;
+        }
+        return courseCode.strip().toUpperCase(Locale.ROOT);
     }
 
     private String classroomKey(ClassroomRequest classroom) {
@@ -544,5 +649,18 @@ public class CourseImportService {
 
     private String nullable(String value) {
         return value == null ? "" : value;
+    }
+
+    private record ResolvedCourse(
+            LectureRequest lecture,
+            Course course,
+            boolean detailsInitialized
+    ) {
+    }
+
+    private record ResolvedOffering(
+            ResolvedCourse course,
+            CourseOffering offering
+    ) {
     }
 }

@@ -16,7 +16,8 @@ public interface TimetableCourseRepository extends JpaRepository<TimetableCourse
 
     @EntityGraph(attributePaths = {
             "courseOffering",
-            "courseOffering.generalEducation"
+            "courseOffering.course",
+            "courseOffering.course.generalEducation"
     })
     List<TimetableCourse> findAllByTimetableIdOrderById(Long timetableId);
 

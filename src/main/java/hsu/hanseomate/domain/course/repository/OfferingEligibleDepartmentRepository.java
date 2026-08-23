@@ -12,17 +12,17 @@ import org.springframework.data.repository.query.Param;
 public interface OfferingEligibleDepartmentRepository extends JpaRepository<OfferingEligibleDepartment, UUID> {
 
     @Query("""
-            select department.offering.id as offeringId,
+            select department.course.id as courseId,
                    department.departmentName as departmentName
             from OfferingEligibleDepartment department
-            where department.offering.id in :offeringIds
+            where department.course.id in :courseIds
             order by department.departmentName asc
             """)
-    List<OfferingEligibleDepartmentNameProjection> findNamesByOfferingIds(
-            @Param("offeringIds") Collection<UUID> offeringIds
+    List<OfferingEligibleDepartmentNameProjection> findNamesByCourseIds(
+            @Param("courseIds") Collection<UUID> courseIds
     );
 
     @Modifying
-    @Query("delete from OfferingEligibleDepartment d where d.offering.id in :offeringIds")
-    int deleteByOfferingIds(@Param("offeringIds") Collection<UUID> offeringIds);
+    @Query("delete from OfferingEligibleDepartment d where d.course.id in :courseIds")
+    int deleteByCourseIds(@Param("courseIds") Collection<UUID> courseIds);
 }

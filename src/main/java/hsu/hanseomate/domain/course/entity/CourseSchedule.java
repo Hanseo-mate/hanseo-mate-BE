@@ -25,8 +25,8 @@ import org.hibernate.type.SqlTypes;
 @Table(
         name = "course_schedules",
         indexes = @Index(
-                name = "ix_schedule_offering_order",
-                columnList = "offering_id,schedule_order"
+                name = "ix_schedule_course_order",
+                columnList = "course_id,schedule_order"
         )
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -36,8 +36,8 @@ public class CourseSchedule {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "offering_id", nullable = false)
-    private CourseOffering offering;
+    @JoinColumn(name = "course_id", nullable = false)
+    private Course course;
 
     @Column(name = "schedule_order", nullable = false)
     private int scheduleOrder;
@@ -55,14 +55,14 @@ public class CourseSchedule {
     private Classroom classroom;
 
     private CourseSchedule(
-            CourseOffering offering,
+            Course course,
             int scheduleOrder,
             DayOfWeek dayOfWeek,
             List<Integer> periods,
             Classroom classroom
     ) {
         this.id = UUID.randomUUID();
-        this.offering = offering;
+        this.course = course;
         this.scheduleOrder = scheduleOrder;
         this.dayOfWeek = dayOfWeek;
         this.periodsValue = periods.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
@@ -76,7 +76,17 @@ public class CourseSchedule {
             List<Integer> periods,
             Classroom classroom
     ) {
-        return new CourseSchedule(offering, scheduleOrder, dayOfWeek, periods, classroom);
+        return create(offering.getCourse(), scheduleOrder, dayOfWeek, periods, classroom);
+    }
+
+    public static CourseSchedule create(
+            Course course,
+            int scheduleOrder,
+            DayOfWeek dayOfWeek,
+            List<Integer> periods,
+            Classroom classroom
+    ) {
+        return new CourseSchedule(course, scheduleOrder, dayOfWeek, periods, classroom);
     }
 
     public List<Integer> getPeriods() {

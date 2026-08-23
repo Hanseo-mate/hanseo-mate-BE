@@ -708,7 +708,7 @@ class TimetableApiIntegrationTest {
     }
 
     @Test
-    void reimportReplacesOfferingsAndCascadesTheirTimetableCourses() throws Exception {
+    void reimportKeepsOfferingIdAndTimetableCourseForUnchangedCourse() throws Exception {
         importMajorFixture();
         CourseOffering oldOffering = offeringByCode(ALPHA_CODE);
         UUID oldOfferingId = oldOffering.getId();
@@ -732,11 +732,23 @@ class TimetableApiIntegrationTest {
 
         assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
         assertThat(response.databaseChanged()).isTrue();
-        assertThat(courseOfferingRepository.existsById(oldOfferingId)).isFalse();
-        assertThat(timetableCourseRepository.existsById(timetableCourseId)).isFalse();
-        assertThat(timetableCourseRepository.count()).isZero();
+        CourseOffering preservedOffering = courseOfferingRepository.findById(oldOfferingId)
+                .orElseThrow();
+        assertThat(preservedOffering.isActive()).isTrue();
+        assertThat(timetableCourseRepository.existsById(timetableCourseId)).isTrue();
+        assertThat(timetableCourseRepository.count()).isEqualTo(1);
         assertThat(timetableRepository.existsById(timetableId)).isTrue();
         assertThat(courseOfferingRepository.count()).isEqualTo(5);
+
+        performAuthenticated(get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].timetableCourseId")
+                        .value(timetableCourseId))
+                .andExpect(jsonPath("$.courses[0].courseId")
+                        .value(oldOfferingId.toString()));
     }
 
     @Test
@@ -1027,10 +1039,18 @@ class TimetableApiIntegrationTest {
     }
 
     private CourseOffering offeringByCode(String courseCode) {
-        return courseOfferingRepository.findAll().stream()
-                .filter(offering -> courseCode.equals(offering.getCourseCode()))
-                .findFirst()
-                .orElseThrow();
+        UUID offeringId = jdbcTemplate.queryForObject(
+                """
+                select offering.id
+                from course_offerings offering
+                join courses course on course.id = offering.course_id
+                where offering.active = true and course.course_code = ?
+                limit 1
+                """,
+                UUID.class,
+                courseCode
+        );
+        return courseOfferingRepository.findDetailedById(offeringId).orElseThrow();
     }
 
     private void cleanDatabase() {

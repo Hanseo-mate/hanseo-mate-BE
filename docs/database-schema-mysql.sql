@@ -225,13 +225,34 @@ CREATE TABLE academic_units (
     CONSTRAINT uk_academic_unit_master_key UNIQUE (master_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 공백이 아닌 course_code가 과목 identity다. MySQL UNIQUE는 NULL을 여러 건 허용하므로
+-- 코드 없는 수입 행은 서로 다른 master_key와 id로 각각 저장할 수 있다.
 CREATE TABLE courses (
     id BINARY(16) NOT NULL,
     master_key VARCHAR(64) NOT NULL,
     course_code VARCHAR(100) NULL,
     course_name VARCHAR(255) NULL,
+    academic_unit_id BINARY(16) NULL,
+    curriculum_type VARCHAR(30) NULL,
+    section_no VARCHAR(100) NULL,
+    credit DECIMAL(8,3) NULL,
+    class_hours DECIMAL(8,3) NULL,
+    instructor_name VARCHAR(255) NULL,
+    target_grade INT NULL,
+    common_grade BIT(1) NULL,
+    team_teaching BIT(1) NULL,
+    note VARCHAR(2000) NULL,
+    eligibility_note VARCHAR(2000) NULL,
+    schedule_text VARCHAR(2000) NULL,
+    classroom_text VARCHAR(2000) NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uk_course_master_key UNIQUE (master_key)
+    CONSTRAINT uk_course_master_key UNIQUE (master_key),
+    CONSTRAINT uk_course_code UNIQUE (course_code),
+    INDEX ix_course_name (course_name),
+    INDEX ix_course_instructor (instructor_name),
+    INDEX ix_course_curriculum (curriculum_type),
+    CONSTRAINT fk_course_academic_unit
+        FOREIGN KEY (academic_unit_id) REFERENCES academic_units (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE classrooms (
@@ -285,45 +306,31 @@ CREATE TABLE semester_academic_units (
         FOREIGN KEY (academic_unit_id) REFERENCES academic_units (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 학기별 매핑 UUID는 사용자 시간표가 참조하므로 재수입 시 삭제하지 않고 재사용한다.
 CREATE TABLE course_offerings (
     id BINARY(16) NOT NULL,
     semester_id BINARY(16) NOT NULL,
     course_id BINARY(16) NOT NULL,
-    academic_unit_id BINARY(16) NULL,
     import_history_id BINARY(16) NOT NULL,
     curriculum_type VARCHAR(30) NOT NULL,
     source_sheet VARCHAR(255) NOT NULL,
     source_row INT NOT NULL,
-    section_no VARCHAR(100) NULL,
-    course_code_snapshot VARCHAR(100) NULL,
-    course_name_snapshot VARCHAR(255) NULL,
-    credit DECIMAL(8,3) NULL,
-    class_hours DECIMAL(8,3) NULL,
-    instructor_name VARCHAR(255) NULL,
-    target_grade INT NULL,
-    common_grade BIT(1) NOT NULL,
-    team_teaching BIT(1) NULL,
-    note VARCHAR(2000) NULL,
-    eligibility_note VARCHAR(2000) NULL,
-    schedule_text VARCHAR(2000) NULL,
-    classroom_text VARCHAR(2000) NULL,
+    active BIT(1) NOT NULL,
     PRIMARY KEY (id),
-    INDEX ix_offering_scope (semester_id, curriculum_type),
-    INDEX ix_offering_course_name (course_name_snapshot),
-    INDEX ix_offering_instructor (instructor_name),
+    CONSTRAINT uk_offering_semester_course UNIQUE (semester_id, course_id),
+    INDEX ix_offering_scope (semester_id, curriculum_type, active),
+    INDEX ix_offering_import (import_history_id),
     CONSTRAINT fk_offering_semester
         FOREIGN KEY (semester_id) REFERENCES semesters (id),
     CONSTRAINT fk_offering_course
         FOREIGN KEY (course_id) REFERENCES courses (id),
-    CONSTRAINT fk_offering_academic_unit
-        FOREIGN KEY (academic_unit_id) REFERENCES academic_units (id),
     CONSTRAINT fk_offering_import
         FOREIGN KEY (import_history_id) REFERENCES course_import_histories (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE offering_general_education (
     id BINARY(16) NOT NULL,
-    offering_id BINARY(16) NOT NULL,
+    course_id BINARY(16) NOT NULL,
     classification VARCHAR(30) NOT NULL,
     classification_name VARCHAR(255) NULL,
     category_code VARCHAR(100) NULL,
@@ -333,43 +340,43 @@ CREATE TABLE offering_general_education (
     delivery_provider_name VARCHAR(255) NULL,
     source_path_json LONGTEXT NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uk_general_context_offering UNIQUE (offering_id),
+    CONSTRAINT uk_general_context_course UNIQUE (course_id),
     INDEX ix_general_context_filter (classification, area, delivery_provider),
-    CONSTRAINT fk_general_context_offering
-        FOREIGN KEY (offering_id) REFERENCES course_offerings (id)
+    CONSTRAINT fk_general_context_course
+        FOREIGN KEY (course_id) REFERENCES courses (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE offering_allowed_grades (
     id BINARY(16) NOT NULL,
-    offering_id BINARY(16) NOT NULL,
+    course_id BINARY(16) NOT NULL,
     grade INT NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uk_offering_allowed_grade UNIQUE (offering_id, grade),
-    CONSTRAINT fk_allowed_grade_offering
-        FOREIGN KEY (offering_id) REFERENCES course_offerings (id)
+    CONSTRAINT uk_course_allowed_grade UNIQUE (course_id, grade),
+    CONSTRAINT fk_allowed_grade_course
+        FOREIGN KEY (course_id) REFERENCES courses (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE offering_eligible_departments (
     id BINARY(16) NOT NULL,
-    offering_id BINARY(16) NOT NULL,
+    course_id BINARY(16) NOT NULL,
     department_name VARCHAR(255) NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uk_offering_eligible_department UNIQUE (offering_id, department_name),
-    CONSTRAINT fk_eligible_department_offering
-        FOREIGN KEY (offering_id) REFERENCES course_offerings (id)
+    CONSTRAINT uk_course_eligible_department UNIQUE (course_id, department_name),
+    CONSTRAINT fk_eligible_department_course
+        FOREIGN KEY (course_id) REFERENCES courses (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE course_schedules (
     id BINARY(16) NOT NULL,
-    offering_id BINARY(16) NOT NULL,
+    course_id BINARY(16) NOT NULL,
     schedule_order INT NOT NULL,
     day_of_week VARCHAR(20) NOT NULL,
     periods_value VARCHAR(200) NOT NULL,
     classroom_id BINARY(16) NULL,
     PRIMARY KEY (id),
-    INDEX ix_schedule_offering_order (offering_id, schedule_order),
-    CONSTRAINT fk_schedule_offering
-        FOREIGN KEY (offering_id) REFERENCES course_offerings (id),
+    INDEX ix_schedule_course_order (course_id, schedule_order),
+    CONSTRAINT fk_schedule_course
+        FOREIGN KEY (course_id) REFERENCES courses (id),
     CONSTRAINT fk_schedule_classroom
         FOREIGN KEY (classroom_id) REFERENCES classrooms (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
