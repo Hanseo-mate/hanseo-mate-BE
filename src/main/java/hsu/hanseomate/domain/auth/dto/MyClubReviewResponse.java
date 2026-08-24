@@ -8,6 +8,7 @@ import java.util.List;
 public record MyClubReviewResponse(
         Long clubId,
         String clubName,
+        String profileImageUrl,
         List<ClubReviewOption> reviewTags
 ) {
 
@@ -22,6 +23,7 @@ public record MyClubReviewResponse(
         return new MyClubReviewResponse(
                 review.getClub().getId(),
                 review.getClub().getName(),
+                review.getClub().getProfileImageUrl(),
                 sortedReviewTags
         );
     }
