@@ -89,12 +89,13 @@ class MyPageApiIntegrationTest {
         UserAccount currentUser = userAccountRepository.findById(current.userId()).orElseThrow();
         UserAccount otherUser = userAccountRepository.findById(other.userId()).orElseThrow();
 
-        Club firstClub = clubRepository.saveAndFlush(
-                Club.create("첫 번째 동아리", ClubCategory.ACADEMIC)
-        );
-        Club secondClub = clubRepository.saveAndFlush(
-                Club.create("두 번째 동아리", ClubCategory.HOBBY)
-        );
+        Club firstClubToSave = Club.create("첫 번째 동아리", ClubCategory.ACADEMIC);
+        firstClubToSave.updateProfileImage("https://example.com/clubs/first-profile.png");
+        Club firstClub = clubRepository.saveAndFlush(firstClubToSave);
+
+        Club secondClubToSave = Club.create("두 번째 동아리", ClubCategory.HOBBY);
+        secondClubToSave.updateProfileImage("https://example.com/clubs/second-profile.png");
+        Club secondClub = clubRepository.saveAndFlush(secondClubToSave);
         Club otherClub = clubRepository.saveAndFlush(
                 Club.create("다른 사용자 동아리", ClubCategory.SPORTS)
         );
@@ -131,10 +132,14 @@ class MyPageApiIntegrationTest {
                 .andExpect(jsonPath("$.clubReviews.length()").value(2))
                 .andExpect(jsonPath("$.clubReviews[0].clubId").value(secondClub.getId()))
                 .andExpect(jsonPath("$.clubReviews[0].clubName").value("두 번째 동아리"))
+                .andExpect(jsonPath("$.clubReviews[0].profileImageUrl")
+                        .value("https://example.com/clubs/second-profile.png"))
                 .andExpect(jsonPath("$.clubReviews[0].reviewTags[0]")
                         .value("ENJOY_HOBBY"))
                 .andExpect(jsonPath("$.clubReviews[1].clubId").value(firstClub.getId()))
                 .andExpect(jsonPath("$.clubReviews[1].clubName").value("첫 번째 동아리"))
+                .andExpect(jsonPath("$.clubReviews[1].profileImageUrl")
+                        .value("https://example.com/clubs/first-profile.png"))
                 .andExpect(jsonPath("$.clubReviews[1].reviewTags[0]")
                         .value("BUILD_RESUME"))
                 .andExpect(jsonPath("$.clubReviews[1].reviewTags[1]")
@@ -210,6 +215,8 @@ class MyPageApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.clubReviews.length()").value(1))
                 .andExpect(jsonPath("$.clubReviews[0].clubId").value(club.getId()))
+                .andExpect(jsonPath("$.clubReviews[0].profileImageUrl")
+                        .value((Object) null))
                 .andExpect(jsonPath("$.clubReviews[0].reviewTags[0]")
                         .value("BUILD_RESUME"))
                 .andExpect(jsonPath("$.clubReviews[0].reviewTags[1]")
@@ -273,6 +280,9 @@ class MyPageApiIntegrationTest {
                                 + ".preferredRestaurantType"
                 ).exists())
                 .andExpect(jsonPath("$.components.schemas.MyClubReviewResponse").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.MyClubReviewResponse.properties.profileImageUrl"
+                ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.MyPageResponse.properties.likedClubs.type"
                 ).value("array"))
