@@ -6,7 +6,7 @@
 
 - 분류 조합당 이미지를 하나만 유지합니다.
 - 동일 분류로 이미지를 다시 업로드하면 서버 물리 파일과 DB 레코드가 함께 교체됩니다.
-- 파일명에 타임스탬프를 포함해 클라이언트 캐싱을 방지합니다.
+- 파일명에 UUID를 사용해 충돌과 기존 이미지 캐시 재사용을 방지합니다.
 - 조회 API는 비로그인 사용자를 포함해 누구나 호출할 수 있습니다.
 - 업로드/교체 API는 `ADMIN` 역할을 가진 사용자만 호출할 수 있습니다.
 
@@ -92,14 +92,14 @@ GET /api/bus-schedules
     "id": 1,
     "mainCategory": "CITY_BUS",
     "subCategory": "HANSEO_TO_SEOSAN",
-    "imageUrl": "http://localhost:8080/home/images/bus/HANSEO_TO_SEOSAN_20260823_234400.png",
+    "imageUrl": "http://localhost:8080/uploads/bus/550e8400-e29b-41d4-a716-446655440000.png",
     "updatedAt": "2026-08-23T23:44:00"
   },
   {
     "id": 2,
     "mainCategory": "SCHOOL_BUS",
     "subCategory": "CAMPUS_SHUTTLE",
-    "imageUrl": "http://localhost:8080/home/images/bus/CAMPUS_SHUTTLE_20260823_235500.png",
+    "imageUrl": "http://localhost:8080/uploads/bus/7fdfe1a8-9537-4a37-887b-86d49ef34c31.png",
     "updatedAt": "2026-08-23T23:55:00"
   }
 ]
@@ -166,7 +166,7 @@ subCategory   HANSEO_TO_SEOSAN
   "id": 1,
   "mainCategory": "CITY_BUS",
   "subCategory": "HANSEO_TO_SEOSAN",
-  "imageUrl": "http://localhost:8080/home/images/bus/HANSEO_TO_SEOSAN_20260824_001500.png",
+  "imageUrl": "http://localhost:8080/uploads/bus/4ddc6a46-98ca-49cf-a3c1-95065ec850cb.png",
   "updatedAt": "2026-08-24T00:15:00"
 }
 ```
@@ -189,30 +189,41 @@ subCategory   HANSEO_TO_SEOSAN
 
 | 항목 | 값 |
 |---|---|
-| 서버 물리 저장 경로 | `/home/images/bus/{파일명}` |
-| 공개 이미지 URL | `{app.upload.public-base-url}/home/images/bus/{파일명}` |
+| 서버 물리 저장 경로 | `{app.upload.directory}/bus/{파일명}` |
+| 공개 이미지 URL | `{app.upload.public-base-url}/uploads/bus/{파일명}` |
 
 ### 파일명 생성 규칙
 
 ```
-{SubCategory이름}_{yyyyMMdd}_{HHmmss}.{확장자}
+{UUID}.{실제 이미지 형식에 맞는 확장자}
 ```
 
-| 예시 SubCategory | 업로드 시각 | 생성된 파일명 |
-|---|---|---|
-| `HANSEO_TO_SEOSAN` | 2026-08-23 23:44:00 | `HANSEO_TO_SEOSAN_20260823_234400.png` |
-| `CAMPUS_SHUTTLE` | 2026-08-24 00:15:30 | `CAMPUS_SHUTTLE_20260824_001530.jpg` |
-| `NAEPO_SAPGYO_CIRCULAR` | 2026-08-24 09:00:00 | `NAEPO_SAPGYO_CIRCULAR_20260824_090000.png` |
+| 실제 이미지 형식 | 생성 파일 예시 |
+|---|---|
+| PNG | `550e8400-e29b-41d4-a716-446655440000.png` |
+| JPEG | `7fdfe1a8-9537-4a37-887b-86d49ef34c31.jpg` |
+| GIF | `4ddc6a46-98ca-49cf-a3c1-95065ec850cb.gif` |
 
-타임스탬프를 파일명에 포함해 클라이언트 캐시가 자동으로 무효화됩니다.
+클라이언트가 보낸 확장자나 Content-Type만 신뢰하지 않고 실제 이미지 형식을 검사합니다.
+교체할 때마다 새 UUID URL이 생성되므로 기존 이미지 캐시와 충돌하지 않습니다.
 
 ### 교체 시 처리 흐름
 
 1. DB에서 동일 `mainCategory` + `subCategory` 레코드 조회
-2. 레코드가 존재하면 `serverFilePath`로 `Files.deleteIfExists()` 호출 → 기존 파일 삭제
-3. 새 파일을 `/home/images/bus/{새파일명}` 경로에 저장
-4. DB의 `imageUrl`, `serverFilePath`, `updatedAt` 업데이트
-5. 레코드가 없으면 새로 생성
+2. 새 파일을 `{app.upload.directory}/bus`에 먼저 저장
+3. DB의 `imageUrl`, `serverFilePath`, `updatedAt` 업데이트
+4. DB 트랜잭션 커밋이 성공하면 기존 관리 이미지를 삭제
+5. DB 반영이 실패하면 새 파일을 삭제하고 기존 이미지와 DB 값은 유지
+
+### 운영 환경 예시
+
+```text
+UPLOAD_DIRECTORY=/home/hanseo-mate/images
+UPLOAD_PUBLIC_BASE_URL=https://api.example.com
+```
+
+위 설정에서는 실제 파일이 `/home/hanseo-mate/images/bus`에 저장되고,
+`https://api.example.com/uploads/bus/{파일명}`으로 외부에서 조회할 수 있습니다.
 
 ---
 
