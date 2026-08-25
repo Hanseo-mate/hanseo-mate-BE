@@ -39,7 +39,7 @@ public interface CourseScheduleRepository extends JpaRepository<CourseSchedule, 
                     and timetableCourse.timetable.semester = :semester
               )
             """)
-    List<CourseSchedule> findHomeSchedules(
+    List<CourseSchedule> findTimetableSchedules(
             @Param("ownerId") Long ownerId,
             @Param("academicYear") int academicYear,
             @Param("semester") int semester,

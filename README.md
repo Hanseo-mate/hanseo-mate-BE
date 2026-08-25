@@ -108,6 +108,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 메인 페이지와 서산·태안 학생식당 조회 계약은 각각
 [메인 페이지 API 명세서](docs/home-api.md)와 [학식 API 명세서](docs/cafeteria-api.md)에서 확인할 수 있습니다.
 
+오늘 수업의 캠퍼스 건물 좌표 계약은 [캠퍼스 맵 API 명세서](docs/campus-map-api.md)에서 확인할 수 있습니다.
+
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
 강좌 수입·조회 계약은 [강좌 수입·조회 API 명세서](docs/course-import-api.md)에서 확인할 수 있습니다.
@@ -174,6 +176,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `POST` | `/api/admin/course-enrichments/equivalent-courses/imports` | 관리자 전용 동일교과목 엑셀 자동 감지 및 스냅샷 저장 |
 | `POST` | `/api/admin/course-enrichments/cross-major-recognitions/imports` | 관리자 전용 타학과 전공인정 엑셀 자동 감지 및 연간 정책 저장 |
 | `GET` | `/api/courses` | 전공·영역, 검색어, 정렬, 시간, 학년, 학점 조건으로 강좌를 페이지 조회 |
+| `GET` | `/api/timetables/today-locations` | 로그인 사용자의 오늘 수업과 캠퍼스 건물 좌표 조회 |
 | `GET` | `/api/grade-calculations/grades` | 로그인 사용자의 한서대학교 성적 선택 옵션 조회 |
 | `GET` | `/api/grade-calculations/overview` | 생성한 전체 시간표 학기와 학기·누적 통계 조회 |
 | `GET` | `/api/grade-calculations/timetable-courses` | 선택 학기의 과목명·학점·저장 성적·통계 조회 |

@@ -435,4 +435,45 @@ class CorsIntegrationTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
                 ));
     }
+
+    @Test
+    void campusMapPreflightAllowsConfiguredOrigin() throws Exception {
+        mockMvc.perform(options("/api/timetables/today-locations")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
+                        )
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                HttpHeaders.AUTHORIZATION
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ALLOWED_ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        containsString(HttpMethod.GET.name())
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        containsString(HttpHeaders.AUTHORIZATION)
+                ));
+    }
+
+    @Test
+    void campusMapPreflightRejectsDisallowedOrigin() throws Exception {
+        mockMvc.perform(options("/api/timetables/today-locations")
+                        .header(HttpHeaders.ORIGIN, DISALLOWED_ORIGIN)
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                HttpMethod.GET.name()
+                        ))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
+                ));
+    }
 }
