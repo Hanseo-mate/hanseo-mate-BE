@@ -91,7 +91,7 @@ public class HomePageService {
         int semester = today.getMonthValue() <= 6 ? 1 : 2;
         DayOfWeek dayOfWeek = DayOfWeek.valueOf(today.getDayOfWeek().name());
 
-        return courseScheduleRepository.findHomeSchedules(
+        return courseScheduleRepository.findTimetableSchedules(
                         ownerId,
                         today.getYear(),
                         semester,

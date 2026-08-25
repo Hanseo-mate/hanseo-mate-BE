@@ -159,6 +159,10 @@ public class CorsConfig {
                 publicReadConfiguration
         );
         source.registerCorsConfiguration(
+                "/api/timetables/today-locations",
+                publicReadConfiguration
+        );
+        source.registerCorsConfiguration(
                 "/api/cafeteria/**",
                 publicReadConfiguration
         );
