@@ -1,165 +1,146 @@
 package hsu.hanseomate.domain.campusmap.support;
 
-import java.text.Normalizer;
+import hsu.hanseomate.domain.campusmap.entity.CampusBuilding;
+import hsu.hanseomate.domain.campusmap.repository.CampusBuildingAliasRepository;
+import hsu.hanseomate.domain.campusmap.repository.CampusBuildingRepository;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Campus building marker coordinates.
- *
- * <p>Building names are based on the Hanseo University campus guide. Coordinates
- * are marker positions checked against public maps on 2026-08-25. Unknown names
- * must remain unmapped instead of being matched by prefix or substring.</p>
+ * Resolves imported classroom names against campus-specific building aliases.
+ * Unknown or ambiguous aliases remain unmapped instead of using partial matches.
  */
 @Component
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class CampusBuildingCatalog {
 
-    private static final String SEOSAN = "SEOSAN";
-    private static final String TAEAN = "TAEAN";
-    private static final Pattern NAME_SEPARATORS = Pattern.compile("[\\s_]+");
-
-    private static final List<BuildingDefinition> BUILDINGS = List.of(
-            building(SEOSAN, "공학관", 36.6909679, 126.5858094,
-                    "공학관"),
-            building(SEOSAN, "인문사회관", 36.6900568, 126.5858982,
-                    "인문사회관", "인문관"),
-            building(SEOSAN, "자악관", 36.6914647, 126.5889642,
-                    "자악관", "본관", "서산 본관", "서산본관"),
-            building(SEOSAN, "보건의료학관", 36.6902179, 126.5818931,
-                    "보건의료학관", "보건관"),
-            building(SEOSAN, "건축토목공학관", 36.6913449, 126.5835591,
-                    "건축토목공학관", "건축관"),
-            building(SEOSAN, "인곡관", 36.6917739, 126.5847621,
-                    "인곡관"),
-            building(SEOSAN, "예술관", 36.6893088, 126.5879975,
-                    "예술관"),
-            building(SEOSAN, "이학관", 36.690682459, 126.58171696,
-                    "이학관"),
-            building(SEOSAN, "영암관", 36.6912872, 126.5824797,
-                    "영암관"),
-            building(SEOSAN, "심운관", 36.69116, 126.58648,
-                    "심운관"),
-            building(SEOSAN, "영암체육관", 36.6915408, 126.5882049,
-                    "영암체육관", "영암체육관(서산)", "서산 영암체육관"),
-            building(TAEAN, "태안 강의동(본관)", 36.5944988, 126.294045,
-                    "본관", "태안 강의동(본관)", "태안 강의동 본관",
-                    "태안강의동 본관", "비행교육원"),
-            building(TAEAN, "태안 실습2동", 36.5934316, 126.2948762,
-                    "실습2동", "태안 실습2동", "태안실습2동"),
-            building(TAEAN, "항공기술교육센터(메디치)",
-                    36.5965443, 126.2924351,
-                    "항공기술교육센터(메디치)",
-                    "태안 항공기술교육센터(메디치)",
-                    "태안 항공기술센터(메디치)")
-    );
-
-    private static final Map<String, List<CampusBuildingLocation>> BY_ALIAS =
-            indexByAlias(BUILDINGS);
+    private final CampusBuildingAliasRepository aliasRepository;
+    private final CampusBuildingRepository buildingRepository;
 
     public Optional<CampusBuildingLocation> find(
             String campusCode,
             String buildingName
     ) {
-        String alias = normalize(buildingName);
-        if (alias.isEmpty()) {
-            return Optional.empty();
+        CampusBuildingQuery query = new CampusBuildingQuery(
+                campusCode,
+                buildingName
+        );
+        return Optional.ofNullable(findAll(List.of(query)).get(query));
+    }
+
+    public Map<CampusBuildingQuery, CampusBuildingLocation> findAll(
+            Collection<CampusBuildingQuery> queries
+    ) {
+        Set<String> aliasKeys = queries.stream()
+                .map(CampusBuildingQuery::buildingName)
+                .map(CampusLocationNormalizer::normalize)
+                .filter(aliasKey -> !aliasKey.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
+        if (aliasKeys.isEmpty()) {
+            return Map.of();
         }
 
-        List<CampusBuildingLocation> candidates = BY_ALIAS.getOrDefault(
-                alias,
-                List.of()
-        );
+        Map<String, List<CampusBuildingLocation>> locationsByAliasKey =
+                new LinkedHashMap<>();
+        aliasRepository.findAllWithBuildingByAliasKeyIn(aliasKeys)
+                .forEach(alias -> addLocation(
+                        locationsByAliasKey,
+                        alias.getAliasKey(),
+                        toLocation(alias.getBuilding())
+                ));
+        buildingRepository.findAllByCanonicalNameKeyIn(aliasKeys)
+                .forEach(building -> addLocation(
+                        locationsByAliasKey,
+                        building.getCanonicalNameKey(),
+                        toLocation(building)
+                ));
+
+        Map<CampusBuildingQuery, CampusBuildingLocation> resolved =
+                new LinkedHashMap<>();
+        for (CampusBuildingQuery query : queries) {
+            resolve(
+                    query.campusCode(),
+                    locationsByAliasKey.getOrDefault(
+                            CampusLocationNormalizer.normalize(
+                                    query.buildingName()
+                            ),
+                            List.of()
+                    )
+            ).ifPresent(location -> resolved.put(query, location));
+        }
+        return Map.copyOf(resolved);
+    }
+
+    private Optional<CampusBuildingLocation> resolve(
+            String rawCampusCode,
+            List<CampusBuildingLocation> candidates
+    ) {
         if (candidates.isEmpty()) {
             return Optional.empty();
         }
 
-        String rawNormalizedCampus = normalize(campusCode);
-        if (!rawNormalizedCampus.isEmpty()) {
-            Optional<String> normalizedCampus = normalizeKnownCampus(
-                    rawNormalizedCampus
-            );
-            if (normalizedCampus.isEmpty()) {
+        String normalizedCampus = CampusLocationNormalizer.normalize(
+                rawCampusCode
+        );
+        if (!normalizedCampus.isEmpty()) {
+            Optional<CampusCode> campusCode = CampusCode.from(rawCampusCode);
+            if (campusCode.isEmpty()) {
                 return Optional.empty();
             }
-            return candidates.stream()
-                    .filter(location -> normalizedCampus.orElseThrow()
+            return exactlyOne(candidates.stream()
+                    .filter(location -> campusCode.orElseThrow().name()
                             .equals(location.campusCode()))
-                    .findFirst();
+                    .toList());
         }
-        if (candidates.size() == 1) {
-            return Optional.of(candidates.get(0));
-        }
-        return Optional.empty();
+        return exactlyOne(candidates);
     }
 
-    private static BuildingDefinition building(
-            String campusCode,
-            String canonicalBuildingName,
-            double latitude,
-            double longitude,
-            String... aliases
+    private Optional<CampusBuildingLocation> exactlyOne(
+            List<CampusBuildingLocation> candidates
     ) {
-        CampusBuildingLocation location = new CampusBuildingLocation(
-                campusCode,
-                canonicalBuildingName,
-                latitude,
-                longitude
+        List<CampusBuildingLocation> distinct = candidates.stream()
+                .distinct()
+                .toList();
+        if (distinct.size() != 1) {
+            return Optional.empty();
+        }
+        return Optional.of(distinct.get(0));
+    }
+
+    private static void addLocation(
+            Map<String, List<CampusBuildingLocation>> locationsByAliasKey,
+            String aliasKey,
+            CampusBuildingLocation location
+    ) {
+        locationsByAliasKey.computeIfAbsent(
+                aliasKey,
+                ignored -> new ArrayList<>()
+        ).add(location);
+    }
+
+    private static CampusBuildingLocation toLocation(CampusBuilding building) {
+        return new CampusBuildingLocation(
+                building.getCampusCode().name(),
+                building.getCanonicalName(),
+                building.getLatitude().doubleValue(),
+                building.getLongitude().doubleValue()
         );
-        return new BuildingDefinition(location, List.of(aliases));
     }
 
-    private static Map<String, List<CampusBuildingLocation>> indexByAlias(
-            List<BuildingDefinition> definitions
-    ) {
-        Map<String, List<CampusBuildingLocation>> mutableIndex = new HashMap<>();
-        for (BuildingDefinition definition : definitions) {
-            Set<String> aliases = new LinkedHashSet<>(definition.aliases());
-            aliases.add(definition.location().canonicalBuildingName());
-            Set<String> normalizedAliases = new LinkedHashSet<>();
-            aliases.stream().map(CampusBuildingCatalog::normalize)
-                    .forEach(normalizedAliases::add);
-            for (String alias : normalizedAliases) {
-                mutableIndex.computeIfAbsent(alias, ignored -> new ArrayList<>())
-                        .add(definition.location());
-            }
-        }
-
-        Map<String, List<CampusBuildingLocation>> immutableIndex = new HashMap<>();
-        mutableIndex.forEach((alias, locations) ->
-                immutableIndex.put(alias, List.copyOf(locations)));
-        return Map.copyOf(immutableIndex);
-    }
-
-    private static Optional<String> normalizeKnownCampus(String campusCode) {
-        String normalized = normalize(campusCode);
-        return switch (normalized) {
-            case "SEOSAN", "서산", "서산캠퍼스" -> Optional.of(SEOSAN);
-            case "TAEAN", "태안", "태안캠퍼스" -> Optional.of(TAEAN);
-            default -> Optional.empty();
-        };
-    }
-
-    private static String normalize(String value) {
-        if (value == null) {
-            return "";
-        }
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFKC)
-                .trim()
-                .toUpperCase(Locale.ROOT);
-        return NAME_SEPARATORS.matcher(normalized).replaceAll("");
-    }
-
-    private record BuildingDefinition(
-            CampusBuildingLocation location,
-            List<String> aliases
+    public record CampusBuildingQuery(
+            String campusCode,
+            String buildingName
     ) {
     }
 

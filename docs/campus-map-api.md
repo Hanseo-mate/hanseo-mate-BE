@@ -60,7 +60,7 @@ Authorization: Bearer {accessToken}
 
 | 값 | 의미 | 위도·경도 |
 |---|---|---|
-| `MAPPED` | 건물 별칭이 좌표 카탈로그와 정확히 일치함 | 숫자 |
+| `MAPPED` | 캠퍼스와 건물 별칭이 DB 좌표 데이터와 정확히 일치함 | 숫자 |
 | `UNMAPPED` | 강의실은 있지만 등록되지 않았거나 모호한 건물명임 | `null` |
 | `NO_CLASSROOM` | 구조화된 수업 일정에 강의실 정보가 없음 | `null` |
 
@@ -94,8 +94,14 @@ const markers = response.courseLocations
 
 ## 7. 현재 데이터 경계
 
-- 좌표는 코드에 포함된 건물 카탈로그로 관리하므로 변경 시 백엔드 재배포가
-  필요합니다.
+- 좌표는 `campus_buildings`에 저장하며 `campus_code`의 `SEOSAN`, `TAEAN`으로
+  서산캠과 태안캠을 구분합니다.
+- 건물 별칭은 `campus_building_aliases`에 저장합니다. 같은 `본관` 별칭도 캠퍼스가
+  다르면 각각 저장할 수 있지만, 같은 캠퍼스 안에서는 하나의 건물에만 연결됩니다.
+- 초기 데이터는 서산 11개·태안 3개 건물과 정규화 별칭 27개입니다.
+- 기존 운영 DB에는
+  [`campus-building-location-migration-mysql.sql`](campus-building-location-migration-mysql.sql)을
+  애플리케이션 코드보다 먼저 적용해야 합니다.
 - 현재 모델에서 일정과 강의실은 학기별 `CourseOffering`이 아닌 공통 `Course`에
   연결됩니다. 같은 과목코드의 강의실이 다음 학기에 바뀌어도 최초 수입된 강의실이
   유지될 수 있습니다.

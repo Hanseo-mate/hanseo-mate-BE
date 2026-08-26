@@ -8,6 +8,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import hsu.hanseomate.domain.campusmap.entity.CampusBuilding;
+import hsu.hanseomate.domain.campusmap.entity.CampusBuildingAlias;
+import hsu.hanseomate.domain.campusmap.repository.CampusBuildingAliasRepository;
+import hsu.hanseomate.domain.campusmap.repository.CampusBuildingRepository;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.courseimport.dto.CourseImportResponse;
@@ -19,10 +24,12 @@ import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
 import hsu.hanseomate.domain.timetable.composition.repository.TimetableCourseRepository;
 import hsu.hanseomate.domain.timetable.composition.repository.TimetableRepository;
 import hsu.hanseomate.global.security.JwtProperties;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +77,12 @@ class CampusMapApiIntegrationTest {
     private CourseOfferingRepository courseOfferingRepository;
 
     @Autowired
+    private CampusBuildingRepository campusBuildingRepository;
+
+    @Autowired
+    private CampusBuildingAliasRepository campusBuildingAliasRepository;
+
+    @Autowired
     private TimetableRepository timetableRepository;
 
     @Autowired
@@ -87,6 +100,7 @@ class CampusMapApiIntegrationTest {
     @BeforeEach
     void setUp() {
         cleanDatabase();
+        seedCampusBuildings();
         jdbcTemplate.update(
                 """
                         INSERT INTO user_accounts (
@@ -294,9 +308,35 @@ class CampusMapApiIntegrationTest {
                 .getTokenValue();
     }
 
+    private void seedCampusBuildings() {
+        CampusBuilding seosanMain = campusBuildingRepository.saveAndFlush(
+                CampusBuilding.create(
+                        CampusCode.SEOSAN,
+                        "자악관",
+                        new BigDecimal("36.6914647"),
+                        new BigDecimal("126.5889642")
+                )
+        );
+        CampusBuilding taeAnMain = campusBuildingRepository.saveAndFlush(
+                CampusBuilding.create(
+                        CampusCode.TAEAN,
+                        "태안 강의동(본관)",
+                        new BigDecimal("36.5944988"),
+                        new BigDecimal("126.294045")
+                )
+        );
+        campusBuildingAliasRepository.saveAllAndFlush(List.of(
+                CampusBuildingAlias.create(seosanMain, "본관"),
+                CampusBuildingAlias.create(taeAnMain, "본관"),
+                CampusBuildingAlias.create(taeAnMain, "비행교육원")
+        ));
+    }
+
     private void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
+            truncate("campus_building_aliases");
+            truncate("campus_buildings");
             truncate("timetable_courses");
             truncate("timetables");
             truncate("user_accounts");

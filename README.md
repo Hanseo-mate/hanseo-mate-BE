@@ -51,6 +51,22 @@ CREATE DATABASE hanseo_mate
 로컬 환경은 `ddl-auto=update`를 사용하고 운영 환경은 `ddl-auto=validate`를 사용합니다.
 운영에서는 JPA가 테이블을 임의로 변경하지 않으며, 애플리케이션 시작 시 엔티티와 실제 DB 구조가 일치하는지만 확인합니다.
 
+로컬에서 애플리케이션을 먼저 실행하면 `ddl-auto=update`가 `campus_buildings`와
+`campus_building_aliases` 빈 테이블을 만들 수 있지만 초기 좌표 데이터는 넣지 않습니다.
+이때 [캠퍼스 건물 좌표 증분 SQL](docs/campus-building-location-migration-mysql.sql) 전체를
+실행하면 기존 테이블의 `CREATE TABLE`에서 실패하므로 다음 순서를 지킵니다.
+
+1. 증분 SQL의 `[0-A]` preflight만 실행해 대상 테이블 수를 확인합니다.
+2. 0개이면 증분 SQL 전체를 실행합니다.
+3. 1개이면 부분 생성 상태이므로 실행을 중단하고 원인을 확인합니다.
+4. 2개이면 `[0-B]`의 `SHOW CREATE TABLE`과 행 수를 확인합니다. 로컬 엔티티 매핑에 필요한
+   컬럼·PK·UNIQUE·복합 FK가 있고 모두 0행일 때만 `[2] SEED-ONLY SECTION`을 선택 실행한
+   뒤 `[3]`을 실행합니다.
+
+두 테이블 중 하나라도 데이터가 있으면 seed 구간을 다시 실행하지 않습니다. 이 seed-only
+절차는 `--force` 옵션 없이 실행합니다. 로컬 `ddl-auto=update`가 만든 빈 테이블을 위한
+것이며 운영 DB에서는 사전 백업과 실제 스키마 확인 후 운영 배포 절차에 따라 적용합니다.
+
 로컬 프로필은 기본적으로 다음 접속 정보를 사용합니다.
 
 ```text
@@ -109,6 +125,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 [메인 페이지 API 명세서](docs/home-api.md)와 [학식 API 명세서](docs/cafeteria-api.md)에서 확인할 수 있습니다.
 
 오늘 수업의 캠퍼스 건물 좌표 계약은 [캠퍼스 맵 API 명세서](docs/campus-map-api.md)에서 확인할 수 있습니다.
+기존 운영 DB에는 [캠퍼스 건물 좌표 증분 SQL](docs/campus-building-location-migration-mysql.sql)을
+코드보다 먼저 적용합니다.
 
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
