@@ -5,6 +5,7 @@ import hsu.hanseomate.domain.campusmap.dto.CampusMapLocationStatus;
 import hsu.hanseomate.domain.campusmap.dto.CampusMapTodayResponse;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog.CampusBuildingLocation;
+import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog.CampusBuildingQuery;
 import hsu.hanseomate.domain.course.entity.Classroom;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
@@ -15,7 +16,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +39,7 @@ public class CampusMapService {
         int semester = today.getMonthValue() <= 6 ? 1 : 2;
         DayOfWeek dayOfWeek = DayOfWeek.valueOf(today.getDayOfWeek().name());
 
-        List<CampusMapCourseLocationResponse> locations = courseScheduleRepository
+        List<CourseSchedule> schedules = courseScheduleRepository
                 .findTimetableSchedules(
                         ownerId,
                         today.getYear(),
@@ -54,7 +55,15 @@ public class CampusMapService {
                         )
                         .thenComparingInt(CourseSchedule::getScheduleOrder)
                         .thenComparing(CourseSchedule::getId))
-                .map(this::toResponse)
+                .toList();
+        Map<CampusBuildingQuery, CampusBuildingLocation> buildingLocations =
+                campusBuildingCatalog.findAll(schedules.stream()
+                        .map(CourseSchedule::getClassroom)
+                        .filter(classroom -> classroom != null)
+                        .map(this::buildingQuery)
+                        .toList());
+        List<CampusMapCourseLocationResponse> locations = schedules.stream()
+                .map(schedule -> toResponse(schedule, buildingLocations))
                 .toList();
 
         return new CampusMapTodayResponse(
@@ -66,7 +75,10 @@ public class CampusMapService {
         );
     }
 
-    private CampusMapCourseLocationResponse toResponse(CourseSchedule schedule) {
+    private CampusMapCourseLocationResponse toResponse(
+            CourseSchedule schedule,
+            Map<CampusBuildingQuery, CampusBuildingLocation> buildingLocations
+    ) {
         List<Integer> periods = schedule.getPeriods().stream()
                 .distinct()
                 .sorted()
@@ -87,11 +99,10 @@ public class CampusMapService {
             );
         }
 
-        Optional<CampusBuildingLocation> location = campusBuildingCatalog.find(
-                classroom.getCampusCode(),
-                classroom.getBuildingName()
+        CampusBuildingLocation mapped = buildingLocations.get(
+                buildingQuery(classroom)
         );
-        if (location.isEmpty()) {
+        if (mapped == null) {
             return new CampusMapCourseLocationResponse(
                     schedule.getId(),
                     schedule.getCourse().getCourseName(),
@@ -106,7 +117,6 @@ public class CampusMapService {
             );
         }
 
-        CampusBuildingLocation mapped = location.orElseThrow();
         return new CampusMapCourseLocationResponse(
                 schedule.getId(),
                 schedule.getCourse().getCourseName(),
@@ -118,6 +128,13 @@ public class CampusMapService {
                 mapped.latitude(),
                 mapped.longitude(),
                 CampusMapLocationStatus.MAPPED
+        );
+    }
+
+    private CampusBuildingQuery buildingQuery(Classroom classroom) {
+        return new CampusBuildingQuery(
+                classroom.getCampusCode(),
+                classroom.getBuildingName()
         );
     }
 

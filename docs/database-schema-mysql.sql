@@ -266,6 +266,146 @@ CREATE TABLE classrooms (
     CONSTRAINT uk_classroom_master_key UNIQUE (master_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE campus_buildings (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    campus_code VARCHAR(20) COLLATE utf8mb4_bin NOT NULL,
+    canonical_name VARCHAR(255) NOT NULL,
+    canonical_name_key VARCHAR(255) NOT NULL,
+    latitude DECIMAL(12, 9) NOT NULL,
+    longitude DECIMAL(12, 9) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_campus_building_campus_name_key
+        UNIQUE (campus_code, canonical_name_key),
+    CONSTRAINT uk_campus_building_id_campus
+        UNIQUE (id, campus_code),
+    INDEX ix_campus_building_campus (campus_code),
+    CONSTRAINT ck_campus_building_campus_code
+        CHECK (campus_code IN ('SEOSAN', 'TAEAN')),
+    CONSTRAINT ck_campus_building_latitude
+        CHECK (latitude BETWEEN -90.000000000 AND 90.000000000),
+    CONSTRAINT ck_campus_building_longitude
+        CHECK (longitude BETWEEN -180.000000000 AND 180.000000000)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE campus_building_aliases (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    building_id BIGINT NOT NULL,
+    campus_code VARCHAR(20) COLLATE utf8mb4_bin NOT NULL,
+    alias_name VARCHAR(255) NOT NULL,
+    alias_key VARCHAR(255) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_campus_building_alias_key_campus
+        UNIQUE (alias_key, campus_code),
+    INDEX ix_campus_building_alias_building_campus
+        (building_id, campus_code),
+    CONSTRAINT fk_campus_building_alias_building
+        FOREIGN KEY (building_id, campus_code)
+        REFERENCES campus_buildings (id, campus_code)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+START TRANSACTION;
+
+SET @campus_location_seeded_at = CURRENT_TIMESTAMP(6);
+
+INSERT INTO campus_buildings (
+    id, campus_code, canonical_name, canonical_name_key,
+    latitude, longitude, created_at, updated_at
+) VALUES
+    (1, 'SEOSAN', '공학관', '공학관',
+     36.690967900, 126.585809400, @campus_location_seeded_at, @campus_location_seeded_at),
+    (2, 'SEOSAN', '인문사회관', '인문사회관',
+     36.690056800, 126.585898200, @campus_location_seeded_at, @campus_location_seeded_at),
+    (3, 'SEOSAN', '자악관', '자악관',
+     36.691464700, 126.588964200, @campus_location_seeded_at, @campus_location_seeded_at),
+    (4, 'SEOSAN', '보건의료학관', '보건의료학관',
+     36.690217900, 126.581893100, @campus_location_seeded_at, @campus_location_seeded_at),
+    (5, 'SEOSAN', '건축토목공학관', '건축토목공학관',
+     36.691344900, 126.583559100, @campus_location_seeded_at, @campus_location_seeded_at),
+    (6, 'SEOSAN', '인곡관', '인곡관',
+     36.691773900, 126.584762100, @campus_location_seeded_at, @campus_location_seeded_at),
+    (7, 'SEOSAN', '예술관', '예술관',
+     36.689308800, 126.587997500, @campus_location_seeded_at, @campus_location_seeded_at),
+    (8, 'SEOSAN', '이학관', '이학관',
+     36.690682459, 126.581716960, @campus_location_seeded_at, @campus_location_seeded_at),
+    (9, 'SEOSAN', '영암관', '영암관',
+     36.691287200, 126.582479700, @campus_location_seeded_at, @campus_location_seeded_at),
+    (10, 'SEOSAN', '심운관', '심운관',
+     36.691160000, 126.586480000, @campus_location_seeded_at, @campus_location_seeded_at),
+    (11, 'SEOSAN', '영암체육관', '영암체육관',
+     36.691540800, 126.588204900, @campus_location_seeded_at, @campus_location_seeded_at),
+    (12, 'TAEAN', '태안 강의동(본관)', '태안강의동(본관)',
+     36.594498800, 126.294045000, @campus_location_seeded_at, @campus_location_seeded_at),
+    (13, 'TAEAN', '태안 실습2동', '태안실습2동',
+     36.593431600, 126.294876200, @campus_location_seeded_at, @campus_location_seeded_at),
+    (14, 'TAEAN', '항공기술교육센터(메디치)', '항공기술교육센터(메디치)',
+     36.596544300, 126.292435100, @campus_location_seeded_at, @campus_location_seeded_at);
+
+INSERT INTO campus_building_aliases (
+    id, building_id, campus_code, alias_name, alias_key,
+    created_at, updated_at
+) VALUES
+    (1, 1, 'SEOSAN', '공학관', '공학관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (2, 2, 'SEOSAN', '인문사회관', '인문사회관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (3, 2, 'SEOSAN', '인문관', '인문관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (4, 3, 'SEOSAN', '자악관', '자악관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (5, 3, 'SEOSAN', '본관', '본관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (6, 3, 'SEOSAN', '서산 본관', '서산본관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (7, 4, 'SEOSAN', '보건의료학관', '보건의료학관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (8, 4, 'SEOSAN', '보건관', '보건관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (9, 5, 'SEOSAN', '건축토목공학관', '건축토목공학관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (10, 5, 'SEOSAN', '건축관', '건축관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (11, 6, 'SEOSAN', '인곡관', '인곡관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (12, 7, 'SEOSAN', '예술관', '예술관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (13, 8, 'SEOSAN', '이학관', '이학관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (14, 9, 'SEOSAN', '영암관', '영암관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (15, 10, 'SEOSAN', '심운관', '심운관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (16, 11, 'SEOSAN', '영암체육관', '영암체육관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (17, 11, 'SEOSAN', '영암체육관(서산)', '영암체육관(서산)',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (18, 11, 'SEOSAN', '서산 영암체육관', '서산영암체육관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (19, 12, 'TAEAN', '본관', '본관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (20, 12, 'TAEAN', '태안 강의동(본관)', '태안강의동(본관)',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (21, 12, 'TAEAN', '태안 강의동 본관', '태안강의동본관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (22, 12, 'TAEAN', '비행교육원', '비행교육원',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (23, 13, 'TAEAN', '실습2동', '실습2동',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (24, 13, 'TAEAN', '태안 실습2동', '태안실습2동',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (25, 14, 'TAEAN', '항공기술교육센터(메디치)', '항공기술교육센터(메디치)',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (26, 14, 'TAEAN', '태안 항공기술교육센터(메디치)', '태안항공기술교육센터(메디치)',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (27, 14, 'TAEAN', '태안 항공기술센터(메디치)', '태안항공기술센터(메디치)',
+     @campus_location_seeded_at, @campus_location_seeded_at);
+
+COMMIT;
+
 CREATE TABLE course_import_histories (
     id BINARY(16) NOT NULL,
     import_id VARCHAR(100) NOT NULL,
