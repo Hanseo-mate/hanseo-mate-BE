@@ -39,6 +39,9 @@ public record CampusPlaceInformationUpdateRequest(
         @Size(max = 255, message = "한 줄 소개는 255자 이하여야 합니다.")
         String oneLineDescription,
 
+        @Size(max = 255, message = "주소는 255자 이하여야 합니다.")
+        String address,
+
         @NotBlank(message = "이미지 URL은 필수입니다.")
         @Size(max = 2048, message = "이미지 URL은 2048자 이하여야 합니다.")
         @HttpUrl

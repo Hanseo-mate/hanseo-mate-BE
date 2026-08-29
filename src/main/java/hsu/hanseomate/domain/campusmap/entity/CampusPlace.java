@@ -65,6 +65,9 @@ public class CampusPlace extends BaseTimeEntity {
     @Column(name = "one_line_description", length = 255)
     private String oneLineDescription;
 
+    @Column(length = 255)
+    private String address;
+
     @Column(name = "image_url", length = 2048)
     private String imageUrl;
 
@@ -82,6 +85,7 @@ public class CampusPlace extends BaseTimeEntity {
             BigDecimal longitude,
             CampusPlaceCategory category,
             String oneLineDescription,
+            String address,
             String imageUrl
     ) {
         update(
@@ -92,6 +96,7 @@ public class CampusPlace extends BaseTimeEntity {
                 longitude,
                 category,
                 oneLineDescription,
+                address,
                 imageUrl
         );
     }
@@ -104,6 +109,7 @@ public class CampusPlace extends BaseTimeEntity {
             BigDecimal longitude,
             CampusPlaceCategory category,
             String oneLineDescription,
+            String address,
             String imageUrl
     ) {
         return new CampusPlace(
@@ -114,6 +120,7 @@ public class CampusPlace extends BaseTimeEntity {
                 longitude,
                 category,
                 oneLineDescription,
+                address,
                 imageUrl
         );
     }
@@ -126,6 +133,7 @@ public class CampusPlace extends BaseTimeEntity {
             BigDecimal longitude,
             CampusPlaceCategory category,
             String oneLineDescription,
+            String address,
             String imageUrl
     ) {
         this.campusCode = Objects.requireNonNull(campusCode);
@@ -148,6 +156,7 @@ public class CampusPlace extends BaseTimeEntity {
                 oneLineDescription,
                 "oneLineDescription"
         );
+        this.address = address;
         this.imageUrl = requiredText(imageUrl, "imageUrl");
     }
 
