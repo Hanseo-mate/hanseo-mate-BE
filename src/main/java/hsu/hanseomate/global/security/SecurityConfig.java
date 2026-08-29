@@ -111,6 +111,8 @@ public class SecurityConfig {
                         "/api/calendars/all",
                         "/api/home",
                         "/api/cafeteria/**",
+                        "/api/campus-map/places",
+                        "/api/campus-map/places/**",
                         "/api/v1/push-tokens",
                         "/api/v1/push-tokens/**"
                 )

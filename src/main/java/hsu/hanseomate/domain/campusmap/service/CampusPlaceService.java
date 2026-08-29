@@ -13,14 +13,19 @@ import hsu.hanseomate.domain.campusmap.repository.CampusPlaceRepository;
 import hsu.hanseomate.domain.campusmap.support.CampusLocationNormalizer;
 import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.campusmap.type.CampusPlaceCategory;
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.user.entity.UserAccount;
+import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import hsu.hanseomate.global.exception.BadRequestException;
 import hsu.hanseomate.global.exception.ResourceNotFoundException;
 import hsu.hanseomate.global.storage.LocalImageStorageService;
 import jakarta.persistence.EntityManager;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,18 +36,27 @@ public class CampusPlaceService {
 
     private final CampusPlaceRepository campusPlaceRepository;
     private final CampusLectureBuildingDetailRepository lectureBuildingDetailRepository;
+    private final UserAccountRepository userAccountRepository;
     private final LocalImageStorageService imageStorageService;
     private final EntityManager entityManager;
 
     public CampusPlaceListResponse getPlaces(
+            Optional<Long> currentUserId,
             CampusCode campusCode,
             CampusPlaceCategory category
     ) {
-        return new CampusPlaceListResponse(campusPlaceRepository
-                .findAllForMap(campusCode, category)
-                .stream()
-                .map(this::toSummary)
-                .toList());
+        CampusCode selectedCampusCode = selectedCampusCode(
+                currentUserId,
+                campusCode
+        );
+        return new CampusPlaceListResponse(
+                selectedCampusCode,
+                campusPlaceRepository
+                        .findAllForMap(selectedCampusCode, category)
+                        .stream()
+                        .map(this::toSummary)
+                        .toList()
+        );
     }
 
     public CampusPlaceDetailResponse getPlace(Long placeId) {
@@ -300,6 +314,33 @@ public class CampusPlaceService {
 
     private String categoryName(CampusPlaceCategory category) {
         return category == null ? null : category.getDisplayName();
+    }
+
+    private CampusCode selectedCampusCode(
+            Optional<Long> currentUserId,
+            CampusCode requestedCampusCode
+    ) {
+        if (requestedCampusCode != null) {
+            return requestedCampusCode;
+        }
+        return currentUserId.map(this::preferredCampusCode).orElse(null);
+    }
+
+    private CampusCode preferredCampusCode(Long userId) {
+        RestaurantType preferredRestaurantType = userAccountRepository
+                .findById(userId)
+                .map(UserAccount::getPreferredRestaurantType)
+                .orElseThrow(() ->
+                        new AuthenticationCredentialsNotFoundException(
+                                "로그인이 필요합니다."
+                        ));
+        return switch (preferredRestaurantType) {
+            case MAIN_STUDENT -> CampusCode.SEOSAN;
+            case TAEAN_STUDENT -> CampusCode.TAEAN;
+            default -> throw new IllegalStateException(
+                    "지원하지 않는 선호 학생식당입니다."
+            );
+        };
     }
 
     private CampusLectureBuildingDetailResponse lectureBuildingDetails(

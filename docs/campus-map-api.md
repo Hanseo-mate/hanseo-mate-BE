@@ -94,8 +94,23 @@ const markers = response.courseLocations
 
 ## 7. 전체 장소 목록과 공통 상세 조회
 
-전체 장소 조회는 로그인 없이 사용할 수 있습니다. `campusCode`와 `category`는
-선택값이며, 카테고리를 아직 수동 분류하지 않은 장소도 `category: null`로 반환됩니다.
+전체 장소 조회는 로그인 없이도 사용할 수 있고 JWT를 선택적으로 받을 수 있습니다.
+`campusCode`와 `category`는 선택값이며, 카테고리를 아직 수동 분류하지 않은 장소도
+`category: null`로 반환됩니다.
+
+- 유효한 JWT가 있고 `campusCode`가 없으면 사용자의 선호 학생식당을 캠퍼스로 변환해
+  해당 캠퍼스 장소만 반환합니다.
+- `MAIN_STUDENT`는 `SEOSAN`, `TAEAN_STUDENT`는 `TAEAN`으로 변환합니다.
+- `campusCode`를 직접 보내면 로그인 사용자의 선호값보다 요청값이 우선합니다.
+- 비로그인 상태에서 `campusCode`가 없으면 기존과 같이 모든 캠퍼스 장소를 반환합니다.
+- 잘못되었거나 만료된 JWT를 보내면 `401 Unauthorized`입니다.
+
+로그인 사용자의 선호 캠퍼스를 적용하는 요청입니다.
+
+```http
+GET /api/campus-map/places
+Authorization: Bearer {accessToken}
+```
 
 ```http
 GET /api/campus-map/places?campusCode=SEOSAN&category=CAFE
@@ -105,6 +120,7 @@ GET /api/campus-map/places?campusCode=SEOSAN&category=CAFE
 
 ```json
 {
+  "selectedCampusCode": "SEOSAN",
   "places": [
     {
       "placeId": 2,
@@ -121,6 +137,11 @@ GET /api/campus-map/places?campusCode=SEOSAN&category=CAFE
   ]
 }
 ```
+
+`selectedCampusCode`는 이번 응답에 실제 적용된 캠퍼스입니다. 비로그인 상태에서
+`campusCode`도 보내지 않아 전체 캠퍼스를 조회하면 해당 필드는 `null` 또는 생략됩니다.
+프론트엔드는 이 값으로 서산·태안 지도 중심을 선택하고, 응답의 `places`만 마커로
+표시하면 됩니다.
 
 ```http
 GET /api/campus-map/places/{placeId}
