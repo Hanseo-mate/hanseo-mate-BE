@@ -64,6 +64,7 @@ public class CampusPlaceService {
                 request.category(),
                 request.lectureBuildingDetails()
         );
+        String address = address(request.category(), request.address());
 
         CampusPlace place = CampusPlace.create(
                 request.campusCode(),
@@ -73,6 +74,7 @@ public class CampusPlaceService {
                 request.longitude(),
                 request.category(),
                 request.oneLineDescription(),
+                address,
                 request.imageUrl()
         );
         campusPlaceRepository.saveAndFlush(place);
@@ -97,6 +99,7 @@ public class CampusPlaceService {
                 request.category(),
                 request.lectureBuildingDetails()
         );
+        String address = address(request.category(), request.address());
 
         place.update(
                 request.campusCode(),
@@ -106,6 +109,7 @@ public class CampusPlaceService {
                 request.longitude(),
                 request.category(),
                 request.oneLineDescription(),
+                address,
                 request.imageUrl()
         );
         synchronizeLectureBuildingDetails(place, request);
@@ -154,6 +158,7 @@ public class CampusPlaceService {
                 category,
                 categoryName(category),
                 place.getOneLineDescription(),
+                place.getAddress(),
                 imageStorageService.currentPublicUrl(place.getImageUrl()),
                 place.getLatitude().doubleValue(),
                 place.getLongitude().doubleValue(),
@@ -187,6 +192,26 @@ public class CampusPlaceService {
             );
         }
         return placeNameKey;
+    }
+
+    private String address(
+            CampusPlaceCategory category,
+            String address
+    ) {
+        if (category == CampusPlaceCategory.LECTURE_BUILDING) {
+            if (address != null) {
+                throw new BadRequestException(
+                        "강의실 카테고리에는 address를 입력할 수 없습니다."
+                );
+            }
+            return null;
+        }
+        if (address == null || address.isBlank()) {
+            throw new BadRequestException(
+                    "강의실 이외의 카테고리는 address가 필요합니다."
+            );
+        }
+        return address.trim();
     }
 
     private void rejectDuplicatePlace(
@@ -266,6 +291,7 @@ public class CampusPlaceService {
                 category,
                 categoryName(category),
                 place.getOneLineDescription(),
+                place.getAddress(),
                 imageStorageService.currentPublicUrl(place.getImageUrl()),
                 place.getLatitude().doubleValue(),
                 place.getLongitude().doubleValue()
