@@ -42,6 +42,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 class CampusPlaceApiIntegrationTest {
 
+    private static final long PREFERENCE_USER_ID = 9_001L;
     private static final String PLACES_ENDPOINT = "/api/campus-map/places";
     private static final String IMAGE_ENDPOINT =
             "/api/admin/campus-map/place-images";
@@ -67,7 +68,9 @@ class CampusPlaceApiIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         cleanCampusPlaceTables();
+        deletePreferenceUser();
         deleteUploadedImages();
+        insertPreferenceUser("TAEAN_STUDENT");
         insertPlace(
                 1L,
                 "SEOSAN",
@@ -141,6 +144,7 @@ class CampusPlaceApiIntegrationTest {
     @AfterEach
     void tearDown() throws Exception {
         cleanCampusPlaceTables();
+        deletePreferenceUser();
         deleteUploadedImages();
     }
 
@@ -148,12 +152,14 @@ class CampusPlaceApiIntegrationTest {
     void listsPublicPlacesAndFiltersByCampusAndCategory() throws Exception {
         mockMvc.perform(get(PLACES_ENDPOINT))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").doesNotExist())
                 .andExpect(jsonPath("$.places.length()").value(3));
 
         mockMvc.perform(get(PLACES_ENDPOINT)
                         .queryParam("campusCode", "SEOSAN")
                         .queryParam("category", "CAFE"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").value("SEOSAN"))
                 .andExpect(jsonPath("$.places.length()").value(1))
                 .andExpect(jsonPath("$.places[0].placeId").value(1))
                 .andExpect(jsonPath("$.places[0].campusCode").value("SEOSAN"))
@@ -168,6 +174,57 @@ class CampusPlaceApiIntegrationTest {
                         .value("http://localhost/uploads/campus-places/cafe.png"))
                 .andExpect(jsonPath("$.places[0].latitude").value(36.691166))
                 .andExpect(jsonPath("$.places[0].longitude").value(126.574659));
+    }
+
+    @Test
+    void defaultsLoggedInPlaceListToPreferredCampus() throws Exception {
+        mockMvc.perform(get(PLACES_ENDPOINT)
+                        .with(jwt().jwt(token -> token.subject(
+                                String.valueOf(PREFERENCE_USER_ID)
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").value("TAEAN"))
+                .andExpect(jsonPath("$.places.length()").value(1))
+                .andExpect(jsonPath("$.places[0].placeId").value(2))
+                .andExpect(jsonPath("$.places[0].campusCode").value("TAEAN"));
+
+        jdbcTemplate.update(
+                """
+                        UPDATE user_accounts
+                        SET preferred_restaurant_type = 'MAIN_STUDENT'
+                        WHERE id = ?
+                        """,
+                PREFERENCE_USER_ID
+        );
+
+        mockMvc.perform(get(PLACES_ENDPOINT)
+                        .with(jwt().jwt(token -> token.subject(
+                                String.valueOf(PREFERENCE_USER_ID)
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").value("SEOSAN"))
+                .andExpect(jsonPath("$.places.length()").value(2))
+                .andExpect(jsonPath("$.places[0].campusCode").value("SEOSAN"))
+                .andExpect(jsonPath("$.places[1].campusCode").value("SEOSAN"));
+    }
+
+    @Test
+    void explicitCampusFilterOverridesLoggedInPreference() throws Exception {
+        mockMvc.perform(get(PLACES_ENDPOINT)
+                        .queryParam("campusCode", "SEOSAN")
+                        .with(jwt().jwt(token -> token.subject(
+                                String.valueOf(PREFERENCE_USER_ID)
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").value("SEOSAN"))
+                .andExpect(jsonPath("$.places.length()").value(2));
+    }
+
+    @Test
+    void rejectsInvalidBearerTokenForPlaceReads() throws Exception {
+        mockMvc.perform(get(PLACES_ENDPOINT)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -678,6 +735,32 @@ class CampusPlaceApiIntegrationTest {
                 imageUrl,
                 latitude,
                 longitude
+        );
+    }
+
+    private void insertPreferenceUser(String preferredRestaurantType) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO user_accounts (
+                            id,
+                            login_id,
+                            password_hash,
+                            role,
+                            preferred_restaurant_type,
+                            created_at,
+                            updated_at
+                        ) VALUES (?, 'campus-map-preference-user', 'unused',
+                                  'USER', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                PREFERENCE_USER_ID,
+                preferredRestaurantType
+        );
+    }
+
+    private void deletePreferenceUser() {
+        jdbcTemplate.update(
+                "DELETE FROM user_accounts WHERE id = ?",
+                PREFERENCE_USER_ID
         );
     }
 
