@@ -13,7 +13,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,15 +39,21 @@ public class CampusPlaceController {
 
     @Operation(
             summary = "캠퍼스 장소 목록 조회",
-            description = "캠퍼스와 카테고리를 선택적으로 필터링하며, 미분류 장소의 category는 null입니다."
+            description = "campusCode가 없으면 로그인 사용자의 선호 학생식당을 캠퍼스로 변환해 필터링합니다. "
+                    + "비로그인은 전체 캠퍼스를 조회하며, 미분류 장소의 category는 null입니다."
     )
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
     public CampusPlaceListResponse getPlaces(
             @RequestParam(required = false) CampusCode campusCode,
-            @RequestParam(required = false) CampusPlaceCategory category
+            @RequestParam(required = false) CampusPlaceCategory category,
+            Authentication authentication
     ) {
-        return campusPlaceService.getPlaces(campusCode, category);
+        return campusPlaceService.getPlaces(
+                optionalCurrentUserId(authentication),
+                campusCode,
+                category
+        );
     }
 
     @Operation(
@@ -64,5 +74,23 @@ public class CampusPlaceController {
             @PathVariable Long placeId
     ) {
         return campusPlaceService.getPlace(placeId);
+    }
+
+    private Optional<Long> optionalCurrentUserId(
+            Authentication authentication
+    ) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Long.valueOf(authentication.getName()));
+        } catch (NumberFormatException exception) {
+            throw new AuthenticationCredentialsNotFoundException(
+                    "유효하지 않은 인증 정보입니다.",
+                    exception
+            );
+        }
     }
 }
