@@ -284,6 +284,7 @@ public class GlobalExceptionHandler {
         String path = request.getRequestURI();
         return path.startsWith("/api/admin/clubs/background-images/")
                 || path.startsWith("/api/admin/clubs/profile-images/")
+                || path.equals("/api/admin/campus-map/place-images")
                 || path.equals("/api/admin/home-posters")
                 || path.startsWith("/api/admin/home-posters/");
     }

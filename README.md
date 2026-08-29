@@ -67,6 +67,15 @@ CREATE DATABASE hanseo_mate
 절차는 `--force` 옵션 없이 실행합니다. 로컬 `ddl-auto=update`가 만든 빈 테이블을 위한
 것이며 운영 DB에서는 사전 백업과 실제 스키마 확인 후 운영 배포 절차에 따라 적용합니다.
 
+전체 캠퍼스 장소는 `campus_places`에서 관리하고 공개
+`GET /api/campus-map/places` 목록·상세 API로 조회합니다. 기존 114개 장소의
+카테고리·한 줄 소개·대표 이미지 URL은 자동 입력하지 않으며 사용자가 DB에서 직접
+관리합니다. 운영 DB에는 장소 좌표 SQL 적용 후
+[장소 메타데이터 증분 SQL](docs/campus-place-metadata-migration-mysql.sql)과
+[강의실 상세 증분 SQL](docs/campus-place-lecture-building-detail-migration-mysql.sql)을
+코드 배포 전에 순서대로 적용합니다. 관리자 이미지 업로드 API는 장소 행을 변경하지 않고
+`/uploads/campus-places/**` 공개 URL만 반환합니다.
+
 로컬 프로필은 기본적으로 다음 접속 정보를 사용합니다.
 
 ```text
@@ -126,7 +135,9 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 오늘 수업의 캠퍼스 건물 좌표 계약은 [캠퍼스 맵 API 명세서](docs/campus-map-api.md)에서 확인할 수 있습니다.
 기존 운영 DB에는 [캠퍼스 건물 좌표 증분 SQL](docs/campus-building-location-migration-mysql.sql)을
-코드보다 먼저 적용합니다.
+적용한 뒤 [캠퍼스 전체 장소 좌표 증분 SQL](docs/campus-place-location-migration-mysql.sql)을
+코드보다 먼저 적용합니다. 전체 장소는 서산 97곳·태안 17곳이며, 오늘 수업 위치 API는
+이 중 시간표 강의실과 연결된 건물 좌표만 응답합니다.
 
 요청·응답 예시와 오류 형식은 [필수 링크 API 명세서](docs/essential-link-api.md)에서 확인할 수 있습니다.
 
