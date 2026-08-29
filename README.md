@@ -72,6 +72,7 @@ CREATE DATABASE hanseo_mate
 카테고리·한 줄 소개·대표 이미지 URL은 자동 입력하지 않으며 관리자
 `POST`, `PUT`, `DELETE /api/admin/campus-map/places` API로 관리합니다. 운영 DB에는 장소 좌표 SQL 적용 후
 [장소 메타데이터 증분 SQL](docs/campus-place-metadata-migration-mysql.sql)과
+[장소 주소 증분 SQL](docs/campus-place-address-migration-mysql.sql),
 [강의실 상세 증분 SQL](docs/campus-place-lecture-building-detail-migration-mysql.sql)을
 코드 배포 전에 순서대로 적용합니다. 관리자 이미지 업로드 API는 장소 행을 변경하지 않고
 `/uploads/campus-places/**` 공개 URL만 반환합니다.

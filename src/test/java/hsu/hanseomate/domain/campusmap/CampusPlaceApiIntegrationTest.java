@@ -75,6 +75,7 @@ class CampusPlaceApiIntegrationTest {
                 "가배앤빈",
                 "CAFE",
                 "한서대학교 대정문 인근 카페",
+                "충청남도 서산시 해미면 대곡리",
                 "https://old.example/uploads/campus-places/cafe.png",
                 "36.691166000",
                 "126.574659000"
@@ -87,6 +88,7 @@ class CampusPlaceApiIntegrationTest {
                 "LECTURE_BUILDING",
                 "태안캠퍼스의 주요 강의 건물",
                 null,
+                null,
                 "36.594581000",
                 "126.294056000"
         );
@@ -95,6 +97,7 @@ class CampusPlaceApiIntegrationTest {
                 "SEOSAN",
                 "미분류 장소",
                 "미분류장소",
+                null,
                 null,
                 null,
                 null,
@@ -159,6 +162,8 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(jsonPath("$.places[0].categoryName").value("카페"))
                 .andExpect(jsonPath("$.places[0].oneLineDescription")
                         .value("한서대학교 대정문 인근 카페"))
+                .andExpect(jsonPath("$.places[0].address")
+                        .value("충청남도 서산시 해미면 대곡리"))
                 .andExpect(jsonPath("$.places[0].imageUrl")
                         .value("http://localhost/uploads/campus-places/cafe.png"))
                 .andExpect(jsonPath("$.places[0].latitude").value(36.691166))
@@ -174,6 +179,7 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(jsonPath("$.category").doesNotExist())
                 .andExpect(jsonPath("$.categoryName").doesNotExist())
                 .andExpect(jsonPath("$.oneLineDescription").doesNotExist())
+                .andExpect(jsonPath("$.address").doesNotExist())
                 .andExpect(jsonPath("$.imageUrl").doesNotExist());
     }
 
@@ -192,6 +198,7 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(jsonPath("$.placeName").value("태안본관"))
                 .andExpect(jsonPath("$.category").value("LECTURE_BUILDING"))
                 .andExpect(jsonPath("$.categoryName").value("강의실"))
+                .andExpect(jsonPath("$.address").doesNotExist())
                 .andExpect(jsonPath("$.lectureBuildingDetails.location")
                         .value("태안캠퍼스"))
                 .andExpect(jsonPath("$.lectureBuildingDetails.floorCount")
@@ -394,12 +401,15 @@ class CampusPlaceApiIntegrationTest {
                                   "longitude": 126.294056000,
                                   "category": "CAFE",
                                   "oneLineDescription": "태안캠퍼스 카페",
+                                  "address": "충청남도 태안군 남면 신온리",
                                   "imageUrl": "https://images.example/taean-cafe.jpg"
                                 }
                                 """)
                         .with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.category").value("CAFE"))
+                .andExpect(jsonPath("$.address")
+                        .value("충청남도 태안군 남면 신온리"))
                 .andExpect(jsonPath("$.lectureBuildingDetails").doesNotExist());
 
         assertThat(jdbcTemplate.queryForObject(
@@ -419,6 +429,7 @@ class CampusPlaceApiIntegrationTest {
                   "longitude": 126.574659000,
                   "category": "CAFE",
                   "oneLineDescription": "잘못된 요청",
+                  "address": "충청남도 서산시 해미면 대곡리",
                   "imageUrl": "https://images.example/invalid.jpg",
                   "lectureBuildingDetails": {
                     "location": "서산캠퍼스",
@@ -455,6 +466,56 @@ class CampusPlaceApiIntegrationTest {
     }
 
     @Test
+    void requiresAddressOnlyForNonLectureCategories() throws Exception {
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "가배앤빈",
+                                  "latitude": 36.691166000,
+                                  "longitude": 126.574659000,
+                                  "category": "CAFE",
+                                  "oneLineDescription": "주소가 없는 카페",
+                                  "imageUrl": "https://images.example/cafe.jpg"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "강의실 이외의 카테고리는 address가 필요합니다."
+                ));
+
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "TAEAN",
+                                  "placeName": "태안본관",
+                                  "latitude": 36.594581000,
+                                  "longitude": 126.294056000,
+                                  "category": "LECTURE_BUILDING",
+                                  "oneLineDescription": "주소를 잘못 입력한 강의실",
+                                  "address": "충청남도 태안군 남면 신온리",
+                                  "imageUrl": "https://images.example/building.jpg",
+                                  "lectureBuildingDetails": {
+                                    "location": "태안캠퍼스",
+                                    "floorCount": 4,
+                                    "hasElevator": true,
+                                    "operatingHours": "평일 09:00~22:00",
+                                    "departments": ["항공운항학과"],
+                                    "majorFacilities": ["강의실"]
+                                  }
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "강의실 카테고리에는 address를 입력할 수 없습니다."
+                ));
+    }
+
+    @Test
     void returnsNotFoundWhenAdminUpdatesUnknownPlace() throws Exception {
         mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/999")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -466,6 +527,7 @@ class CampusPlaceApiIntegrationTest {
                                   "longitude": 126.580000000,
                                   "category": "CAFE",
                                   "oneLineDescription": "존재하지 않는 장소",
+                                  "address": "충청남도 서산시 해미면 대곡리",
                                   "imageUrl": "https://images.example/missing.jpg"
                                 }
                                 """)
@@ -487,6 +549,7 @@ class CampusPlaceApiIntegrationTest {
                                   "longitude": 126.580700000,
                                   "category": "CAFE",
                                   "oneLineDescription": "새로 등록한 카페",
+                                  "address": "충청남도 서산시 해미면 대곡리 100",
                                   "imageUrl": "https://images.example/new-cafe.jpg"
                                 }
                                 """)
@@ -494,6 +557,8 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.placeName").value("새 카페"))
                 .andExpect(jsonPath("$.category").value("CAFE"))
+                .andExpect(jsonPath("$.address")
+                        .value("충청남도 서산시 해미면 대곡리 100"))
                 .andReturn();
 
         Number placeId = JsonPath.read(
@@ -521,6 +586,7 @@ class CampusPlaceApiIntegrationTest {
                                   "longitude": 126.574700000,
                                   "category": "CAFE",
                                   "oneLineDescription": "중복 장소",
+                                  "address": "충청남도 서산시 해미면 대곡리",
                                   "imageUrl": "https://images.example/duplicate.jpg"
                                 }
                                 """)
@@ -580,6 +646,7 @@ class CampusPlaceApiIntegrationTest {
             String placeNameKey,
             String category,
             String oneLineDescription,
+            String address,
             String imageUrl,
             String latitude,
             String longitude
@@ -593,12 +660,13 @@ class CampusPlaceApiIntegrationTest {
                             place_name_key,
                             category,
                             one_line_description,
+                            address,
                             image_url,
                             latitude,
                             longitude,
                             created_at,
                             updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 id,
                 campusCode,
@@ -606,6 +674,7 @@ class CampusPlaceApiIntegrationTest {
                 placeNameKey,
                 category,
                 oneLineDescription,
+                address,
                 imageUrl,
                 latitude,
                 longitude

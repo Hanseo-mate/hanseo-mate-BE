@@ -417,6 +417,7 @@ CREATE TABLE campus_places (
     place_name_key VARCHAR(255) NOT NULL,
     category VARCHAR(40) COLLATE utf8mb4_bin NULL,
     one_line_description VARCHAR(255) NULL,
+    address VARCHAR(255) NULL,
     image_url VARCHAR(2048) NULL,
     latitude DECIMAL(12, 9) NOT NULL,
     longitude DECIMAL(12, 9) NOT NULL,

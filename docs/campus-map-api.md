@@ -113,6 +113,7 @@ GET /api/campus-map/places?campusCode=SEOSAN&category=CAFE
       "category": "CAFE",
       "categoryName": "카페",
       "oneLineDescription": "한서대학교 대정문 인근 카페",
+      "address": "충청남도 서산시 해미면 대곡리",
       "imageUrl": "https://api.example.com/uploads/campus-places/example.jpg",
       "latitude": 36.691166,
       "longitude": 126.574659
@@ -227,6 +228,7 @@ Content-Type: application/json
   "longitude": 126.574659,
   "category": "CAFE",
   "oneLineDescription": "대정문 인근에서 음료와 디저트를 판매하는 카페",
+  "address": "충청남도 서산시 해미면 대곡리",
   "imageUrl": "https://api.example.com/uploads/campus-places/uuid.jpg"
 }
 ```
@@ -234,6 +236,9 @@ Content-Type: application/json
 등록·수정 성공 시 공개 장소 상세 조회와 동일한 응답을 반환합니다.
 
 - 캠퍼스, 장소명, 위도, 경도, 카테고리, 한 줄 소개, 이미지 URL은 필수입니다.
+- 음식점, 카페, 편의시설은 `address`가 필수이며 최대 255자입니다.
+- 강의실은 `address`를 보내지 않으며 응답에서도 해당 필드를 생략합니다.
+- 강의실 위치는 `lectureBuildingDetails.location`을 사용합니다.
 - 위도는 -90~90, 경도는 -180~180이며 소수점 이하 9자리까지 허용합니다.
 - 장소명에서 공백과 밑줄을 제거하고 영문을 대문자로 바꾼 내부 키를 생성합니다.
 - 같은 캠퍼스 안에서 내부 키가 같은 장소를 등록하거나 수정할 수 없습니다.
@@ -261,6 +266,8 @@ Content-Type: application/json
   [`campus-place-location-migration-mysql.sql`](campus-place-location-migration-mysql.sql)을
   적용한 뒤
   [`campus-place-metadata-migration-mysql.sql`](campus-place-metadata-migration-mysql.sql)을
+  적용한 뒤
+  [`campus-place-address-migration-mysql.sql`](campus-place-address-migration-mysql.sql)을
   적용하고, 마지막으로
   [`campus-place-lecture-building-detail-migration-mysql.sql`](campus-place-lecture-building-detail-migration-mysql.sql)을
   애플리케이션 코드보다 먼저 적용해야 합니다.
