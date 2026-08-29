@@ -11,6 +11,8 @@
 --        선택 실행하고 마지막으로 [3]을 실행합니다.
 -- 이미 데이터가 한 건이라도 있으면 seed를 다시 실행하지 말고 중단합니다.
 
+SET NAMES utf8mb4;
+
 -- ============================================================================
 -- [0-A] 항상 먼저 단독 실행: 테이블 개수 preflight
 -- ============================================================================
@@ -112,33 +114,33 @@ INSERT INTO campus_buildings (
     latitude, longitude, created_at, updated_at
 ) VALUES
     (1, 'SEOSAN', '공학관', '공학관',
-     36.690967900, 126.585809400, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.690884000, 126.585761000, @campus_location_seeded_at, @campus_location_seeded_at),
     (2, 'SEOSAN', '인문사회관', '인문사회관',
-     36.690056800, 126.585898200, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.690100000, 126.585907000, @campus_location_seeded_at, @campus_location_seeded_at),
     (3, 'SEOSAN', '자악관', '자악관',
-     36.691464700, 126.588964200, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.691490000, 126.588935000, @campus_location_seeded_at, @campus_location_seeded_at),
     (4, 'SEOSAN', '보건의료학관', '보건의료학관',
-     36.690217900, 126.581893100, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.690237000, 126.581944000, @campus_location_seeded_at, @campus_location_seeded_at),
     (5, 'SEOSAN', '건축토목공학관', '건축토목공학관',
-     36.691344900, 126.583559100, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.691361000, 126.583607000, @campus_location_seeded_at, @campus_location_seeded_at),
     (6, 'SEOSAN', '인곡관', '인곡관',
-     36.691773900, 126.584762100, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.691789000, 126.584722000, @campus_location_seeded_at, @campus_location_seeded_at),
     (7, 'SEOSAN', '예술관', '예술관',
-     36.689308800, 126.587997500, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.689406000, 126.587976000, @campus_location_seeded_at, @campus_location_seeded_at),
     (8, 'SEOSAN', '이학관', '이학관',
-     36.690682459, 126.581716960, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.690669000, 126.581760000, @campus_location_seeded_at, @campus_location_seeded_at),
     (9, 'SEOSAN', '영암관', '영암관',
-     36.691287200, 126.582479700, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.691341000, 126.582453000, @campus_location_seeded_at, @campus_location_seeded_at),
     (10, 'SEOSAN', '심운관', '심운관',
      36.691160000, 126.586480000, @campus_location_seeded_at, @campus_location_seeded_at),
     (11, 'SEOSAN', '영암체육관', '영암체육관',
-     36.691540800, 126.588204900, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.691580000, 126.588189000, @campus_location_seeded_at, @campus_location_seeded_at),
     (12, 'TAEAN', '태안 강의동(본관)', '태안강의동(본관)',
-     36.594498800, 126.294045000, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.594581000, 126.294056000, @campus_location_seeded_at, @campus_location_seeded_at),
     (13, 'TAEAN', '태안 실습2동', '태안실습2동',
-     36.593431600, 126.294876200, @campus_location_seeded_at, @campus_location_seeded_at),
+     36.593520000, 126.294879000, @campus_location_seeded_at, @campus_location_seeded_at),
     (14, 'TAEAN', '항공기술교육센터(메디치)', '항공기술교육센터(메디치)',
-     36.596544300, 126.292435100, @campus_location_seeded_at, @campus_location_seeded_at);
+     36.596492000, 126.292215000, @campus_location_seeded_at, @campus_location_seeded_at);
 
 INSERT INTO campus_building_aliases (
     id, building_id, campus_code, alias_name, alias_key,
@@ -197,6 +199,10 @@ INSERT INTO campus_building_aliases (
     (26, 14, 'TAEAN', '태안 항공기술교육센터(메디치)', '태안항공기술교육센터(메디치)',
      @campus_location_seeded_at, @campus_location_seeded_at),
     (27, 14, 'TAEAN', '태안 항공기술센터(메디치)', '태안항공기술센터(메디치)',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (28, 12, 'TAEAN', '태안본관', '태안본관',
+     @campus_location_seeded_at, @campus_location_seeded_at),
+    (29, 14, 'TAEAN', '항공기술교육원', '항공기술교육원',
      @campus_location_seeded_at, @campus_location_seeded_at);
 
 COMMIT;
@@ -212,7 +218,7 @@ FROM campus_buildings
 GROUP BY campus_code
 ORDER BY campus_code;
 
--- 별칭은 SEOSAN 18건, TAEAN 9건이어야 합니다.
+-- 별칭은 SEOSAN 18건, TAEAN 11건이어야 합니다.
 SELECT campus_code, COUNT(*) AS alias_count
 FROM campus_building_aliases
 GROUP BY campus_code

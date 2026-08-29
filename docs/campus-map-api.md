@@ -36,8 +36,8 @@ Authorization: Bearer {accessToken}
       "buildingName": "본관",
       "roomNumber": "101",
       "canonicalBuildingName": "태안 강의동(본관)",
-      "latitude": 36.5944988,
-      "longitude": 126.294045,
+      "latitude": 36.594581,
+      "longitude": 126.294056,
       "locationStatus": "MAPPED"
     },
     {
@@ -92,15 +92,111 @@ const markers = response.courseLocations
   }));
 ```
 
-## 7. 현재 데이터 경계
+## 7. 전체 장소 목록과 공통 상세 조회
+
+전체 장소 조회는 로그인 없이 사용할 수 있습니다. `campusCode`와 `category`는
+선택값이며, 카테고리를 아직 수동 분류하지 않은 장소도 `category: null`로 반환됩니다.
+
+```http
+GET /api/campus-map/places?campusCode=SEOSAN&category=CAFE
+```
+
+목록 응답의 각 항목은 지도 마커와 간단 정보창에서 사용합니다.
+
+```json
+{
+  "places": [
+    {
+      "placeId": 2,
+      "campusCode": "SEOSAN",
+      "placeName": "가배앤빈",
+      "category": "CAFE",
+      "categoryName": "카페",
+      "oneLineDescription": "한서대학교 대정문 인근 카페",
+      "imageUrl": "https://api.example.com/uploads/campus-places/example.jpg",
+      "latitude": 36.691166,
+      "longitude": 126.574659
+    }
+  ]
+}
+```
+
+```http
+GET /api/campus-map/places/{placeId}
+```
+
+강의실 카테고리는 공통 필드에 다음 상세 정보가 추가됩니다. 아직 사용자가 상세
+데이터를 입력하지 않은 강의실은 `lectureBuildingDetails: null`입니다.
+
+```json
+{
+  "placeId": 83,
+  "campusCode": "SEOSAN",
+  "placeName": "공학관",
+  "category": "LECTURE_BUILDING",
+  "categoryName": "강의실",
+  "oneLineDescription": "공학 계열 강의와 실습이 진행되는 건물",
+  "imageUrl": "https://api.example.com/uploads/campus-places/example.jpg",
+  "latitude": 36.690884,
+  "longitude": 126.585761,
+  "lectureBuildingDetails": {
+    "location": "서산캠퍼스",
+    "floorCount": 5,
+    "hasElevator": true,
+    "operatingHours": "평일 09:00~22:00",
+    "departments": ["컴퓨터공학과", "항공소프트웨어공학과"],
+    "majorFacilities": ["전산실습실", "학과사무실"]
+  }
+}
+```
+
+음식점·카페·편의시설의 카테고리별 상세 양식은 요구사항이 확정된 뒤 별도 상세
+테이블과 응답 필드로 확장합니다.
+
+카테고리는 `RESTAURANT`, `CAFE`, `LECTURE_BUILDING`,
+`CONVENIENCE_FACILITY` 네 값만 허용합니다.
+
+## 8. 장소 이미지 업로드
+
+관리자 JWT가 필요한 API이며, 장소 DB 행을 수정하지 않고 저장된 이미지 URL만
+반환합니다. 반환 URL은 사용자가 `campus_places.image_url`에 직접 입력합니다.
+
+```http
+POST /api/admin/campus-map/place-images
+Authorization: Bearer {adminAccessToken}
+Content-Type: multipart/form-data
+
+file: {JPG, PNG 또는 GIF 이미지}
+```
+
+```json
+{
+  "imageUrl": "https://api.example.com/uploads/campus-places/uuid.jpg"
+}
+```
+
+기본 이미지 크기 제한은 `UPLOAD_MAX_IMAGE_BYTES` 설정을 사용하며 기본값은 5MiB입니다.
+
+## 9. 현재 데이터 경계
 
 - 좌표는 `campus_buildings`에 저장하며 `campus_code`의 `SEOSAN`, `TAEAN`으로
   서산캠과 태안캠을 구분합니다.
 - 건물 별칭은 `campus_building_aliases`에 저장합니다. 같은 `본관` 별칭도 캠퍼스가
   다르면 각각 저장할 수 있지만, 같은 캠퍼스 안에서는 하나의 건물에만 연결됩니다.
-- 초기 데이터는 서산 11개·태안 3개 건물과 정규화 별칭 27개입니다.
+- 수업 건물 초기 데이터는 서산 11개·태안 3개 건물과 정규화 별칭 29개입니다.
+- 전체 장소 좌표는 별도 `campus_places`에 서산 97곳·태안 17곳, 총 114곳을
+  저장합니다. `today-locations`는 시간표 강의실과 일치하는 `campus_buildings`
+  좌표만 반환하고, 전체 장소는 `/api/campus-map/places`에서 별도로 조회합니다.
+- 기존 장소의 카테고리·한 줄 소개·이미지 URL은 자동으로 분류하거나 채우지 않습니다.
+  사용자가 DB에서 직접 입력할 때까지 nullable 상태를 유지합니다.
 - 기존 운영 DB에는
   [`campus-building-location-migration-mysql.sql`](campus-building-location-migration-mysql.sql)을
+  적용한 뒤
+  [`campus-place-location-migration-mysql.sql`](campus-place-location-migration-mysql.sql)을
+  적용한 뒤
+  [`campus-place-metadata-migration-mysql.sql`](campus-place-metadata-migration-mysql.sql)을
+  적용하고, 마지막으로
+  [`campus-place-lecture-building-detail-migration-mysql.sql`](campus-place-lecture-building-detail-migration-mysql.sql)을
   애플리케이션 코드보다 먼저 적용해야 합니다.
 - 현재 모델에서 일정과 강의실은 학기별 `CourseOffering`이 아닌 공통 `Course`에
   연결됩니다. 같은 과목코드의 강의실이 다음 학기에 바뀌어도 최초 수입된 강의실이

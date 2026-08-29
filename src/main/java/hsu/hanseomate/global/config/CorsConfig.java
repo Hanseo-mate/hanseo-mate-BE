@@ -163,6 +163,10 @@ public class CorsConfig {
                 publicReadConfiguration
         );
         source.registerCorsConfiguration(
+                "/api/campus-map/**",
+                publicReadConfiguration
+        );
+        source.registerCorsConfiguration(
                 "/api/cafeteria/**",
                 publicReadConfiguration
         );
