@@ -14,6 +14,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +36,11 @@ import org.hibernate.type.SqlTypes;
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CampusPlace extends BaseTimeEntity {
+
+    private static final BigDecimal MIN_LATITUDE = new BigDecimal("-90");
+    private static final BigDecimal MAX_LATITUDE = new BigDecimal("90");
+    private static final BigDecimal MIN_LONGITUDE = new BigDecimal("-180");
+    private static final BigDecimal MAX_LONGITUDE = new BigDecimal("180");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -67,4 +73,106 @@ public class CampusPlace extends BaseTimeEntity {
 
     @Column(nullable = false, precision = 12, scale = 9)
     private BigDecimal longitude;
+
+    private CampusPlace(
+            CampusCode campusCode,
+            String placeName,
+            String placeNameKey,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            CampusPlaceCategory category,
+            String oneLineDescription,
+            String imageUrl
+    ) {
+        update(
+                campusCode,
+                placeName,
+                placeNameKey,
+                latitude,
+                longitude,
+                category,
+                oneLineDescription,
+                imageUrl
+        );
+    }
+
+    public static CampusPlace create(
+            CampusCode campusCode,
+            String placeName,
+            String placeNameKey,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            CampusPlaceCategory category,
+            String oneLineDescription,
+            String imageUrl
+    ) {
+        return new CampusPlace(
+                campusCode,
+                placeName,
+                placeNameKey,
+                latitude,
+                longitude,
+                category,
+                oneLineDescription,
+                imageUrl
+        );
+    }
+
+    public void update(
+            CampusCode campusCode,
+            String placeName,
+            String placeNameKey,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            CampusPlaceCategory category,
+            String oneLineDescription,
+            String imageUrl
+    ) {
+        this.campusCode = Objects.requireNonNull(campusCode);
+        this.placeName = requiredText(placeName, "placeName");
+        this.placeNameKey = requiredText(placeNameKey, "placeNameKey");
+        this.latitude = coordinate(
+                latitude,
+                MIN_LATITUDE,
+                MAX_LATITUDE,
+                "latitude"
+        );
+        this.longitude = coordinate(
+                longitude,
+                MIN_LONGITUDE,
+                MAX_LONGITUDE,
+                "longitude"
+        );
+        this.category = Objects.requireNonNull(category);
+        this.oneLineDescription = requiredText(
+                oneLineDescription,
+                "oneLineDescription"
+        );
+        this.imageUrl = requiredText(imageUrl, "imageUrl");
+    }
+
+    private static String requiredText(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " must not be blank");
+        }
+        return value.trim();
+    }
+
+    private static BigDecimal coordinate(
+            BigDecimal value,
+            BigDecimal minimum,
+            BigDecimal maximum,
+            String fieldName
+    ) {
+        Objects.requireNonNull(value, fieldName + " must not be null");
+        if (value.compareTo(minimum) < 0 || value.compareTo(maximum) > 0) {
+            throw new IllegalArgumentException(fieldName + " is out of range");
+        }
+        if (Math.max(value.stripTrailingZeros().scale(), 0) > 9) {
+            throw new IllegalArgumentException(
+                    fieldName + " must have at most 9 decimal places"
+            );
+        }
+        return value;
+    }
 }

@@ -10,6 +10,17 @@ import org.springframework.data.repository.query.Param;
 
 public interface CampusPlaceRepository extends JpaRepository<CampusPlace, Long> {
 
+    boolean existsByCampusCodeAndPlaceNameKey(
+            CampusCode campusCode,
+            String placeNameKey
+    );
+
+    boolean existsByCampusCodeAndPlaceNameKeyAndIdNot(
+            CampusCode campusCode,
+            String placeNameKey,
+            Long id
+    );
+
     @Query("""
             SELECT place
             FROM CampusPlace place
