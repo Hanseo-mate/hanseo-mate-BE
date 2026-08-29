@@ -4,8 +4,11 @@ import static hsu.hanseomate.support.AdminJwtRequestPostProcessor.adminJwt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,6 +45,8 @@ class CampusPlaceApiIntegrationTest {
     private static final String PLACES_ENDPOINT = "/api/campus-map/places";
     private static final String IMAGE_ENDPOINT =
             "/api/admin/campus-map/place-images";
+    private static final String ADMIN_PLACES_ENDPOINT =
+            "/api/admin/campus-map/places";
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
     private static final Path TEST_IMAGE_DIRECTORY = Path.of(
             "build",
@@ -279,6 +284,273 @@ class CampusPlaceApiIntegrationTest {
     }
 
     @Test
+    void updatesExistingPlaceInformationAndLectureBuildingDetailsForAdmin()
+            throws Exception {
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "TAEAN",
+                                  "placeName": "태안본관 별관",
+                                  "latitude": 36.594600000,
+                                  "longitude": 126.294100000,
+                                  "category": "LECTURE_BUILDING",
+                                  "oneLineDescription": "태안캠퍼스의 중심 강의 건물",
+                                  "imageUrl": "https://images.example/taean-main.jpg",
+                                  "lectureBuildingDetails": {
+                                    "location": "태안캠퍼스 중앙",
+                                    "floorCount": 5,
+                                    "hasElevator": false,
+                                    "operatingHours": "평일 08:00~21:00",
+                                    "departments": ["항공운항학과", "항공교통물류학과"],
+                                    "majorFacilities": ["대형강의실", "행정실"]
+                                  }
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.placeId").value(2))
+                .andExpect(jsonPath("$.placeName").value("태안본관 별관"))
+                .andExpect(jsonPath("$.category").value("LECTURE_BUILDING"))
+                .andExpect(jsonPath("$.oneLineDescription")
+                        .value("태안캠퍼스의 중심 강의 건물"))
+                .andExpect(jsonPath("$.imageUrl")
+                        .value("https://images.example/taean-main.jpg"))
+                .andExpect(jsonPath("$.latitude").value(36.5946))
+                .andExpect(jsonPath("$.longitude").value(126.2941))
+                .andExpect(jsonPath("$.lectureBuildingDetails.location")
+                        .value("태안캠퍼스 중앙"))
+                .andExpect(jsonPath("$.lectureBuildingDetails.floorCount")
+                        .value(5))
+                .andExpect(jsonPath("$.lectureBuildingDetails.hasElevator")
+                        .value(false))
+                .andExpect(jsonPath(
+                        "$.lectureBuildingDetails.departments[1]"
+                ).value("항공교통물류학과"))
+                .andExpect(jsonPath(
+                        "$.lectureBuildingDetails.majorFacilities[1]"
+                ).value("행정실"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT one_line_description FROM campus_places WHERE id = 2",
+                String.class
+        )).isEqualTo("태안캠퍼스의 중심 강의 건물");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT place_name_key FROM campus_places WHERE id = 2",
+                String.class
+        )).isEqualTo("태안본관별관");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM campus_lecture_building_departments WHERE place_id = 2",
+                Integer.class
+        )).isEqualTo(2);
+    }
+
+    @Test
+    void createsLectureDetailsWhenExistingPlaceBecomesLectureBuilding()
+            throws Exception {
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "새 강의 건물",
+                                  "latitude": 36.690100000,
+                                  "longitude": 126.580100000,
+                                  "category": "LECTURE_BUILDING",
+                                  "oneLineDescription": "새로 분류한 강의 건물",
+                                  "imageUrl": "https://images.example/new-building.jpg",
+                                  "lectureBuildingDetails": {
+                                    "location": "서산캠퍼스",
+                                    "floorCount": 3,
+                                    "hasElevator": true,
+                                    "operatingHours": "평일 09:00~18:00",
+                                    "departments": ["컴퓨터공학과"],
+                                    "majorFacilities": ["강의실"]
+                                  }
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("LECTURE_BUILDING"))
+                .andExpect(jsonPath("$.lectureBuildingDetails.floorCount")
+                        .value(3));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM campus_lecture_building_details WHERE place_id = 3",
+                Integer.class
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void removesLectureDetailsWhenPlaceChangesToAnotherCategory()
+            throws Exception {
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "TAEAN",
+                                  "placeName": "태안본관",
+                                  "latitude": 36.594581000,
+                                  "longitude": 126.294056000,
+                                  "category": "CAFE",
+                                  "oneLineDescription": "태안캠퍼스 카페",
+                                  "imageUrl": "https://images.example/taean-cafe.jpg"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("CAFE"))
+                .andExpect(jsonPath("$.lectureBuildingDetails").doesNotExist());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM campus_lecture_building_details WHERE place_id = 2",
+                Integer.class
+        )).isZero();
+    }
+
+    @Test
+    void validatesCategorySpecificInformationAndProtectsUpdateWithAdminRole()
+            throws Exception {
+        String cafeWithLectureDetails = """
+                {
+                  "campusCode": "SEOSAN",
+                  "placeName": "가배앤빈",
+                  "latitude": 36.691166000,
+                  "longitude": 126.574659000,
+                  "category": "CAFE",
+                  "oneLineDescription": "잘못된 요청",
+                  "imageUrl": "https://images.example/invalid.jpg",
+                  "lectureBuildingDetails": {
+                    "location": "서산캠퍼스",
+                    "floorCount": 1,
+                    "hasElevator": false,
+                    "operatingHours": "09:00~18:00",
+                    "departments": ["학과"],
+                    "majorFacilities": ["시설"]
+                  }
+                }
+                """;
+
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cafeWithLectureDetails)
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "강의실 이외의 카테고리에는 lectureBuildingDetails를 입력할 수 없습니다."
+                ));
+
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cafeWithLectureDetails))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cafeWithLectureDetails)
+                        .with(jwt().authorities(
+                                new SimpleGrantedAuthority("ROLE_USER")
+                        )))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void returnsNotFoundWhenAdminUpdatesUnknownPlace() throws Exception {
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "존재하지 않는 장소",
+                                  "latitude": 36.690000000,
+                                  "longitude": 126.580000000,
+                                  "category": "CAFE",
+                                  "oneLineDescription": "존재하지 않는 장소",
+                                  "imageUrl": "https://images.example/missing.jpg"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.path")
+                        .value(ADMIN_PLACES_ENDPOINT + "/999"));
+    }
+
+    @Test
+    void createsPlaceAndGeneratesInternalNameKeyForAdmin() throws Exception {
+        MvcResult result = mockMvc.perform(post(ADMIN_PLACES_ENDPOINT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": " 새 카페 ",
+                                  "latitude": 36.690700000,
+                                  "longitude": 126.580700000,
+                                  "category": "CAFE",
+                                  "oneLineDescription": "새로 등록한 카페",
+                                  "imageUrl": "https://images.example/new-cafe.jpg"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.placeName").value("새 카페"))
+                .andExpect(jsonPath("$.category").value("CAFE"))
+                .andReturn();
+
+        Number placeId = JsonPath.read(
+                result.getResponse().getContentAsString(),
+                "$.placeId"
+        );
+        assertThat(result.getResponse().getHeader(HttpHeaders.LOCATION))
+                .isEqualTo("/api/campus-map/places/" + placeId.longValue());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT place_name_key FROM campus_places WHERE id = ?",
+                String.class,
+                placeId.longValue()
+        )).isEqualTo("새카페");
+    }
+
+    @Test
+    void rejectsDuplicatePlaceNameKeyWithinSameCampus() throws Exception {
+        mockMvc.perform(post(ADMIN_PLACES_ENDPOINT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "가배 앤빈",
+                                  "latitude": 36.691200000,
+                                  "longitude": 126.574700000,
+                                  "category": "CAFE",
+                                  "oneLineDescription": "중복 장소",
+                                  "imageUrl": "https://images.example/duplicate.jpg"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "같은 캠퍼스에 같은 이름의 장소가 이미 있습니다."
+                ));
+    }
+
+    @Test
+    void deletesPlaceAndLectureBuildingDetailsForAdmin() throws Exception {
+        mockMvc.perform(delete(ADMIN_PLACES_ENDPOINT + "/2")
+                        .with(adminJwt()))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM campus_places WHERE id = 2",
+                Integer.class
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM campus_lecture_building_details WHERE place_id = 2",
+                Integer.class
+        )).isZero();
+
+        mockMvc.perform(get(PLACES_ENDPOINT + "/2"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void exposesPlaceAndImageEndpointsInOpenApi() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -289,6 +561,15 @@ class CampusPlaceApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/admin/campus-map/place-images'].post"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/campus-map/places/{placeId}'].put"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/campus-map/places/{placeId}'].delete"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/campus-map/places'].post"
                 ).exists());
     }
 

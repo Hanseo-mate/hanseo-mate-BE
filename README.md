@@ -69,8 +69,8 @@ CREATE DATABASE hanseo_mate
 
 전체 캠퍼스 장소는 `campus_places`에서 관리하고 공개
 `GET /api/campus-map/places` 목록·상세 API로 조회합니다. 기존 114개 장소의
-카테고리·한 줄 소개·대표 이미지 URL은 자동 입력하지 않으며 사용자가 DB에서 직접
-관리합니다. 운영 DB에는 장소 좌표 SQL 적용 후
+카테고리·한 줄 소개·대표 이미지 URL은 자동 입력하지 않으며 관리자
+`POST`, `PUT`, `DELETE /api/admin/campus-map/places` API로 관리합니다. 운영 DB에는 장소 좌표 SQL 적용 후
 [장소 메타데이터 증분 SQL](docs/campus-place-metadata-migration-mysql.sql)과
 [강의실 상세 증분 SQL](docs/campus-place-lecture-building-detail-migration-mysql.sql)을
 코드 배포 전에 순서대로 적용합니다. 관리자 이미지 업로드 API는 장소 행을 변경하지 않고

@@ -159,7 +159,7 @@ GET /api/campus-map/places/{placeId}
 ## 8. 장소 이미지 업로드
 
 관리자 JWT가 필요한 API이며, 장소 DB 행을 수정하지 않고 저장된 이미지 URL만
-반환합니다. 반환 URL은 사용자가 `campus_places.image_url`에 직접 입력합니다.
+반환합니다. 반환 URL은 아래 장소 정보 저장 API의 `imageUrl`로 전달합니다.
 
 ```http
 POST /api/admin/campus-map/place-images
@@ -177,7 +177,73 @@ file: {JPG, PNG 또는 GIF 이미지}
 
 기본 이미지 크기 제한은 `UPLOAD_MAX_IMAGE_BYTES` 설정을 사용하며 기본값은 5MiB입니다.
 
-## 9. 현재 데이터 경계
+## 9. 관리자 장소 등록·수정·삭제
+
+관리자 JWT로 장소를 등록, 전체 수정, 삭제합니다. 이미지 업로드 API가 반환한 URL을
+`imageUrl`에 사용하며 `placeNameKey`는 장소명으로 서버가 자동 생성합니다.
+
+```http
+POST /api/admin/campus-map/places
+PUT /api/admin/campus-map/places/{placeId}
+DELETE /api/admin/campus-map/places/{placeId}
+Authorization: Bearer {adminAccessToken}
+Content-Type: application/json
+```
+
+- `POST`는 `201 Created`와 생성된 장소 상세정보를 반환합니다.
+- `PUT`은 `200 OK`와 수정된 장소 상세정보를 반환합니다.
+- `DELETE`는 `204 No Content`를 반환합니다.
+- 삭제 시 강의실 상세정보는 함께 삭제하지만 업로드된 이미지 파일은 삭제하지 않습니다.
+
+강의실 카테고리 요청 예시입니다.
+
+```json
+{
+  "campusCode": "SEOSAN",
+  "placeName": "공학관",
+  "latitude": 36.690884,
+  "longitude": 126.585761,
+  "category": "LECTURE_BUILDING",
+  "oneLineDescription": "공학 계열 강의와 실습이 진행되는 건물",
+  "imageUrl": "https://api.example.com/uploads/campus-places/uuid.jpg",
+  "lectureBuildingDetails": {
+    "location": "서산캠퍼스",
+    "floorCount": 5,
+    "hasElevator": true,
+    "operatingHours": "평일 09:00~22:00",
+    "departments": ["컴퓨터공학과", "항공소프트웨어공학과"],
+    "majorFacilities": ["전산실습실", "학과사무실"]
+  }
+}
+```
+
+음식점, 카페, 편의시설은 `lectureBuildingDetails`를 보내지 않습니다.
+
+```json
+{
+  "campusCode": "SEOSAN",
+  "placeName": "가배앤빈",
+  "latitude": 36.691166,
+  "longitude": 126.574659,
+  "category": "CAFE",
+  "oneLineDescription": "대정문 인근에서 음료와 디저트를 판매하는 카페",
+  "imageUrl": "https://api.example.com/uploads/campus-places/uuid.jpg"
+}
+```
+
+등록·수정 성공 시 공개 장소 상세 조회와 동일한 응답을 반환합니다.
+
+- 캠퍼스, 장소명, 위도, 경도, 카테고리, 한 줄 소개, 이미지 URL은 필수입니다.
+- 위도는 -90~90, 경도는 -180~180이며 소수점 이하 9자리까지 허용합니다.
+- 장소명에서 공백과 밑줄을 제거하고 영문을 대문자로 바꾼 내부 키를 생성합니다.
+- 같은 캠퍼스 안에서 내부 키가 같은 장소를 등록하거나 수정할 수 없습니다.
+- `LECTURE_BUILDING`은 `lectureBuildingDetails`가 필수입니다.
+- 강의실 이외의 카테고리는 `lectureBuildingDetails`를 보낼 수 없습니다.
+- 학과와 주요시설은 각각 한 개 이상이며, 같은 배열 안에서 이름이 중복될 수 없습니다.
+- 강의실에서 다른 카테고리로 변경하면 기존 강의실 상세정보는 삭제됩니다.
+- 관리자 JWT가 없으면 `401`, 일반 사용자 JWT이면 `403`, 수정·삭제할 장소가 없으면 `404`입니다.
+
+## 10. 현재 데이터 경계
 
 - 좌표는 `campus_buildings`에 저장하며 `campus_code`의 `SEOSAN`, `TAEAN`으로
   서산캠과 태안캠을 구분합니다.
@@ -188,7 +254,7 @@ file: {JPG, PNG 또는 GIF 이미지}
   저장합니다. `today-locations`는 시간표 강의실과 일치하는 `campus_buildings`
   좌표만 반환하고, 전체 장소는 `/api/campus-map/places`에서 별도로 조회합니다.
 - 기존 장소의 카테고리·한 줄 소개·이미지 URL은 자동으로 분류하거나 채우지 않습니다.
-  사용자가 DB에서 직접 입력할 때까지 nullable 상태를 유지합니다.
+  관리자 장소 수정 API를 호출하기 전까지 nullable 상태를 유지합니다.
 - 기존 운영 DB에는
   [`campus-building-location-migration-mysql.sql`](campus-building-location-migration-mysql.sql)을
   적용한 뒤

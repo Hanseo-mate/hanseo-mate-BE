@@ -74,4 +74,28 @@ public class CampusLectureBuildingDetail extends BaseTimeEntity {
     @OrderColumn(name = "sort_order")
     @Column(name = "facility_name", nullable = false, length = 255)
     private List<String> majorFacilities = new ArrayList<>();
+
+    public static CampusLectureBuildingDetail create(CampusPlace place) {
+        CampusLectureBuildingDetail detail = new CampusLectureBuildingDetail();
+        detail.place = place;
+        return detail;
+    }
+
+    public void update(
+            String location,
+            Integer floorCount,
+            Boolean hasElevator,
+            String operatingHours,
+            List<String> departments,
+            List<String> majorFacilities
+    ) {
+        this.location = location;
+        this.floorCount = floorCount;
+        this.hasElevator = hasElevator;
+        this.operatingHours = operatingHours;
+        this.departments.clear();
+        this.departments.addAll(departments);
+        this.majorFacilities.clear();
+        this.majorFacilities.addAll(majorFacilities);
+    }
 }
