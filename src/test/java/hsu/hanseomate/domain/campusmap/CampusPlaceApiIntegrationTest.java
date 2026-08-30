@@ -632,6 +632,69 @@ class CampusPlaceApiIntegrationTest {
     }
 
     @Test
+    void allowsAdminToOmitDescriptionAndImageWhenCreatingAndUpdatingPlaces()
+            throws Exception {
+        MvcResult created = mockMvc.perform(post(ADMIN_PLACES_ENDPOINT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "소개 없는 식당",
+                                  "latitude": 36.690800000,
+                                  "longitude": 126.580800000,
+                                  "category": "RESTAURANT",
+                                  "address": "충청남도 서산시 해미면 대곡리 101"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.oneLineDescription").doesNotExist())
+                .andExpect(jsonPath("$.imageUrl").doesNotExist())
+                .andReturn();
+
+        Number createdPlaceId = JsonPath.read(
+                created.getResponse().getContentAsString(),
+                "$.placeId"
+        );
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT one_line_description FROM campus_places WHERE id = ?",
+                String.class,
+                createdPlaceId.longValue()
+        )).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT image_url FROM campus_places WHERE id = ?",
+                String.class,
+                createdPlaceId.longValue()
+        )).isNull();
+
+        mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "가배앤빈",
+                                  "latitude": 36.691166000,
+                                  "longitude": 126.574659000,
+                                  "category": "CAFE",
+                                  "address": "충청남도 서산시 해미면 대곡리"
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.oneLineDescription").doesNotExist())
+                .andExpect(jsonPath("$.imageUrl").doesNotExist());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT one_line_description FROM campus_places WHERE id = 1",
+                String.class
+        )).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT image_url FROM campus_places WHERE id = 1",
+                String.class
+        )).isNull();
+    }
+
+    @Test
     void rejectsDuplicatePlaceNameKeyWithinSameCampus() throws Exception {
         mockMvc.perform(post(ADMIN_PLACES_ENDPOINT)
                         .contentType(MediaType.APPLICATION_JSON)

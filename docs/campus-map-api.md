@@ -1,10 +1,10 @@
-# 캠퍼스 맵 오늘 수업 위치 API
+# 캠퍼스 맵 시간표 위치 API
 
 ## 1. 기능 개요
 
-로그인 사용자의 시간표에서 한국 시간 기준 오늘 요일에 해당하는 수업을 조회하고,
-강의실 건물의 위도·경도를 반환합니다. 프론트엔드는 `locationStatus`가 `MAPPED`인
-항목만 네이버 지도 마커로 표시하면 됩니다.
+로그인 사용자의 현재 학기 시간표에서 강의실 건물의 위도·경도를 반환합니다.
+기존 오늘 수업 조회와 월요일부터 목요일까지 전체 조회를 모두 지원합니다.
+프론트엔드는 `locationStatus`가 `MAPPED`인 항목만 네이버 지도 마커로 표시하면 됩니다.
 
 ## 2. 요청
 
@@ -92,7 +92,80 @@ const markers = response.courseLocations
   }));
 ```
 
-## 7. 전체 장소 목록과 공통 상세 조회
+## 7. 월요일부터 목요일까지 전체 수업 위치 조회
+
+현재 연도·학기의 월요일, 화요일, 수요일, 목요일 수업을 요일별로 묶어 반환합니다.
+금요일부터 일요일까지의 일정은 응답에 포함하지 않습니다.
+
+```http
+GET /api/timetables/weekly-locations
+Authorization: Bearer {accessToken}
+```
+
+- Query Parameter와 요청 Body는 없습니다.
+- JWT 로그인이 필요합니다.
+- `dayLocations`는 `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY` 고정 순서입니다.
+- 해당 요일에 수업이 없어도 그 요일을 생략하지 않고 `courseLocations: []`로 반환합니다.
+- 각 수업의 필드와 `locationStatus` 규칙은 오늘 수업 조회와 같습니다.
+- 각 요일 안에서는 첫 교시, 과목명, 일정 순번, 일정 식별자 순으로 정렬합니다.
+
+```json
+{
+  "academicYear": 2026,
+  "semester": 1,
+  "dayLocations": [
+    {
+      "dayOfWeek": "MONDAY",
+      "courseLocations": [
+        {
+          "scheduleId": "3f268828-b3d9-4cbf-90a3-75e32cf49356",
+          "courseName": "항공소프트웨어개론",
+          "periods": [0, 1],
+          "campusCode": "TAEAN",
+          "buildingName": "본관",
+          "roomNumber": "101",
+          "canonicalBuildingName": "태안 강의동(본관)",
+          "latitude": 36.5944988,
+          "longitude": 126.294045,
+          "locationStatus": "MAPPED"
+        }
+      ]
+    },
+    {
+      "dayOfWeek": "TUESDAY",
+      "courseLocations": []
+    },
+    {
+      "dayOfWeek": "WEDNESDAY",
+      "courseLocations": []
+    },
+    {
+      "dayOfWeek": "THURSDAY",
+      "courseLocations": []
+    }
+  ]
+}
+```
+
+```javascript
+const markersByDay = Object.fromEntries(
+  response.dayLocations.map((day) => [
+    day.dayOfWeek,
+    day.courseLocations
+      .filter((course) => course.locationStatus === "MAPPED")
+      .map((course) => ({
+        id: course.scheduleId,
+        position: {
+          lat: course.latitude,
+          lng: course.longitude,
+        },
+        course,
+      })),
+  ]),
+);
+```
+
+## 8. 전체 장소 목록과 공통 상세 조회
 
 전체 장소 조회는 로그인 없이도 사용할 수 있고 JWT를 선택적으로 받을 수 있습니다.
 `campusCode`와 `category`는 선택값이며, 카테고리를 아직 수동 분류하지 않은 장소도
@@ -178,10 +251,11 @@ GET /api/campus-map/places/{placeId}
 카테고리는 `RESTAURANT`, `CAFE`, `LECTURE_BUILDING`,
 `CONVENIENCE_FACILITY` 네 값만 허용합니다.
 
-## 8. 장소 이미지 업로드
+## 9. 장소 이미지 업로드
 
 관리자 JWT가 필요한 API이며, 장소 DB 행을 수정하지 않고 저장된 이미지 URL만
-반환합니다. 반환 URL은 아래 장소 정보 저장 API의 `imageUrl`로 전달합니다.
+반환합니다. 대표 이미지가 필요한 경우 반환 URL을 아래 장소 정보 저장 API의
+`imageUrl`로 전달합니다. 장소는 이미지 없이도 등록하거나 수정할 수 있습니다.
 
 ```http
 POST /api/admin/campus-map/place-images
@@ -199,10 +273,10 @@ file: {JPG, PNG 또는 GIF 이미지}
 
 기본 이미지 크기 제한은 `UPLOAD_MAX_IMAGE_BYTES` 설정을 사용하며 기본값은 5MiB입니다.
 
-## 9. 관리자 장소 등록·수정·삭제
+## 10. 관리자 장소 등록·수정·삭제
 
-관리자 JWT로 장소를 등록, 전체 수정, 삭제합니다. 이미지 업로드 API가 반환한 URL을
-`imageUrl`에 사용하며 `placeNameKey`는 장소명으로 서버가 자동 생성합니다.
+관리자 JWT로 장소를 등록, 전체 수정, 삭제합니다. 이미지 업로드 API가 반환한 URL은
+필요한 경우 `imageUrl`에 사용하며 `placeNameKey`는 장소명으로 서버가 자동 생성합니다.
 
 ```http
 POST /api/admin/campus-map/places
@@ -240,6 +314,7 @@ Content-Type: application/json
 ```
 
 음식점, 카페, 편의시설은 `lectureBuildingDetails`를 보내지 않습니다.
+`oneLineDescription`과 `imageUrl`은 선택값이므로 아래처럼 생략할 수 있습니다.
 
 ```json
 {
@@ -248,15 +323,15 @@ Content-Type: application/json
   "latitude": 36.691166,
   "longitude": 126.574659,
   "category": "CAFE",
-  "oneLineDescription": "대정문 인근에서 음료와 디저트를 판매하는 카페",
-  "address": "충청남도 서산시 해미면 대곡리",
-  "imageUrl": "https://api.example.com/uploads/campus-places/uuid.jpg"
+  "address": "충청남도 서산시 해미면 대곡리"
 }
 ```
 
 등록·수정 성공 시 공개 장소 상세 조회와 동일한 응답을 반환합니다.
 
-- 캠퍼스, 장소명, 위도, 경도, 카테고리, 한 줄 소개, 이미지 URL은 필수입니다.
+- 캠퍼스, 장소명, 위도, 경도, 카테고리는 필수입니다.
+- 한 줄 소개와 이미지 URL은 선택값입니다. 생략하거나 `null` 또는 빈 문자열로 보내면
+  DB에는 `NULL`로 저장되고 조회 응답에서는 `null`이거나 필드가 생략됩니다.
 - 음식점, 카페, 편의시설은 `address`가 필수이며 최대 255자입니다.
 - 강의실은 `address`를 보내지 않으며 응답에서도 해당 필드를 생략합니다.
 - 강의실 위치는 `lectureBuildingDetails.location`을 사용합니다.
@@ -269,7 +344,7 @@ Content-Type: application/json
 - 강의실에서 다른 카테고리로 변경하면 기존 강의실 상세정보는 삭제됩니다.
 - 관리자 JWT가 없으면 `401`, 일반 사용자 JWT이면 `403`, 수정·삭제할 장소가 없으면 `404`입니다.
 
-## 10. 현재 데이터 경계
+## 11. 현재 데이터 경계
 
 - 좌표는 `campus_buildings`에 저장하며 `campus_code`의 `SEOSAN`, `TAEAN`으로
   서산캠과 태안캠을 구분합니다.
