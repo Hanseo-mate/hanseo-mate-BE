@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.campusmap.dto;
 
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.Objects;
@@ -11,7 +12,7 @@ public record CampusMapCourseLocationResponse(
         String courseName,
         List<Integer> periods,
         @Schema(nullable = true)
-        String campusCode,
+        CampusCode campusCode,
         @Schema(nullable = true)
         String buildingName,
         @Schema(nullable = true)

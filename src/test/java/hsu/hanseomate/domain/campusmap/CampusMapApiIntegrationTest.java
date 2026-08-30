@@ -1,10 +1,13 @@
 package hsu.hanseomate.domain.campusmap;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +33,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -334,6 +338,111 @@ class CampusMapApiIntegrationTest {
     }
 
     @Test
+    void normalizesStoredHBuildingCodesForTodayAndWeeklyResponses()
+            throws Exception {
+        importMajorFixture(fixturePayload());
+        updateStoredClassroom(
+                "003000",
+                "H01",
+                "이학관",
+                "101",
+                "[H01] 이학관 101호"
+        );
+        updateStoredClassroom(
+                "001000",
+                "H02",
+                "영암관",
+                "302",
+                "[H02] 영암관 302호"
+        );
+        updateStoredClassroom(
+                "005000",
+                "H01",
+                "미래관",
+                "501",
+                "[H01] 미래관 501호"
+        );
+        updateStoredClassroom(
+                "004000",
+                "H99",
+                "공학관",
+                "401",
+                "[H99] 공학관 401호"
+        );
+
+        Timetable timetable = timetableRepository.saveAndFlush(
+                Timetable.create(CURRENT_USER_ID, 2026, 1)
+        );
+        addCourse(timetable, "003000");
+        addCourse(timetable, "001000");
+        addCourse(timetable, "005000");
+        addCourse(timetable, "004000");
+
+        mockMvc.perform(get(ENDPOINT)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(
+                                        CURRENT_USER_ID.toString()
+                                )
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courseLocations.length()").value(2))
+                .andExpect(jsonPath("$.courseLocations[0].courseName")
+                        .value("알파개론"))
+                .andExpect(jsonPath("$.courseLocations[0].campusCode")
+                        .value("SEOSAN"))
+                .andExpect(jsonPath("$.courseLocations[0].canonicalBuildingName")
+                        .value("이학관"))
+                .andExpect(jsonPath("$.courseLocations[0].locationStatus")
+                        .value("MAPPED"))
+                .andExpect(jsonPath("$.courseLocations[1].courseName")
+                        .value("기타세미나"))
+                .andExpect(jsonPath("$.courseLocations[1].campusCode")
+                        .value("SEOSAN"))
+                .andExpect(jsonPath("$.courseLocations[1].latitude")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.courseLocations[1].longitude")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.courseLocations[1].locationStatus")
+                        .value("UNMAPPED"))
+                .andExpect(content().string(not(containsString("H01"))));
+
+        mockMvc.perform(get(WEEKLY_ENDPOINT)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(
+                                        CURRENT_USER_ID.toString()
+                                )
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.dayLocations[1].courseLocations[0].courseName"
+                ).value("찰리실습"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[1].courseLocations[0].campusCode"
+                ).value("SEOSAN"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[1].courseLocations[0]"
+                                + ".canonicalBuildingName"
+                ).value("영암관"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[1].courseLocations[0].locationStatus"
+                ).value("MAPPED"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[3].courseLocations[0].courseName"
+                ).value("델타프로젝트"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[3].courseLocations[0].campusCode"
+                ).value(nullValue()))
+                .andExpect(jsonPath(
+                        "$.dayLocations[3].courseLocations[0].locationStatus"
+                ).value("UNMAPPED"))
+                .andExpect(content().string(not(containsString("H01"))))
+                .andExpect(content().string(not(containsString("H02"))))
+                .andExpect(content().string(not(containsString("H99"))));
+    }
+
+    @Test
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get(ENDPOINT))
                 .andExpect(status().isUnauthorized())
@@ -367,7 +476,15 @@ class CampusMapApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.components.schemas.CampusMapDayLocationsResponse"
                                 + ".properties.courseLocations.items['$ref']"
-                ).value("#/components/schemas/CampusMapCourseLocationResponse"));
+                ).value("#/components/schemas/CampusMapCourseLocationResponse"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.CampusMapCourseLocationResponse"
+                                + ".properties.campusCode.enum"
+                ).value(contains("SEOSAN", "TAEAN")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.CampusMapCourseLocationResponse"
+                                + ".properties.campusCode.type"
+                ).value(contains("string", "null")));
     }
 
     private void addCourse(Timetable timetable, String courseCode) {
@@ -382,6 +499,42 @@ class CampusMapApiIntegrationTest {
                 .filter(offering -> courseCode.equals(offering.getCourseCode()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private void updateStoredClassroom(
+            String courseCode,
+            String campusCode,
+            String buildingName,
+            String roomNumber,
+            String originalValue
+    ) {
+        UUID classroomId = jdbcTemplate.queryForObject(
+                """
+                        SELECT cs.classroom_id
+                        FROM course_schedules cs
+                        JOIN courses c ON c.id = cs.course_id
+                        WHERE c.course_code = ?
+                        ORDER BY cs.schedule_order
+                        FETCH FIRST 1 ROW ONLY
+                        """,
+                UUID.class,
+                courseCode
+        );
+        jdbcTemplate.update(
+                """
+                        UPDATE classrooms
+                        SET campus_code = ?,
+                            building_name = ?,
+                            room_number = ?,
+                            original_value = ?
+                        WHERE id = ?
+                        """,
+                campusCode,
+                buildingName,
+                roomNumber,
+                originalValue,
+                classroomId
+        );
     }
 
     private void importMajorFixture(String payload) {
@@ -430,6 +583,26 @@ class CampusMapApiIntegrationTest {
                         new BigDecimal("126.294045")
                 )
         );
+        campusBuildingRepository.saveAllAndFlush(List.of(
+                CampusBuilding.create(
+                        CampusCode.SEOSAN,
+                        "공학관",
+                        new BigDecimal("36.6909679"),
+                        new BigDecimal("126.5858094")
+                ),
+                CampusBuilding.create(
+                        CampusCode.SEOSAN,
+                        "이학관",
+                        new BigDecimal("36.690669"),
+                        new BigDecimal("126.581760")
+                ),
+                CampusBuilding.create(
+                        CampusCode.SEOSAN,
+                        "영암관",
+                        new BigDecimal("36.691341"),
+                        new BigDecimal("126.582453")
+                )
+        ));
         campusBuildingAliasRepository.saveAllAndFlush(List.of(
                 CampusBuildingAlias.create(seosanMain, "본관"),
                 CampusBuildingAlias.create(taeAnMain, "본관"),
