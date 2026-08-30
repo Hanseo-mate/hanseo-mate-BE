@@ -186,7 +186,8 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(jsonPath("$.selectedCampusCode").value("TAEAN"))
                 .andExpect(jsonPath("$.places.length()").value(1))
                 .andExpect(jsonPath("$.places[0].placeId").value(2))
-                .andExpect(jsonPath("$.places[0].campusCode").value("TAEAN"));
+                .andExpect(jsonPath("$.places[0].campusCode").value("TAEAN"))
+                .andExpect(jsonPath("$.places[0].categoryName").value("교내시설"));
 
         jdbcTemplate.update(
                 """
@@ -254,7 +255,7 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.placeName").value("태안본관"))
                 .andExpect(jsonPath("$.category").value("LECTURE_BUILDING"))
-                .andExpect(jsonPath("$.categoryName").value("강의실"))
+                .andExpect(jsonPath("$.categoryName").value("교내시설"))
                 .andExpect(jsonPath("$.address").doesNotExist())
                 .andExpect(jsonPath("$.lectureBuildingDetails.location")
                         .value("태안캠퍼스"))
@@ -505,7 +506,7 @@ class CampusPlaceApiIntegrationTest {
                         .with(adminJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(
-                        "강의실 이외의 카테고리에는 lectureBuildingDetails를 입력할 수 없습니다."
+                        "교내시설 이외의 카테고리에는 lectureBuildingDetails를 입력할 수 없습니다."
                 ));
 
         mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/1")
@@ -540,7 +541,7 @@ class CampusPlaceApiIntegrationTest {
                         .with(adminJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(
-                        "강의실 이외의 카테고리는 address가 필요합니다."
+                        "교내시설 이외의 카테고리는 address가 필요합니다."
                 ));
 
         mockMvc.perform(put(ADMIN_PLACES_ENDPOINT + "/2")
@@ -568,7 +569,7 @@ class CampusPlaceApiIntegrationTest {
                         .with(adminJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(
-                        "강의실 카테고리에는 address를 입력할 수 없습니다."
+                        "교내시설 카테고리에는 address를 입력할 수 없습니다."
                 ));
     }
 

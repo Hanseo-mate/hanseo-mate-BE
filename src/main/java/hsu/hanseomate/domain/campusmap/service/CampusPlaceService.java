@@ -187,13 +187,13 @@ public class CampusPlaceService {
         if (category == CampusPlaceCategory.LECTURE_BUILDING
                 && lectureDetails == null) {
             throw new BadRequestException(
-                    "강의실 카테고리는 lectureBuildingDetails가 필요합니다."
+                    "교내시설 카테고리는 lectureBuildingDetails가 필요합니다."
             );
         }
         if (category != CampusPlaceCategory.LECTURE_BUILDING
                 && lectureDetails != null) {
             throw new BadRequestException(
-                    "강의실 이외의 카테고리에는 lectureBuildingDetails를 입력할 수 없습니다."
+                    "교내시설 이외의 카테고리에는 lectureBuildingDetails를 입력할 수 없습니다."
             );
         }
     }
@@ -215,14 +215,14 @@ public class CampusPlaceService {
         if (category == CampusPlaceCategory.LECTURE_BUILDING) {
             if (address != null) {
                 throw new BadRequestException(
-                        "강의실 카테고리에는 address를 입력할 수 없습니다."
+                        "교내시설 카테고리에는 address를 입력할 수 없습니다."
                 );
             }
             return null;
         }
         if (address == null || address.isBlank()) {
             throw new BadRequestException(
-                    "강의실 이외의 카테고리는 address가 필요합니다."
+                    "교내시설 이외의 카테고리는 address가 필요합니다."
             );
         }
         return address.trim();
