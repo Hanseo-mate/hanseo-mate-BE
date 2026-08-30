@@ -59,6 +59,8 @@ import tools.jackson.databind.ObjectMapper;
 class CampusMapApiIntegrationTest {
 
     private static final String ENDPOINT = "/api/timetables/today-locations";
+    private static final String WEEKLY_ENDPOINT =
+            "/api/timetables/weekly-locations";
     private static final String FIXTURE =
             "fixtures/course-import/course-search-major-2026-1.json";
     private static final Long CURRENT_USER_ID = 301L;
@@ -234,14 +236,101 @@ class CampusMapApiIntegrationTest {
     @Test
     void returnsEmptyLocationsWhenCurrentTermTimetableDoesNotExist()
             throws Exception {
+        String accessToken = validAccessToken(CURRENT_USER_ID.toString());
         mockMvc.perform(get(ENDPOINT)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + accessToken
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.date").value("2026-05-11"))
+                .andExpect(jsonPath("$.courseLocations").isEmpty());
+
+        mockMvc.perform(get(WEEKLY_ENDPOINT)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + accessToken
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.academicYear").value(2026))
+                .andExpect(jsonPath("$.semester").value(1))
+                .andExpect(jsonPath("$.dayLocations.length()").value(4))
+                .andExpect(jsonPath("$.dayLocations[0].courseLocations")
+                        .isEmpty())
+                .andExpect(jsonPath("$.dayLocations[1].courseLocations")
+                        .isEmpty())
+                .andExpect(jsonPath("$.dayLocations[2].courseLocations")
+                        .isEmpty())
+                .andExpect(jsonPath("$.dayLocations[3].courseLocations")
+                        .isEmpty());
+    }
+
+    @Test
+    void returnsMondayThroughThursdayLocationsGroupedByDayOfWeek()
+            throws Exception {
+        importMajorFixture(fixturePayload());
+        jdbcTemplate.update(
+                """
+                        UPDATE course_schedules
+                        SET classroom_id = NULL
+                        WHERE course_id = (
+                            SELECT id FROM courses WHERE course_code = '004000'
+                        )
+                        """
+        );
+
+        Timetable timetable = timetableRepository.saveAndFlush(
+                Timetable.create(CURRENT_USER_ID, 2026, 1)
+        );
+        addCourse(timetable, "001000");
+        addCourse(timetable, "002000");
+        addCourse(timetable, "003000");
+        addCourse(timetable, "004000");
+        addCourse(timetable, "005000");
+
+        mockMvc.perform(get(WEEKLY_ENDPOINT)
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + validAccessToken(CURRENT_USER_ID.toString())
                         ))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.date").value("2026-05-11"))
-                .andExpect(jsonPath("$.courseLocations").isEmpty());
+                .andExpect(jsonPath("$.academicYear").value(2026))
+                .andExpect(jsonPath("$.semester").value(1))
+                .andExpect(jsonPath("$.dayLocations.length()").value(4))
+                .andExpect(jsonPath("$.dayLocations[0].dayOfWeek")
+                        .value("MONDAY"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[0].courseLocations.length()"
+                ).value(2))
+                .andExpect(jsonPath(
+                        "$.dayLocations[0].courseLocations[0].courseName"
+                ).value("알파개론"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[0].courseLocations[0].locationStatus"
+                ).value("MAPPED"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[0].courseLocations[1].courseName"
+                ).value("기타세미나"))
+                .andExpect(jsonPath("$.dayLocations[1].dayOfWeek")
+                        .value("TUESDAY"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[1].courseLocations[0].courseName"
+                ).value("찰리실습"))
+                .andExpect(jsonPath("$.dayLocations[2].dayOfWeek")
+                        .value("WEDNESDAY"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[2].courseLocations[0].courseName"
+                ).value("베타연구"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[2].courseLocations[0].locationStatus"
+                ).value("MAPPED"))
+                .andExpect(jsonPath("$.dayLocations[3].dayOfWeek")
+                        .value("THURSDAY"))
+                .andExpect(jsonPath(
+                        "$.dayLocations[3].courseLocations[0].locationStatus"
+                ).value("NO_CLASSROOM"))
+                .andExpect(jsonPath("$.dayLocations[*].dayOfWeek")
+                        .value(not(hasItem("FRIDAY"))));
     }
 
     @Test
@@ -250,6 +339,11 @@ class CampusMapApiIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.path").value(ENDPOINT));
+
+        mockMvc.perform(get(WEEKLY_ENDPOINT))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value(WEEKLY_ENDPOINT));
     }
 
     @Test
@@ -261,6 +355,17 @@ class CampusMapApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.CampusMapTodayResponse"
+                                + ".properties.courseLocations.items['$ref']"
+                ).value("#/components/schemas/CampusMapCourseLocationResponse"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/timetables/weekly-locations'].get"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.CampusMapWeeklyResponse"
+                                + ".properties.dayLocations.items['$ref']"
+                ).value("#/components/schemas/CampusMapDayLocationsResponse"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.CampusMapDayLocationsResponse"
                                 + ".properties.courseLocations.items['$ref']"
                 ).value("#/components/schemas/CampusMapCourseLocationResponse"));
     }

@@ -45,4 +45,26 @@ public interface CourseScheduleRepository extends JpaRepository<CourseSchedule, 
             @Param("semester") int semester,
             @Param("dayOfWeek") DayOfWeek dayOfWeek
     );
+
+    @Query("""
+            select schedule
+            from CourseSchedule schedule
+            join fetch schedule.course course
+            left join fetch schedule.classroom
+            where schedule.dayOfWeek in :dayOfWeeks
+              and exists (
+                select timetableCourse.id
+                from TimetableCourse timetableCourse
+                where timetableCourse.courseOffering.course = course
+                  and timetableCourse.timetable.ownerId = :ownerId
+                  and timetableCourse.timetable.academicYear = :academicYear
+                  and timetableCourse.timetable.semester = :semester
+            )
+            """)
+    List<CourseSchedule> findTimetableSchedulesForTerm(
+            @Param("ownerId") Long ownerId,
+            @Param("academicYear") int academicYear,
+            @Param("semester") int semester,
+            @Param("dayOfWeeks") Collection<DayOfWeek> dayOfWeeks
+    );
 }
