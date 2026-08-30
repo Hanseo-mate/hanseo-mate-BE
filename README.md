@@ -51,6 +51,11 @@ CREATE DATABASE hanseo_mate
 로컬 환경은 `ddl-auto=update`를 사용하고 운영 환경은 `ddl-auto=validate`를 사용합니다.
 운영에서는 JPA가 테이블을 임의로 변경하지 않으며, 애플리케이션 시작 시 엔티티와 실제 DB 구조가 일치하는지만 확인합니다.
 
+기존 과목코드 단독 강좌 identity가 적용된 DB는 분반별 강좌 코드를 배포하기 전에
+[`course-section-identity-migration-mysql.sql`](docs/course-section-identity-migration-mysql.sql)을
+한 번 적용해야 합니다. 적용 절차와 재업로드 방법은
+[`course-section-identity-migration.md`](docs/course-section-identity-migration.md)를 따릅니다.
+
 로컬에서 애플리케이션을 먼저 실행하면 `ddl-auto=update`가 `campus_buildings`와
 `campus_building_aliases` 빈 테이블을 만들 수 있지만 초기 좌표 데이터는 넣지 않습니다.
 이때 [캠퍼스 건물 좌표 증분 SQL](docs/campus-building-location-migration-mysql.sql) 전체를
