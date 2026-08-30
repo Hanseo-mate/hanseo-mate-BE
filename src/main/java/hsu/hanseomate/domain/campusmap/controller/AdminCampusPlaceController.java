@@ -62,7 +62,7 @@ public class AdminCampusPlaceController {
 
     @Operation(
             summary = "장소 전체 수정",
-            description = "기존 장소의 이름, 캠퍼스, 좌표, 표시 정보와 강의실 상세정보를 전체 교체합니다."
+            description = "기존 장소의 이름, 캠퍼스, 좌표, 표시 정보와 교내시설 상세정보를 전체 교체합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "저장 성공"),
@@ -98,7 +98,7 @@ public class AdminCampusPlaceController {
 
     @Operation(
             summary = "장소 삭제",
-            description = "장소와 연결된 강의실 상세정보를 함께 삭제합니다. 업로드 이미지 파일은 삭제하지 않습니다."
+            description = "장소와 연결된 교내시설 상세정보를 함께 삭제합니다. 업로드 이미지 파일은 삭제하지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "삭제 성공"),
