@@ -452,7 +452,7 @@ class CourseImportApiIntegrationTest {
     }
 
     @Test
-    void sameCourseCodeRowsWithinOneSemesterUseOnlyTheFirstRow() throws Exception {
+    void sameCourseCodeWithDifferentSectionsCreatesIndependentOfferings() throws Exception {
         ObjectNode payload = (ObjectNode) objectMapper.readTree(
                 fixture("major-ready-2026-1-a.json")
         );
@@ -460,9 +460,8 @@ class CourseImportApiIntegrationTest {
         ObjectNode duplicate = ((ObjectNode) lectures.get(0)).deepCopy();
         duplicate.put("sourceRow", 6);
         duplicate.put("courseCode", " 001234 ");
-        duplicate.put("courseName", "후속 중복 과목명");
         duplicate.put("sectionNo", "99");
-        duplicate.put("instructorName", "후속 중복 교수");
+        duplicate.put("instructorName", "김분반");
         duplicate.put("scheduleText", "화4,5,6");
         duplicate.put("classroomText", "후속관 909호");
         duplicate.put("targetGrade", 4);
@@ -487,7 +486,7 @@ class CourseImportApiIntegrationTest {
         ((ObjectNode) duplicate.path("sourceCells").get(0))
                 .put("value", " 001234 ");
         ((ObjectNode) duplicate.path("sourceCells").get(1))
-                .put("value", "후속 중복 과목명");
+                .put("value", "웹프로그래밍");
         ((ObjectNode) duplicate.path("sourceCells").get(2))
                 .put("value", "99");
         lectures.add(duplicate);
@@ -503,45 +502,64 @@ class CourseImportApiIntegrationTest {
         );
 
         assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
-        assertThat(response.offeringCount()).isEqualTo(1);
-        assertThat(courseRepository.count()).isEqualTo(1);
-        assertThat(courseOfferingRepository.count()).isEqualTo(1);
-        assertThat(tableCount("course_schedules")).isEqualTo(1);
-        assertThat(tableCount("offering_allowed_grades")).isEqualTo(1);
-        assertThat(tableCount("offering_eligible_departments")).isEqualTo(1);
+        assertThat(response.offeringCount()).isEqualTo(2);
+        assertThat(courseRepository.count()).isEqualTo(2);
+        assertThat(courseOfferingRepository.count()).isEqualTo(2);
+        assertThat(tableCount("course_schedules")).isEqualTo(2);
+        assertThat(tableCount("offering_allowed_grades")).isEqualTo(2);
+        assertThat(tableCount("offering_eligible_departments")).isEqualTo(2);
 
-        Course course = courseRepository.findAll().get(0);
-        assertThat(course.getCourseCode()).isEqualTo("001234");
-        assertThat(course.getCourseName()).isEqualTo("웹프로그래밍");
-        assertThat(course.getSectionNo()).isEqualTo("01");
-        assertThat(course.getInstructorName()).isEqualTo("홍길동");
-        assertThat(course.getTargetGrade()).isEqualTo(2);
-        assertThat(course.getScheduleText()).isEqualTo("월1,2,3");
-        assertThat(course.getClassroomText()).isEqualTo("본관 101호");
+        assertThat(courseRepository.findAll())
+                .allSatisfy(course -> {
+                    assertThat(course.getCourseCode()).isEqualTo("001234");
+                    assertThat(course.getCourseName()).isEqualTo("웹프로그래밍");
+                })
+                .extracting(Course::getSectionNo)
+                .containsExactlyInAnyOrder("01", "99");
+        assertThat(courseRepository.findAll())
+                .filteredOn(course -> "01".equals(course.getSectionNo()))
+                .singleElement()
+                .satisfies(course -> {
+                    assertThat(course.getInstructorName()).isEqualTo("홍길동");
+                    assertThat(course.getTargetGrade()).isEqualTo(2);
+                    assertThat(course.getScheduleText()).isEqualTo("월1,2,3");
+                    assertThat(course.getClassroomText()).isEqualTo("본관 101호");
+                });
+        assertThat(courseRepository.findAll())
+                .filteredOn(course -> "99".equals(course.getSectionNo()))
+                .singleElement()
+                .satisfies(course -> {
+                    assertThat(course.getInstructorName()).isEqualTo("김분반");
+                    assertThat(course.getTargetGrade()).isEqualTo(4);
+                    assertThat(course.getScheduleText()).isEqualTo("화4,5,6");
+                    assertThat(course.getClassroomText()).isEqualTo("후속관 909호");
+                });
 
-        assertThat(jdbcTemplate.queryForObject(
+        assertThat(jdbcTemplate.queryForList(
                 "select grade from offering_allowed_grades",
                 Integer.class
-        )).isEqualTo(2);
-        assertThat(jdbcTemplate.queryForObject(
+        )).containsExactlyInAnyOrder(2, 4);
+        assertThat(jdbcTemplate.queryForList(
                 "select department_name from offering_eligible_departments",
                 String.class
-        )).isEqualTo("항공소프트웨어공학과");
-        assertThat(tableCount("classrooms")).isEqualTo(1);
+        )).containsExactlyInAnyOrder("항공소프트웨어공학과", "후속 중복 학과");
+        assertThat(tableCount("classrooms")).isEqualTo(2);
 
-        CourseOffering offering = courseOfferingRepository.findAll().get(0);
-        assertThat(offering.getSourceRow()).isEqualTo(5);
+        assertThat(courseOfferingRepository.findAll())
+                .extracting(CourseOffering::getSourceRow)
+                .containsExactlyInAnyOrder(5, 6);
         assertThat(courseSourceCellRepository.findAll())
-                .hasSize(4)
+                .hasSize(8)
                 .extracting(CourseSourceCell::getValue)
-                .contains("웹프로그래밍")
-                .doesNotContain("후속 중복 과목명");
+                .contains("웹프로그래밍", "01", "99");
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
                         .param("semester", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].sectionNo").value("01"))
                 .andExpect(jsonPath("$.items[0].targetGrade").value(2))
                 .andExpect(jsonPath("$.items[0].eligibleDepartmentNames[0]")
                         .value("항공소프트웨어공학과"))
@@ -550,15 +568,42 @@ class CourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(1))
                 .andExpect(jsonPath("$.items[0].schedules[0].periods[2]").value(3))
                 .andExpect(jsonPath("$.items[0].schedules[0].buildingName").value("본관"))
-                .andExpect(jsonPath("$.items[0].schedules[0].roomNumber").value("101"));
+                .andExpect(jsonPath("$.items[0].schedules[0].roomNumber").value("101"))
+                .andExpect(jsonPath("$.items[1].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[1].sectionNo").value("99"))
+                .andExpect(jsonPath("$.items[1].instructorName").value("김분반"))
+                .andExpect(jsonPath("$.items[1].targetGrade").value(4))
+                .andExpect(jsonPath("$.items[1].eligibleDepartmentNames[0]")
+                        .value("후속 중복 학과"))
+                .andExpect(jsonPath("$.items[1].schedules[0].dayOfWeek")
+                        .value("TUESDAY"))
+                .andExpect(jsonPath("$.items[1].schedules[0].periods[0]").value(4))
+                .andExpect(jsonPath("$.items[1].schedules[0].periods[2]").value(6))
+                .andExpect(jsonPath("$.items[1].schedules[0].buildingName").value("후속관"))
+                .andExpect(jsonPath("$.items[1].schedules[0].roomNumber").value("909"));
+
+        CourseOffering secondSectionOffering = courseOfferingRepository.findAll().stream()
+                .filter(offering -> "99".equals(offering.getSectionNo()))
+                .findFirst()
+                .orElseThrow();
+        mockMvc.perform(get("/api/courses/{offeringId}", secondSectionOffering.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.offeringId")
+                        .value(secondSectionOffering.getId().toString()))
+                .andExpect(jsonPath("$.courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.sectionNo").value("99"))
+                .andExpect(jsonPath("$.instructorName").value("김분반"))
+                .andExpect(jsonPath("$.schedules[0].dayOfWeek").value("TUESDAY"))
+                .andExpect(jsonPath("$.schedules[0].periods[0]").value(4))
+                .andExpect(jsonPath("$.schedules[0].buildingName").value("후속관"))
+                .andExpect(jsonPath("$.schedules[0].roomNumber").value("909"));
 
         CourseImportHistory history = courseImportHistoryRepository.findAll().get(0);
-        assertThat(history.getOfferingCount()).isEqualTo(1);
+        assertThat(history.getOfferingCount()).isEqualTo(2);
         JsonNode rawLectures = objectMapper.readTree(history.getRawPayloadJson())
                 .path("lectures");
         assertThat(rawLectures.size()).isEqualTo(2);
-        assertThat(rawLectures.get(1).path("courseName").asString())
-                .isEqualTo("후속 중복 과목명");
+        assertThat(rawLectures.get(1).path("sectionNo").asString()).isEqualTo("99");
         assertThat(rawLectures.get(1).path("schedules").get(0)
                 .path("dayOfWeek").asString()).isEqualTo("TUESDAY");
         assertThat(rawLectures.get(1).path("allowedGrades").get(0).asInt()).isEqualTo(4);
@@ -696,13 +741,11 @@ class CourseImportApiIntegrationTest {
     }
 
     @Test
-    void laterImportWithSameCourseCodeKeepsFirstStoredDetails() throws Exception {
+    void laterImportWithSameCourseCodeAndSectionKeepsFirstStoredDetails() throws Exception {
         assertThat(performImport(fixture("major-ready-2026-1-a.json")).storageStatus())
                 .isEqualTo(StorageStatus.STORED);
         String changedDetails = majorFixtureForSemester2("major-2026-2-changed-details")
                 .replace("웹프로그래밍", "후속수입과목명")
-                .replace("\"sectionNo\": \"01\"", "\"sectionNo\": \"99\"")
-                .replace("\"value\": \"01\"", "\"value\": \"99\"")
                 .replace("\"credit\": 3.0", "\"credit\": 4.0")
                 .replace("\"instructorName\": \"홍길동\"", "\"instructorName\": \"후속교수\"")
                 .replace("\"note\": null", "\"note\": \"후속 비고\"");

@@ -3,6 +3,7 @@
 -- 주의: 이 스크립트는 한 번만 실행하며, 빈 DB에는 실행하지 않습니다.
 -- 주의: MySQL DDL은 암시적으로 commit됩니다. 애플리케이션을 중지하고 백업한 뒤 실행하세요.
 -- 상세 절차와 복구 원칙은 docs/course-offering-dedup-migration.md를 먼저 확인하세요.
+-- 이 스크립트 적용 후 현재 코드 배포 전 course-section-identity-migration-mysql.sql도 적용하세요.
 
 SET NAMES utf8mb4;
 

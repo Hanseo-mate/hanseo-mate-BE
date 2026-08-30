@@ -282,28 +282,11 @@ public class CourseImportService {
                                 Function.identity()
                         ));
 
-        Set<String> courseCodes = lectures.stream()
-                .map(LectureRequest::courseCode)
-                .map(this::normalizeCourseCode)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        Map<String, Course> byCourseCode = courseCodes.isEmpty()
-                ? Map.of()
-                : courseRepository.findAllByCourseCodeIn(courseCodes).stream()
-                        .collect(Collectors.toMap(
-                                course -> normalizeCourseCode(course.getCourseCode()),
-                                Function.identity(),
-                                (first, ignored) -> first
-                        ));
-
         List<ResolvedCourse> result = new ArrayList<>(lectures.size());
         for (LectureRequest lecture : lectures) {
             String masterKey = courseKey(request.importId(), lecture);
             String courseCode = normalizeCourseCode(lecture.courseCode());
             Course course = byMasterKey.get(masterKey);
-            if (course == null && courseCode != null) {
-                course = byCourseCode.get(courseCode);
-            }
 
             AcademicUnit academicUnit = lecture.academicUnit() == null
                     ? null
@@ -603,7 +586,10 @@ public class CourseImportService {
     private String courseKey(String importId, LectureRequest lecture) {
         String normalizedCourseCode = normalizeCourseCode(lecture.courseCode());
         if (normalizedCourseCode != null) {
-            return sha256("CODE|" + normalizedCourseCode);
+            return sha256("CODE|%s|SECTION|%s".formatted(
+                    normalizedCourseCode,
+                    normalizeSectionNo(lecture.sectionNo())
+            ));
         }
         return sha256("IMPORT|%s|%s|%d".formatted(
                 importId, lecture.sourceSheet(), lecture.sourceRow()
@@ -615,6 +601,13 @@ public class CourseImportService {
             return null;
         }
         return courseCode.strip().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeSectionNo(String sectionNo) {
+        if (sectionNo == null || sectionNo.isBlank()) {
+            return "";
+        }
+        return sectionNo.strip().toUpperCase(Locale.ROOT);
     }
 
     private String classroomKey(ClassroomRequest classroom) {
