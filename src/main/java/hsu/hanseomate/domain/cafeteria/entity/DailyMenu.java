@@ -52,6 +52,24 @@ public class DailyMenu {
         return dailyMenu;
     }
 
+    /**
+     * 새 MealSection 을 생성해 이 식단에 추가한다. 리스트 추가 순서(= id 증가 순서)가
+     * 크롤러가 전달한 원본 코너 순서를 그대로 보존한다.
+     */
+    public MealSection addMealSection(
+            MealTime mealTime,
+            String cornerName,
+            Integer price,
+            List<String> dishes,
+            String rawText
+    ) {
+        MealSection section = MealSection.create(
+                this, mealTime, cornerName, price, dishes, rawText
+        );
+        mealSections.add(section);
+        return section;
+    }
+
     public Long getId() {
         return id;
     }

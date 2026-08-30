@@ -1,7 +1,6 @@
 package hsu.hanseomate.domain.cafeteria.controller;
 
 import hsu.hanseomate.domain.cafeteria.dto.CafeteriaMenusResponse;
-import hsu.hanseomate.domain.cafeteria.entity.MenuCategory;
 import hsu.hanseomate.domain.cafeteria.service.CafeteriaService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>
  * GET /api/cafeteria/menus
  * - menuDate       (선택): yyyy-MM-dd — 없으면 한국 기준 이번 주 월~금 반환
- * - menuCategory   (선택): KOREAN | SPECIAL | NORMAL — 없으면 모든 코너 반환
  */
 @RestController
 @RequestMapping("/api/cafeteria")
@@ -60,7 +58,7 @@ public class CafeteriaController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "날짜 또는 메뉴 카테고리 형식 오류",
+                    description = "날짜 형식 오류",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(
@@ -85,13 +83,11 @@ public class CafeteriaController {
                     description = "특정 날짜만 조회합니다. 생략하면 한국 시간 기준 이번 주 월요일부터 금요일까지 조회합니다."
             )
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate menuDate,
-            @RequestParam(required = false) MenuCategory menuCategory,
             Authentication authentication
     ) {
         return cafeteriaService.getMenus(
                 optionalCurrentUserId(authentication),
-                menuDate,
-                menuCategory
+                menuDate
         );
     }
 

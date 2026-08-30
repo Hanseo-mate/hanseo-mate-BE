@@ -6,6 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
+import hsu.hanseomate.domain.cafeteria.entity.MealTime;
+import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.courseimport.dto.CourseImportResponse;
@@ -27,6 +31,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,6 +90,9 @@ class HomeApiIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DailyMenuRepository dailyMenuRepository;
 
     @Autowired
     private JwtEncoder jwtEncoder;
@@ -202,18 +210,17 @@ class HomeApiIntegrationTest {
     void returnsMainStudentMenuForAnonymousUser() throws Exception {
         LocalDate today = LocalDate.of(2026, 5, 7);
 
-        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
-        insertMealSection(1_101L, 1_001L, "DINNER", "NORMAL");
-        insertMealSection(1_102L, 1_001L, "LUNCH", "SPECIAL");
-        insertMealSection(1_103L, 1_001L, "LUNCH", "KOREAN");
-        insertDish(1_201L, 1_101L, "김치볶음밥", true);
-        insertDish(1_202L, 1_102L, "돈가스", true);
-        insertDish(1_203L, 1_103L, "제육볶음", true);
-        insertDish(1_204L, 1_103L, "된장국", false);
+        saveDailyMenu("MAIN_STUDENT", today,
+                new SectionFixture(MealTime.LUNCH, "한식코너", 5500,
+                        List.of("제육볶음", "된장국"), "한식코너 (5.5)\n제육볶음\n된장국"),
+                new SectionFixture(MealTime.LUNCH, "일품코너", 6000,
+                        List.of("돈가스"), "일품코너 (6.0)\n돈가스"),
+                new SectionFixture(MealTime.DINNER, "석식코너", 6000,
+                        List.of("김치볶음밥"), "석식코너 (6.0)\n김치볶음밥"));
 
-        insertDailyMenu(2_001L, "TAEAN_STUDENT", today);
-        insertMealSection(2_101L, 2_001L, "LUNCH", "NORMAL");
-        insertDish(2_201L, 2_101L, "태안 학생식당 메뉴", true);
+        saveDailyMenu("TAEAN_STUDENT", today,
+                new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                        List.of("태안 학생식당 메뉴"), "코너\n태안 학생식당 메뉴"));
 
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
@@ -229,18 +236,18 @@ class HomeApiIntegrationTest {
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[0].mealTime")
                         .value("LUNCH"))
                 .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[0].menuCategory"
-                ).value("KOREAN"))
+                        "$.todayCafeteriaMenus[0].mealSections[0].cornerName"
+                ).value("한식코너"))
                 .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0].name"
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0]"
                 ).value("제육볶음"))
                 .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[1].name"
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[1]"
                 ).value("된장국"))
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].mealTime")
                         .value("LUNCH"))
-                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].menuCategory")
-                        .value("SPECIAL"))
+                .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[1].cornerName")
+                        .value("일품코너"))
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].mealSections[2].mealTime")
                         .value("DINNER"));
     }
@@ -250,13 +257,13 @@ class HomeApiIntegrationTest {
         LocalDate today = LocalDate.of(2026, 5, 7);
         setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
 
-        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
-        insertMealSection(1_101L, 1_001L, "LUNCH", "NORMAL");
-        insertDish(1_201L, 1_101L, "서산 메뉴", true);
+        saveDailyMenu("MAIN_STUDENT", today,
+                new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                        List.of("서산 메뉴"), "코너\n서산 메뉴"));
 
-        insertDailyMenu(2_001L, "TAEAN_STUDENT", today);
-        insertMealSection(2_101L, 2_001L, "DINNER", "NORMAL");
-        insertDish(2_201L, 2_101L, "태안 메뉴", true);
+        saveDailyMenu("TAEAN_STUDENT", today,
+                new SectionFixture(MealTime.DINNER, "코너", 5000,
+                        List.of("태안 메뉴"), "코너\n태안 메뉴"));
 
         mockMvc.perform(get("/api/home")
                         .header(
@@ -271,7 +278,7 @@ class HomeApiIntegrationTest {
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
                         .value("TAEAN_STUDENT"))
                 .andExpect(jsonPath(
-                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0].name"
+                        "$.todayCafeteriaMenus[0].mealSections[0].dishes[0]"
                 ).value("태안 메뉴"));
     }
 
@@ -280,9 +287,9 @@ class HomeApiIntegrationTest {
         LocalDate today = LocalDate.of(2026, 5, 7);
         setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
 
-        insertDailyMenu(1_001L, "MAIN_STUDENT", today);
-        insertMealSection(1_101L, 1_001L, "LUNCH", "NORMAL");
-        insertDish(1_201L, 1_101L, "서산 메뉴", true);
+        saveDailyMenu("MAIN_STUDENT", today,
+                new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                        List.of("서산 메뉴"), "코너\n서산 메뉴"));
 
         mockMvc.perform(get("/api/home")
                         .header(
@@ -505,11 +512,19 @@ class HomeApiIntegrationTest {
                 ).value("#/components/schemas/HomeCafeteriaMealSectionResponse"))
                 .andExpect(jsonPath(
                         "$.components.schemas.HomeCafeteriaMealSectionResponse"
-                                + ".properties.dishes.items['$ref']"
-                ).value("#/components/schemas/HomeCafeteriaDishResponse"))
+                                + ".properties.mealTime"
+                ).exists())
                 .andExpect(jsonPath(
-                        "$.components.schemas.HomeCafeteriaDishResponse"
-                                + ".properties.isMainDish"
+                        "$.components.schemas.HomeCafeteriaMealSectionResponse"
+                                + ".properties.cornerName"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaMealSectionResponse"
+                                + ".properties.dishes.type"
+                ).value("array"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.HomeCafeteriaMealSectionResponse"
+                                + ".properties.rawText"
                 ).exists());
     }
 
@@ -601,58 +616,32 @@ class HomeApiIntegrationTest {
         );
     }
 
-    private void insertDailyMenu(
-            long id,
+    private record SectionFixture(
+            MealTime mealTime,
+            String cornerName,
+            Integer price,
+            List<String> dishes,
+            String rawText
+    ) {
+    }
+
+    private void saveDailyMenu(
             String restaurantType,
-            LocalDate menuDate
+            LocalDate menuDate,
+            SectionFixture... sections
     ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO daily_menus (id, restaurant_type, menu_date)
-                        VALUES (?, ?, ?)
-                        """,
-                id,
-                restaurantType,
-                Date.valueOf(menuDate)
-        );
-    }
-
-    private void insertMealSection(
-            long id,
-            long dailyMenuId,
-            String mealTime,
-            String menuCategory
-    ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO meal_sections (
-                            id, daily_menu_id, meal_time, menu_category
-                        ) VALUES (?, ?, ?, ?)
-                        """,
-                id,
-                dailyMenuId,
-                mealTime,
-                menuCategory
-        );
-    }
-
-    private void insertDish(
-            long id,
-            long mealSectionId,
-            String name,
-            boolean isMainDish
-    ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO dishes (
-                            id, meal_section_id, name, is_main_dish
-                        ) VALUES (?, ?, ?, ?)
-                        """,
-                id,
-                mealSectionId,
-                name,
-                isMainDish
-        );
+        DailyMenu dailyMenu = DailyMenu.of(
+                RestaurantType.valueOf(restaurantType), menuDate);
+        for (SectionFixture section : sections) {
+            dailyMenu.addMealSection(
+                    section.mealTime(),
+                    section.cornerName(),
+                    section.price(),
+                    section.dishes(),
+                    section.rawText()
+            );
+        }
+        dailyMenuRepository.saveAndFlush(dailyMenu);
     }
 
     private String validAccessToken(String subject) {
@@ -682,7 +671,6 @@ class HomeApiIntegrationTest {
     private void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
-            truncate("dishes");
             truncate("meal_sections");
             truncate("daily_menus");
             truncate("notice_files");

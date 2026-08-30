@@ -23,8 +23,6 @@ public record DailyMenuDTO(
                 .sorted(Comparator
                         .comparingInt((MealSection section) ->
                                 section.getMealTime().ordinal())
-                        .thenComparingInt(section ->
-                                section.getMenuCategory().ordinal())
                         .thenComparing(
                                 MealSection::getId,
                                 Comparator.nullsLast(Comparator.naturalOrder())

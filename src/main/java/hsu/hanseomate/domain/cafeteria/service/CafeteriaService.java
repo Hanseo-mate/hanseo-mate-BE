@@ -4,7 +4,6 @@ import hsu.hanseomate.domain.cafeteria.dto.CafeteriaMenusResponse;
 import hsu.hanseomate.domain.cafeteria.dto.CafeteriaRestaurantMenusResponse;
 import hsu.hanseomate.domain.cafeteria.dto.DailyMenuDTO;
 import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
-import hsu.hanseomate.domain.cafeteria.entity.MenuCategory;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
@@ -50,13 +49,11 @@ public class CafeteriaService {
      *
      * @param currentUserId  선택 — 로그인 사용자 ID
      * @param menuDate       선택 — null 이면 한국 기준 이번 주 월~금 조회
-     * @param menuCategory   선택 — null 이면 모든 카테고리 반환
      * @return 선호 식당과 서산·태안 식단 버킷
      */
     public CafeteriaMenusResponse getMenus(
             Optional<Long> currentUserId,
-            LocalDate menuDate,
-            MenuCategory menuCategory
+            LocalDate menuDate
     ) {
         LocalDate startDate = menuDate;
         LocalDate endDate = menuDate;
@@ -69,8 +66,7 @@ public class CafeteriaService {
         List<DailyMenu> dailyMenus = dailyMenuRepository.findMenus(
                 STUDENT_RESTAURANTS,
                 startDate,
-                endDate,
-                menuCategory
+                endDate
         );
 
         Map<RestaurantType, List<DailyMenuDTO>> menusByRestaurant =

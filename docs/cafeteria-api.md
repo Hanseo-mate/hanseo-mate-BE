@@ -31,7 +31,6 @@ GET /api/cafeteria/menus
 | 파라미터 | 필수 | 설명 |
 |---|---:|---|
 | `menuDate` | X | `yyyy-MM-dd`; 지정하면 해당 날짜만 조회 |
-| `menuCategory` | X | `KOREAN`, `SPECIAL`, `NORMAL` |
 
 `menuDate` 를 생략하면 `Asia/Seoul` 기준 이번 주 월요일부터
 금요일까지 조회합니다. `menuDate` 를 지정하면 주말이나 과거·미래
@@ -48,7 +47,7 @@ GET /api/cafeteria/menus?menuDate=2026-08-20
 ```
 
 ```http
-GET /api/cafeteria/menus?menuCategory=KOREAN
+GET /api/cafeteria/menus?menuDate=2026-08-20
 Authorization: Bearer {accessToken}
 ```
 
@@ -74,26 +73,18 @@ Authorization: Bearer {accessToken}
             {
               "id": 10,
               "mealTime": "LUNCH",
-              "menuCategory": "KOREAN",
-              "dishes": [
-                {
-                  "id": 100,
-                  "name": "제육볶음",
-                  "isMainDish": true
-                }
-              ]
+              "cornerName": "1코너",
+              "price": 5500,
+              "dishes": ["쌀밥", "제육볶음", "된장국"],
+              "rawText": "1코너 (5.5)\n쌀밥\n제육볶음\n된장국"
             },
             {
               "id": 11,
               "mealTime": "DINNER",
-              "menuCategory": "NORMAL",
-              "dishes": [
-                {
-                  "id": 101,
-                  "name": "김치볶음밥",
-                  "isMainDish": true
-                }
-              ]
+              "cornerName": "2코너",
+              "price": null,
+              "dishes": ["김치볶음밥"],
+              "rawText": "2코너\n김치볶음밥"
             }
           ]
         }
@@ -129,23 +120,21 @@ Authorization: Bearer {accessToken}
 | `restaurantType` | String | 해당 식당 구분 |
 | `menuDate` | String | `yyyy-MM-dd` |
 | `dayOfWeek` | String | `MONDAY`~`SUNDAY` |
-| `mealSections` | Object[] | 식사 시간·카테고리별 메뉴 |
+| `mealSections` | Object[] | 식사 시간·코너별 메뉴 |
 | `mealSections[].id` | Number | 식사 구역 ID |
 | `mealSections[].mealTime` | String | `LUNCH`, `DINNER` |
-| `mealSections[].menuCategory` | String | `KOREAN`, `SPECIAL`, `NORMAL` |
-| `mealSections[].dishes` | Object[] | 음식 목록 |
-| `dishes[].id` | Number | 음식 ID |
-| `dishes[].name` | String | 음식명 |
-| `dishes[].isMainDish` | Boolean | 대표 메뉴 여부 |
+| `mealSections[].cornerName` | String | 코너명 (예: `1코너`) |
+| `mealSections[].price` | Number \| null | 가격(원); 표기가 없으면 `null` |
+| `mealSections[].dishes` | String[] | 음식명 문자열 목록(순서 유지) |
+| `mealSections[].rawText` | String | 크롤러가 파싱한 원문(개행 포함) |
 
 ## 4. 응답 순서
 
 - `restaurants[0]`: `MAIN_STUDENT`
 - `restaurants[1]`: `TAEAN_STUDENT`
 - `dailyMenus`: 날짜 오름차순
-- `mealSections`: `LUNCH` → `DINNER`
-- 같은 식사 시간: `KOREAN` → `SPECIAL` → `NORMAL`
-- `dishes`: ID 오름차순
+- `mealSections`: `LUNCH` → `DINNER`, 같은 식사 시간 내에서는 저장(삽입) 순서(= `id` 오름차순)를 유지
+- `dishes`: 크롤러가 파싱한 원본 배열 순서를 그대로 유지
 
 ## 5. 데이터가 없을 때
 
@@ -186,7 +175,6 @@ Authorization: Bearer {accessToken}
 | 상황 | 상태 |
 |---|---:|
 | `menuDate` 형식 오류 | `400 Bad Request` |
-| `menuCategory` 허용값 아님 | `400 Bad Request` |
 | 잘못되었거나 만료된 JWT | `401 Unauthorized` |
 | 예상하지 못한 서버·DB 오류 | `500 Internal Server Error` |
 
@@ -194,9 +182,9 @@ Authorization: Bearer {accessToken}
 
 ## 8. 배포 영향
 
-- 식단 테이블 변경 없음
-- 식단 데이터 재업로드 불필요
-- 크롤러·스케줄러의 기존 네 식당 수집 구조 유지
+- 식단 테이블 구조 변경(3-tier → 2-tier): `docs/cafeteria-menu-restructure-migration-mysql.sql` 를 앱 배포 전 1회 적용
+- 기존 식단 데이터는 마이그레이션에서 전량 삭제되며, Spring Boot 가 크롤러 결과로 다시 채움
+- DB 쓰기 소유권이 Python 크롤러에서 Spring Boot 로 이동(비교 후 변경 시에만 delete+insert)
 - `user_accounts.preferred_restaurant_type` 증분 DDL은 앱 배포 전 적용
 - 서버 properties 추가 없음
 
