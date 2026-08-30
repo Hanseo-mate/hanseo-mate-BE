@@ -225,7 +225,7 @@ CREATE TABLE academic_units (
     CONSTRAINT uk_academic_unit_master_key UNIQUE (master_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 공백이 아닌 course_code가 과목 identity다. MySQL UNIQUE는 NULL을 여러 건 허용하므로
+-- 공백이 아닌 course_code와 section_no 조합이 강좌 identity다.
 -- 코드 없는 수입 행은 서로 다른 master_key와 id로 각각 저장할 수 있다.
 CREATE TABLE courses (
     id BINARY(16) NOT NULL,
@@ -247,7 +247,7 @@ CREATE TABLE courses (
     classroom_text VARCHAR(2000) NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_course_master_key UNIQUE (master_key),
-    CONSTRAINT uk_course_code UNIQUE (course_code),
+    INDEX ix_course_code (course_code),
     INDEX ix_course_name (course_name),
     INDEX ix_course_instructor (instructor_name),
     INDEX ix_course_curriculum (curriculum_type),

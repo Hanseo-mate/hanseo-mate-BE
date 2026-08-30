@@ -22,20 +22,22 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 학기와 무관하게 과목코드로 한 번만 저장되는 공통 과목 데이터입니다.
+ * 학기와 무관하게 과목코드와 분반 조합으로 한 번만 저장되는 강좌 데이터입니다.
  *
- * <p>같은 과목코드가 다시 수입되면 이 엔티티의 최초 저장값을 계속 사용하고,
- * 연도·학기와 수입 출처만 {@link CourseOffering}에 별도로 연결합니다.
+ * <p>같은 과목코드와 분반 조합이 다시 수입되면 이 엔티티의 최초 저장값을 계속 사용하고,
+ * 연도·학기와 수입 출처만 {@link CourseOffering}에 별도로 연결합니다. 같은 과목코드라도
+ * 분반이 다르면 교수, 시간, 강의실이 서로 다른 별도 강좌로 저장합니다.
  */
 @Getter
 @Entity
 @Table(
         name = "courses",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_course_master_key", columnNames = "master_key"),
-                @UniqueConstraint(name = "uk_course_code", columnNames = "course_code")
-        },
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_course_master_key",
+                columnNames = "master_key"
+        ),
         indexes = {
+                @Index(name = "ix_course_code", columnList = "course_code"),
                 @Index(name = "ix_course_name", columnList = "course_name"),
                 @Index(name = "ix_course_instructor", columnList = "instructor_name"),
                 @Index(name = "ix_course_curriculum", columnList = "curriculum_type")
@@ -141,7 +143,7 @@ public class Course {
 
     /**
      * 코드·이름만 먼저 만들어진 과목을 한 번만 완성합니다.
-     * 이미 상세가 저장된 과목은 과목코드 중복 정책에 따라 최초 값을 유지합니다.
+     * 이미 상세가 저장된 강좌는 과목코드·분반 중복 정책에 따라 최초 값을 유지합니다.
      */
     public boolean initializeDetailsIfMissing(
             AcademicUnit academicUnit,

@@ -43,6 +43,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,6 +55,8 @@ class TimetableApiIntegrationTest {
             "fixtures/course-import/course-search-major-2026-1.json";
     private static final String GENERAL_FIXTURE =
             "fixtures/course-import/course-search-general-2026-1.json";
+    private static final String SECTION_FIXTURE =
+            "fixtures/course-import/major-ready-2026-1-a.json";
     private static final String TIMETABLE_PATH = "/api/timetables";
     private static final String ALPHA_CODE = "003000";
     private static final String CHARLIE_CODE = "001000";
@@ -414,6 +418,54 @@ class TimetableApiIntegrationTest {
         assertThat(timetableCourseRepository.existsByTimetableIdAndCourseOfferingId(
                 timetableId, second.getId()
         )).isTrue();
+    }
+
+    @Test
+    void sameCourseCodeWithDifferentSectionsKeepsIndependentTimetableSchedules()
+            throws Exception {
+        importTwoSectionFixture();
+        CourseOffering firstSection = offeringByCodeAndSection("001234", "01");
+        CourseOffering secondSection = offeringByCodeAndSection("001234", "02");
+        long timetableId = createTimetable(2026, 1);
+
+        assertThat(firstSection.getId()).isNotEqualTo(secondSection.getId());
+        assertThat(firstSection.getCourseName()).isEqualTo(secondSection.getCourseName());
+
+        addCourseRequest(timetableId, firstSection.getId(), "REJECT")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.sectionNo").value("01"))
+                .andExpect(jsonPath("$.instructorName").value("홍길동"))
+                .andExpect(jsonPath("$.meetings[0].dayOfWeek").value("MONDAY"))
+                .andExpect(jsonPath("$.meetings[0].periods[0]").value(1))
+                .andExpect(jsonPath("$.meetings[0].classroom.originalValue")
+                        .value("본관 101호"));
+        addCourseRequest(timetableId, secondSection.getId(), "REJECT")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.sectionNo").value("02"))
+                .andExpect(jsonPath("$.instructorName").value("김분반"))
+                .andExpect(jsonPath("$.meetings[0].dayOfWeek").value("TUESDAY"))
+                .andExpect(jsonPath("$.meetings[0].periods[0]").value(4))
+                .andExpect(jsonPath("$.meetings[0].classroom.originalValue")
+                        .value("후속관 909호"));
+
+        assertThat(timetableCourseRepository.count()).isEqualTo(2);
+        performAuthenticated(get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(2))
+                .andExpect(jsonPath("$.courses[0].courseId")
+                        .value(firstSection.getId().toString()))
+                .andExpect(jsonPath("$.courses[0].sectionNo").value("01"))
+                .andExpect(jsonPath("$.courses[0].meetings[0].dayOfWeek")
+                        .value("MONDAY"))
+                .andExpect(jsonPath("$.courses[1].courseId")
+                        .value(secondSection.getId().toString()))
+                .andExpect(jsonPath("$.courses[1].sectionNo").value("02"))
+                .andExpect(jsonPath("$.courses[1].meetings[0].dayOfWeek")
+                        .value("TUESDAY"));
     }
 
     @Test
@@ -1011,6 +1063,46 @@ class TimetableApiIntegrationTest {
         importMajorFixture(UnaryOperator.identity());
     }
 
+    private void importTwoSectionFixture() throws Exception {
+        ObjectNode payload = (ObjectNode) objectMapper.readTree(
+                new ClassPathResource(SECTION_FIXTURE)
+                        .getContentAsString(StandardCharsets.UTF_8)
+        );
+        ArrayNode lectures = (ArrayNode) payload.path("lectures");
+        ObjectNode second = ((ObjectNode) lectures.get(0)).deepCopy();
+        second.put("sourceRow", 6);
+        second.put("sectionNo", "02");
+        second.put("instructorName", "김분반");
+        second.put("scheduleText", "화4,5,6");
+        second.put("classroomText", "후속관 909호");
+        ObjectNode schedule = (ObjectNode) second.path("schedules").get(0);
+        schedule.put("dayOfWeek", "TUESDAY");
+        ArrayNode periods = (ArrayNode) schedule.path("periods");
+        periods.removeAll();
+        periods.add(4);
+        periods.add(5);
+        periods.add(6);
+        ObjectNode classroom = (ObjectNode) schedule.path("classroom");
+        classroom.put("buildingName", "후속관");
+        classroom.put("roomNumber", "909");
+        classroom.put("originalValue", "후속관 909호");
+        ((ObjectNode) second.path("sourceCells").get(2)).put("value", "02");
+        lectures.add(second);
+
+        ObjectNode statistics = (ObjectNode) payload.path("statistics");
+        statistics.put("totalRowCount", 2);
+        statistics.put("parsedLectureCount", 2);
+        statistics.put("scheduleCount", 2);
+        statistics.put("periodCount", 6);
+
+        CourseImportResponse response = performImport(
+                objectMapper.writeValueAsString(payload)
+        );
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(response.databaseChanged()).isTrue();
+        assertThat(response.offeringCount()).isEqualTo(2);
+    }
+
     private void importMajorFixture(UnaryOperator<String> modifier) throws Exception {
         CourseImportResponse response = performImport(modifier.apply(fixturePayload()));
         assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
@@ -1049,6 +1141,23 @@ class TimetableApiIntegrationTest {
                 """,
                 UUID.class,
                 courseCode
+        );
+        return courseOfferingRepository.findDetailedById(offeringId).orElseThrow();
+    }
+
+    private CourseOffering offeringByCodeAndSection(String courseCode, String sectionNo) {
+        UUID offeringId = jdbcTemplate.queryForObject(
+                """
+                select offering.id
+                from course_offerings offering
+                join courses course on course.id = offering.course_id
+                where offering.active = true
+                  and course.course_code = ?
+                  and course.section_no = ?
+                """,
+                UUID.class,
+                courseCode,
+                sectionNo
         );
         return courseOfferingRepository.findDetailedById(offeringId).orElseThrow();
     }
