@@ -32,7 +32,7 @@ public class DailyMenuRepositoryImpl implements DailyMenuRepositoryCustom {
         // 상위 엔티티를 두 단계로 조회한다:
         //   1단계: 조건에 맞는 DailyMenu ID 목록 조회
         //   2단계: 해당 ID 의 DailyMenu → MealSection 을 fetch join (N+1 방지)
-        List<Long> dailyMenuIds = queryFactory
+        List<Integer> dailyMenuIds = queryFactory
                 .select(dailyMenu.id)
                 .from(dailyMenu)
                 .where(

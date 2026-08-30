@@ -29,7 +29,7 @@ public class DailyMenu {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "restaurant_type", nullable = false, length = 20)
@@ -70,7 +70,7 @@ public class DailyMenu {
         return section;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

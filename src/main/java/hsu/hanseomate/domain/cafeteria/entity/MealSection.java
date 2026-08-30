@@ -33,7 +33,7 @@ public class MealSection {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "daily_menu_id", nullable = false)
@@ -80,7 +80,7 @@ public class MealSection {
         return section;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

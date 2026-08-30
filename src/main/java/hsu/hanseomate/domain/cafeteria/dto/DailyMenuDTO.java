@@ -10,7 +10,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public record DailyMenuDTO(
-        Long id,
+        Integer id,
         @Schema(allowableValues = {"MAIN_STUDENT", "TAEAN_STUDENT"})
         RestaurantType restaurantType,
         LocalDate menuDate,

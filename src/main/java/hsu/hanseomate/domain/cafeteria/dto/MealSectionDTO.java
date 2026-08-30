@@ -5,7 +5,7 @@ import hsu.hanseomate.domain.cafeteria.entity.MealTime;
 import java.util.List;
 
 public record MealSectionDTO(
-        Long id,
+        Integer id,
         MealTime mealTime,
         String cornerName,
         Integer price,
