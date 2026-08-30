@@ -61,6 +61,18 @@ class CampusBuildingCatalogTest {
                 "36.6909679",
                 "126.5858094"
         );
+        saveBuilding(
+                CampusCode.SEOSAN,
+                "이학관",
+                "36.690669",
+                "126.581760"
+        );
+        saveBuilding(
+                CampusCode.SEOSAN,
+                "영암관",
+                "36.691341",
+                "126.582453"
+        );
         CampusBuilding taeAnMain = saveBuilding(
                 CampusCode.TAEAN,
                 "태안 강의동(본관)",
@@ -81,7 +93,7 @@ class CampusBuildingCatalogTest {
     void resolvesKnownSeosanAliasWithCanonicalNameAndCoordinates() {
         assertThat(catalog.find("서산캠퍼스", "인문관"))
                 .hasValueSatisfying(location -> {
-                    assertThat(location.campusCode()).isEqualTo("SEOSAN");
+                    assertThat(location.campusCode()).isEqualTo(CampusCode.SEOSAN);
                     assertThat(location.canonicalBuildingName()).isEqualTo("인문사회관");
                     assertThat(location.latitude()).isEqualTo(36.6900568);
                     assertThat(location.longitude()).isEqualTo(126.5858982);
@@ -92,7 +104,7 @@ class CampusBuildingCatalogTest {
     void resolvesCanonicalNameEvenWhenNoMatchingAliasRowExists() {
         assertThat(catalog.find("SEOSAN", "인문사회관"))
                 .hasValueSatisfying(location -> {
-                    assertThat(location.campusCode()).isEqualTo("SEOSAN");
+                    assertThat(location.campusCode()).isEqualTo(CampusCode.SEOSAN);
                     assertThat(location.canonicalBuildingName())
                             .isEqualTo("인문사회관");
                     assertThat(location.latitude()).isEqualTo(36.6900568);
@@ -104,7 +116,7 @@ class CampusBuildingCatalogTest {
     void resolvesKnownTaeanAliasWithCanonicalNameAndCoordinates() {
         assertThat(catalog.find(null, "태안강의동 본관"))
                 .hasValueSatisfying(location -> {
-                    assertThat(location.campusCode()).isEqualTo("TAEAN");
+                    assertThat(location.campusCode()).isEqualTo(CampusCode.TAEAN);
                     assertThat(location.canonicalBuildingName())
                             .isEqualTo("태안 강의동(본관)");
                     assertThat(location.latitude()).isEqualTo(36.5944988);
@@ -121,7 +133,7 @@ class CampusBuildingCatalogTest {
     void exactFlightEducationCenterAliasMapsButLongerSpecialTextDoesNot() {
         assertThat(catalog.find("TAEAN", "비행교육원"))
                 .hasValueSatisfying(location -> {
-                    assertThat(location.campusCode()).isEqualTo("TAEAN");
+                    assertThat(location.campusCode()).isEqualTo(CampusCode.TAEAN);
                     assertThat(location.canonicalBuildingName())
                             .isEqualTo("태안 강의동(본관)");
                     assertThat(location.latitude()).isEqualTo(36.5944988);
@@ -134,6 +146,30 @@ class CampusBuildingCatalogTest {
     @Test
     void unknownBuildingRemainsUnmapped() {
         assertThat(catalog.find("SEOSAN", "존재하지않는관")).isEmpty();
+    }
+
+    @Test
+    void resolvesVerifiedHBuildingCodesAsSeosanCampus() {
+        assertThat(catalog.find("H01", "이학관"))
+                .hasValueSatisfying(location -> {
+                    assertThat(location.campusCode())
+                            .isEqualTo(CampusCode.SEOSAN);
+                    assertThat(location.canonicalBuildingName())
+                            .isEqualTo("이학관");
+                });
+        assertThat(catalog.find("H02", "영암관"))
+                .hasValueSatisfying(location -> {
+                    assertThat(location.campusCode())
+                            .isEqualTo(CampusCode.SEOSAN);
+                    assertThat(location.canonicalBuildingName())
+                            .isEqualTo("영암관");
+                });
+        assertThat(catalog.find("H02", "태안 강의동(본관)")).isEmpty();
+    }
+
+    @Test
+    void unsupportedHCodeDoesNotFallBackToUniqueBuildingName() {
+        assertThat(catalog.find("H99", "공학관")).isEmpty();
     }
 
     @Test

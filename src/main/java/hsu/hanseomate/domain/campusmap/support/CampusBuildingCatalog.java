@@ -99,8 +99,8 @@ public class CampusBuildingCatalog {
                 return Optional.empty();
             }
             return exactlyOne(candidates.stream()
-                    .filter(location -> campusCode.orElseThrow().name()
-                            .equals(location.campusCode()))
+                    .filter(location -> campusCode.orElseThrow()
+                            == location.campusCode())
                     .toList());
         }
         return exactlyOne(candidates);
@@ -131,7 +131,7 @@ public class CampusBuildingCatalog {
 
     private static CampusBuildingLocation toLocation(CampusBuilding building) {
         return new CampusBuildingLocation(
-                building.getCampusCode().name(),
+                building.getCampusCode(),
                 building.getCanonicalName(),
                 building.getLatitude().doubleValue(),
                 building.getLongitude().doubleValue()
@@ -145,7 +145,7 @@ public class CampusBuildingCatalog {
     }
 
     public record CampusBuildingLocation(
-            String campusCode,
+            CampusCode campusCode,
             String canonicalBuildingName,
             double latitude,
             double longitude

@@ -8,6 +8,7 @@ import hsu.hanseomate.domain.campusmap.dto.CampusMapWeeklyResponse;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog.CampusBuildingLocation;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog.CampusBuildingQuery;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.course.entity.Classroom;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
@@ -169,7 +170,7 @@ public class CampusMapService {
                     schedule.getId(),
                     schedule.getCourse().getCourseName(),
                     periods,
-                    classroom.getCampusCode(),
+                    CampusCode.from(classroom.getCampusCode()).orElse(null),
                     classroom.getBuildingName(),
                     classroom.getRoomNumber(),
                     null,
