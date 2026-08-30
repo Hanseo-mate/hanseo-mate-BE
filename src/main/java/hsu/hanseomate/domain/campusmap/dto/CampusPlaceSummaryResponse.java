@@ -14,7 +14,7 @@ public record CampusPlaceSummaryResponse(
         String categoryName,
         @Schema(nullable = true)
         String oneLineDescription,
-        @Schema(nullable = true, description = "강의실 이외 장소의 주소")
+        @Schema(nullable = true, description = "교내시설 이외 장소의 주소")
         String address,
         @Schema(nullable = true, format = "uri")
         String imageUrl,

@@ -58,7 +58,7 @@ public class CampusPlaceController {
 
     @Operation(
             summary = "캠퍼스 장소 상세 조회",
-            description = "장소의 공통 정보와 강의실 건물의 카테고리 상세 정보를 조회합니다."
+            description = "장소의 공통 정보와 교내시설 카테고리의 상세 정보를 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),

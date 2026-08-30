@@ -225,8 +225,8 @@ GET /api/campus-map/places?campusCode=SEOSAN&category=CAFE
 GET /api/campus-map/places/{placeId}
 ```
 
-강의실 카테고리는 공통 필드에 다음 상세 정보가 추가됩니다. 아직 사용자가 상세
-데이터를 입력하지 않은 강의실은 `lectureBuildingDetails: null`입니다.
+교내시설 카테고리는 공통 필드에 다음 상세 정보가 추가됩니다. 아직 관리자가 상세
+데이터를 입력하지 않은 교내시설은 `lectureBuildingDetails: null`입니다.
 
 ```json
 {
@@ -234,7 +234,7 @@ GET /api/campus-map/places/{placeId}
   "campusCode": "SEOSAN",
   "placeName": "공학관",
   "category": "LECTURE_BUILDING",
-  "categoryName": "강의실",
+  "categoryName": "교내시설",
   "oneLineDescription": "공학 계열 강의와 실습이 진행되는 건물",
   "imageUrl": "https://api.example.com/uploads/campus-places/example.jpg",
   "latitude": 36.690884,
@@ -255,6 +255,7 @@ GET /api/campus-map/places/{placeId}
 
 카테고리는 `RESTAURANT`, `CAFE`, `LECTURE_BUILDING`,
 `CONVENIENCE_FACILITY` 네 값만 허용합니다.
+`LECTURE_BUILDING`의 표시명인 `categoryName`은 `교내시설`로 반환됩니다.
 
 ## 9. 장소 이미지 업로드
 
@@ -294,9 +295,9 @@ Content-Type: application/json
 - `POST`는 `201 Created`와 생성된 장소 상세정보를 반환합니다.
 - `PUT`은 `200 OK`와 수정된 장소 상세정보를 반환합니다.
 - `DELETE`는 `204 No Content`를 반환합니다.
-- 삭제 시 강의실 상세정보는 함께 삭제하지만 업로드된 이미지 파일은 삭제하지 않습니다.
+- 삭제 시 교내시설 상세정보는 함께 삭제하지만 업로드된 이미지 파일은 삭제하지 않습니다.
 
-강의실 카테고리 요청 예시입니다.
+교내시설 카테고리 요청 예시입니다.
 
 ```json
 {
@@ -338,15 +339,15 @@ Content-Type: application/json
 - 한 줄 소개와 이미지 URL은 선택값입니다. 생략하거나 `null` 또는 빈 문자열로 보내면
   DB에는 `NULL`로 저장되고 조회 응답에서는 `null`이거나 필드가 생략됩니다.
 - 음식점, 카페, 편의시설은 `address`가 필수이며 최대 255자입니다.
-- 강의실은 `address`를 보내지 않으며 응답에서도 해당 필드를 생략합니다.
-- 강의실 위치는 `lectureBuildingDetails.location`을 사용합니다.
+- 교내시설은 `address`를 보내지 않으며 응답에서도 해당 필드를 생략합니다.
+- 교내시설 위치는 `lectureBuildingDetails.location`을 사용합니다.
 - 위도는 -90~90, 경도는 -180~180이며 소수점 이하 9자리까지 허용합니다.
 - 장소명에서 공백과 밑줄을 제거하고 영문을 대문자로 바꾼 내부 키를 생성합니다.
 - 같은 캠퍼스 안에서 내부 키가 같은 장소를 등록하거나 수정할 수 없습니다.
 - `LECTURE_BUILDING`은 `lectureBuildingDetails`가 필수입니다.
-- 강의실 이외의 카테고리는 `lectureBuildingDetails`를 보낼 수 없습니다.
+- 교내시설 이외의 카테고리는 `lectureBuildingDetails`를 보낼 수 없습니다.
 - 학과와 주요시설은 각각 한 개 이상이며, 같은 배열 안에서 이름이 중복될 수 없습니다.
-- 강의실에서 다른 카테고리로 변경하면 기존 강의실 상세정보는 삭제됩니다.
+- 교내시설에서 다른 카테고리로 변경하면 기존 교내시설 상세정보는 삭제됩니다.
 - 관리자 JWT가 없으면 `401`, 일반 사용자 JWT이면 `403`, 수정·삭제할 장소가 없으면 `404`입니다.
 
 ## 11. 현재 데이터 경계
