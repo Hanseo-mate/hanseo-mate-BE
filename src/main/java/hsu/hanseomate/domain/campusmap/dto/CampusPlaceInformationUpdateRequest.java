@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.campusmap.dto;
 import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.campusmap.type.CampusPlaceCategory;
 import hsu.hanseomate.global.validation.HttpUrl;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -35,14 +36,14 @@ public record CampusPlaceInformationUpdateRequest(
         @NotNull(message = "카테고리는 필수입니다.")
         CampusPlaceCategory category,
 
-        @NotBlank(message = "한 줄 소개는 필수입니다.")
+        @Schema(nullable = true, description = "선택 입력하는 장소 한 줄 소개")
         @Size(max = 255, message = "한 줄 소개는 255자 이하여야 합니다.")
         String oneLineDescription,
 
         @Size(max = 255, message = "주소는 255자 이하여야 합니다.")
         String address,
 
-        @NotBlank(message = "이미지 URL은 필수입니다.")
+        @Schema(nullable = true, description = "선택 입력하는 장소 대표 이미지 URL")
         @Size(max = 2048, message = "이미지 URL은 2048자 이하여야 합니다.")
         @HttpUrl
         String imageUrl,

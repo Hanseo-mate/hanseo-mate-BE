@@ -1,8 +1,10 @@
 package hsu.hanseomate.domain.campusmap.service;
 
 import hsu.hanseomate.domain.campusmap.dto.CampusMapCourseLocationResponse;
+import hsu.hanseomate.domain.campusmap.dto.CampusMapDayLocationsResponse;
 import hsu.hanseomate.domain.campusmap.dto.CampusMapLocationStatus;
 import hsu.hanseomate.domain.campusmap.dto.CampusMapTodayResponse;
+import hsu.hanseomate.domain.campusmap.dto.CampusMapWeeklyResponse;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog.CampusBuildingLocation;
 import hsu.hanseomate.domain.campusmap.support.CampusBuildingCatalog.CampusBuildingQuery;
@@ -27,6 +29,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class CampusMapService {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final List<DayOfWeek> CAMPUS_MAP_DAYS = List.of(
+            DayOfWeek.MONDAY,
+            DayOfWeek.TUESDAY,
+            DayOfWeek.WEDNESDAY,
+            DayOfWeek.THURSDAY
+    );
 
     private final CourseScheduleRepository courseScheduleRepository;
     private final CurrentUserIdProvider currentUserIdProvider;
@@ -35,8 +43,8 @@ public class CampusMapService {
 
     public CampusMapTodayResponse getTodayLocations() {
         Long ownerId = currentUserIdProvider.currentUserId();
-        LocalDate today = LocalDate.now(clock.withZone(KOREA_ZONE));
-        int semester = today.getMonthValue() <= 6 ? 1 : 2;
+        LocalDate today = koreaToday();
+        int semester = semester(today);
         DayOfWeek dayOfWeek = DayOfWeek.valueOf(today.getDayOfWeek().name());
 
         List<CourseSchedule> schedules = courseScheduleRepository
@@ -46,22 +54,10 @@ public class CampusMapService {
                         semester,
                         dayOfWeek
                 ).stream()
-                .sorted(Comparator
-                        .comparingInt((CourseSchedule schedule) ->
-                                firstPeriod(schedule.getPeriods()))
-                        .thenComparing(
-                                schedule -> schedule.getCourse().getCourseName(),
-                                Comparator.nullsLast(String::compareTo)
-                        )
-                        .thenComparingInt(CourseSchedule::getScheduleOrder)
-                        .thenComparing(CourseSchedule::getId))
+                .sorted(scheduleComparator())
                 .toList();
         Map<CampusBuildingQuery, CampusBuildingLocation> buildingLocations =
-                campusBuildingCatalog.findAll(schedules.stream()
-                        .map(CourseSchedule::getClassroom)
-                        .filter(classroom -> classroom != null)
-                        .map(this::buildingQuery)
-                        .toList());
+                buildingLocations(schedules);
         List<CampusMapCourseLocationResponse> locations = schedules.stream()
                 .map(schedule -> toResponse(schedule, buildingLocations))
                 .toList();
@@ -73,6 +69,72 @@ public class CampusMapService {
                 semester,
                 locations
         );
+    }
+
+    public CampusMapWeeklyResponse getWeeklyLocations() {
+        Long ownerId = currentUserIdProvider.currentUserId();
+        LocalDate today = koreaToday();
+        int academicYear = today.getYear();
+        int semester = semester(today);
+        List<CourseSchedule> schedules = courseScheduleRepository
+                .findTimetableSchedulesForTerm(
+                        ownerId,
+                        academicYear,
+                        semester,
+                        CAMPUS_MAP_DAYS
+                );
+        Map<CampusBuildingQuery, CampusBuildingLocation> buildingLocations =
+                buildingLocations(schedules);
+        List<CampusMapDayLocationsResponse> dayLocations = CAMPUS_MAP_DAYS.stream()
+                .map(dayOfWeek -> new CampusMapDayLocationsResponse(
+                        dayOfWeek,
+                        schedules.stream()
+                                .filter(schedule ->
+                                        schedule.getDayOfWeek() == dayOfWeek)
+                                .sorted(scheduleComparator())
+                                .map(schedule -> toResponse(
+                                        schedule,
+                                        buildingLocations
+                                ))
+                                .toList()
+                ))
+                .toList();
+
+        return new CampusMapWeeklyResponse(
+                academicYear,
+                semester,
+                dayLocations
+        );
+    }
+
+    private LocalDate koreaToday() {
+        return LocalDate.now(clock.withZone(KOREA_ZONE));
+    }
+
+    private int semester(LocalDate date) {
+        return date.getMonthValue() <= 6 ? 1 : 2;
+    }
+
+    private Comparator<CourseSchedule> scheduleComparator() {
+        return Comparator
+                .comparingInt((CourseSchedule schedule) ->
+                        firstPeriod(schedule.getPeriods()))
+                .thenComparing(
+                        schedule -> schedule.getCourse().getCourseName(),
+                        Comparator.nullsLast(String::compareTo)
+                )
+                .thenComparingInt(CourseSchedule::getScheduleOrder)
+                .thenComparing(CourseSchedule::getId);
+    }
+
+    private Map<CampusBuildingQuery, CampusBuildingLocation> buildingLocations(
+            List<CourseSchedule> schedules
+    ) {
+        return campusBuildingCatalog.findAll(schedules.stream()
+                .map(CourseSchedule::getClassroom)
+                .filter(classroom -> classroom != null)
+                .map(this::buildingQuery)
+                .toList());
     }
 
     private CampusMapCourseLocationResponse toResponse(

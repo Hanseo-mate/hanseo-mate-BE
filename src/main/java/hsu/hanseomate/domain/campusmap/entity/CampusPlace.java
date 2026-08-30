@@ -152,12 +152,9 @@ public class CampusPlace extends BaseTimeEntity {
                 "longitude"
         );
         this.category = Objects.requireNonNull(category);
-        this.oneLineDescription = requiredText(
-                oneLineDescription,
-                "oneLineDescription"
-        );
+        this.oneLineDescription = optionalText(oneLineDescription);
         this.address = address;
-        this.imageUrl = requiredText(imageUrl, "imageUrl");
+        this.imageUrl = optionalText(imageUrl);
     }
 
     private static String requiredText(String value, String fieldName) {
@@ -165,6 +162,10 @@ public class CampusPlace extends BaseTimeEntity {
             throw new IllegalArgumentException(fieldName + " must not be blank");
         }
         return value.trim();
+    }
+
+    private static String optionalText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static BigDecimal coordinate(
