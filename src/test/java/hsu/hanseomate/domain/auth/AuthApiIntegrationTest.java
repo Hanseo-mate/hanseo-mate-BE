@@ -7,10 +7,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.auth.repository.RefreshTokenRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import hsu.hanseomate.domain.user.type.UserRole;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +41,8 @@ class AuthApiIntegrationTest {
 
     private static final String SIGNUP_PATH = "/api/auth/signup";
     private static final String LOGIN_PATH = "/api/auth/login";
+    private static final String REFRESH_PATH = "/api/auth/refresh";
+    private static final String LOGOUT_PATH = "/api/auth/logout";
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,6 +52,9 @@ class AuthApiIntegrationTest {
 
     @Autowired
     private UserAccountRepository userAccountRepository;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -73,8 +82,10 @@ class AuthApiIntegrationTest {
                         .content(requestBody("NewUser", "plain-password")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000))
                 .andExpect(jsonPath("$.userId").isNumber())
                 .andExpect(jsonPath("$.loginId").value("newuser"))
                 .andExpect(jsonPath("$.role").value("USER"))
@@ -96,6 +107,16 @@ class AuthApiIntegrationTest {
         Jwt jwt = jwtDecoder.decode(responseBody(result).path("accessToken").stringValue());
         assertThat(jwt.getSubject()).isEqualTo(saved.getId().toString());
         assertThat(jwt.getClaimAsString("role")).isEqualTo("USER");
+
+        String rawRefreshToken = responseBody(result).path("refreshToken").stringValue();
+        String storedHash = jdbcTemplate.queryForObject(
+                "SELECT token_hash FROM refresh_tokens WHERE user_id = ?",
+                String.class,
+                saved.getId()
+        );
+        assertThat(storedHash).isEqualTo(sha256(rawRefreshToken));
+        assertThat(storedHash).isNotEqualTo(rawRefreshToken);
+        assertThat(refreshTokenRepository.countByUserAccountId(saved.getId())).isOne();
     }
 
     @Test
@@ -133,8 +154,10 @@ class AuthApiIntegrationTest {
         MvcResult result = login("login-user", "correct-password")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000))
                 .andExpect(jsonPath("$.userId").value(userId))
                 .andExpect(jsonPath("$.loginId").value("login-user"))
                 .andExpect(jsonPath("$.role").value("USER"))
@@ -150,6 +173,130 @@ class AuthApiIntegrationTest {
         assertThat(jwt.getSubject()).isEqualTo(Long.toString(userId));
         assertThat(jwt.getIssuer().toString()).isEqualTo("https://hanseomate.test");
         assertThat(jwt.getClaimAsString("role")).isEqualTo("USER");
+    }
+
+    @Test
+    void refreshRotatesTokenPairAndKeepsTheOriginalSessionExpiry()
+            throws Exception {
+        signup("refresh-user", "password");
+        JsonNode loginBody = responseBody(login("refresh-user", "password")
+                .andExpect(status().isOk())
+                .andReturn());
+        String firstRefreshToken = loginBody.path("refreshToken").stringValue();
+
+        MvcResult firstRefreshResult = refresh(firstRefreshToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(jsonPath("$.refreshTokenExpiresIn").isNumber())
+                .andReturn();
+        JsonNode firstRefreshBody = responseBody(firstRefreshResult);
+        String secondRefreshToken = firstRefreshBody.path("refreshToken").stringValue();
+        assertThat(secondRefreshToken).isNotEqualTo(firstRefreshToken);
+        assertThat(firstRefreshBody.path("refreshTokenExpiresIn").asLong())
+                .isPositive()
+                .isLessThanOrEqualTo(2592000);
+        assertThat(jwtDecoder.decode(
+                firstRefreshBody.path("accessToken").stringValue()
+        ).getSubject()).isEqualTo(Long.toString(loginBody.path("userId").asLong()));
+
+        MvcResult secondRefreshResult = refresh(secondRefreshToken)
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(responseBody(secondRefreshResult).path("refreshToken").stringValue())
+                .isNotEqualTo(secondRefreshToken);
+    }
+
+    @Test
+    void reusingRotatedRefreshTokenRevokesItsWholeSession() throws Exception {
+        signup("reuse-user", "password");
+        String originalToken = responseBody(login("reuse-user", "password")
+                        .andExpect(status().isOk())
+                        .andReturn())
+                .path("refreshToken")
+                .stringValue();
+        String replacementToken = responseBody(refresh(originalToken)
+                        .andExpect(status().isOk())
+                        .andReturn())
+                .path("refreshToken")
+                .stringValue();
+
+        refresh(originalToken)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message")
+                        .value("유효하지 않거나 만료된 Refresh Token입니다."))
+                .andExpect(jsonPath("$.path").value(REFRESH_PATH));
+
+        refresh(replacementToken)
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void invalidExpiredAndAccessTokensCannotRefresh() throws Exception {
+        signup("invalid-refresh-user", "password");
+        JsonNode loginBody = responseBody(login("invalid-refresh-user", "password")
+                .andExpect(status().isOk())
+                .andReturn());
+        String refreshToken = loginBody.path("refreshToken").stringValue();
+
+        refresh("not-a-refresh-token")
+                .andExpect(status().isUnauthorized());
+        refresh(loginBody.path("accessToken").stringValue())
+                .andExpect(status().isUnauthorized());
+
+        jdbcTemplate.update(
+                "UPDATE refresh_tokens SET expires_at = ? WHERE token_hash = ?",
+                "2000-01-01 00:00:00",
+                sha256(refreshToken)
+        );
+        refresh(refreshToken)
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logoutIsIdempotentAndDoesNotRevokeAnotherLoginSession()
+            throws Exception {
+        MvcResult signupResult = mockMvc.perform(post(SIGNUP_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody("logout-user", "password")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String firstSessionToken = responseBody(signupResult)
+                .path("refreshToken")
+                .stringValue();
+        String secondSessionToken = responseBody(login("logout-user", "password")
+                        .andExpect(status().isOk())
+                        .andReturn())
+                .path("refreshToken")
+                .stringValue();
+
+        logout(firstSessionToken).andExpect(status().isNoContent());
+        logout(firstSessionToken).andExpect(status().isNoContent());
+        refresh(firstSessionToken).andExpect(status().isUnauthorized());
+        refresh(secondSessionToken).andExpect(status().isOk());
+    }
+
+    @Test
+    void refreshAndLogoutValidateRequestAndAppearInOpenApi() throws Exception {
+        mockMvc.perform(post(REFRESH_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\" \"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(LOGOUT_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/refresh'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/logout'].post").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.RefreshTokenRequest.properties.refreshToken"
+                ).exists());
     }
 
     @Test
@@ -309,11 +456,44 @@ class AuthApiIntegrationTest {
                 .content(requestBody(loginId, password)));
     }
 
+    private org.springframework.test.web.servlet.ResultActions refresh(
+            String refreshToken
+    ) throws Exception {
+        return mockMvc.perform(post(REFRESH_PATH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(refreshBody(refreshToken)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions logout(
+            String refreshToken
+    ) throws Exception {
+        return mockMvc.perform(post(LOGOUT_PATH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(refreshBody(refreshToken)));
+    }
+
     private String requestBody(String loginId, String password) {
         return objectMapper.writeValueAsString(Map.of(
                 "loginId", loginId,
                 "password", password
         ));
+    }
+
+    private String refreshBody(String refreshToken) {
+        return objectMapper.writeValueAsString(Map.of(
+                "refreshToken", refreshToken
+        ));
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(
+                    value.getBytes(StandardCharsets.UTF_8)
+            ));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     private JsonNode responseBody(MvcResult result) throws Exception {
@@ -328,6 +508,7 @@ class AuthApiIntegrationTest {
             jdbcTemplate.execute("TRUNCATE TABLE timetable_courses");
             jdbcTemplate.execute("TRUNCATE TABLE timetables");
             jdbcTemplate.execute("TRUNCATE TABLE essential_links");
+            jdbcTemplate.execute("TRUNCATE TABLE refresh_tokens");
             jdbcTemplate.execute("TRUNCATE TABLE user_accounts");
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");

@@ -348,7 +348,9 @@ SWAGGER_API_DOCS_ENABLED=true
 
 ## 인증 및 권한 적용 범위
 
-- 회원가입과 로그인 성공 시 JWT Access Token을 발급합니다.
+- 회원가입과 로그인 성공 시 1시간 JWT Access Token과 30일 Refresh Token을 함께 발급합니다.
+- `/api/auth/refresh`는 Refresh Token을 1회 회전하며 새 Access/Refresh Token을 발급하고, `/api/auth/logout`은 전달한 Refresh Token을 폐기합니다.
+- Refresh Token 원문은 DB에 저장하지 않으며, 30일 만료 시각은 재발급해도 연장되지 않습니다.
 - 회원탈퇴는 현재 비밀번호를 확인한 뒤 계정과 회원 관련 데이터를 영구 삭제하며, 탈퇴한 계정의 JWT도 즉시 무효화합니다.
 - 탈퇴 후 같은 로그인 아이디로 다시 가입할 수 있지만 새 계정으로 처리되고 과거 데이터는 복원되지 않습니다.
 - `/api/admin/**`는 `ADMIN` 역할만 접근할 수 있습니다.

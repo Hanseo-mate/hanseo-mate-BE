@@ -4,10 +4,13 @@ import hsu.hanseomate.domain.auth.dto.AuthResponse;
 import hsu.hanseomate.domain.auth.dto.CafeteriaPreferenceUpdateRequest;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
+import hsu.hanseomate.domain.auth.dto.RefreshTokenRequest;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
+import hsu.hanseomate.domain.auth.dto.TokenRefreshResponse;
 import hsu.hanseomate.domain.auth.dto.WithdrawalRequest;
 import hsu.hanseomate.domain.auth.exception.DuplicateLoginIdException;
 import hsu.hanseomate.domain.auth.exception.InvalidCredentialsException;
+import hsu.hanseomate.domain.auth.exception.InvalidRefreshTokenException;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.club.repository.ClubLikeRepository;
 import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
@@ -19,6 +22,8 @@ import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import hsu.hanseomate.global.exception.BadRequestException;
 import hsu.hanseomate.global.security.JwtTokenProvider;
+import hsu.hanseomate.global.security.IssuedRefreshToken;
+import hsu.hanseomate.global.security.IssuedToken;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +47,7 @@ public class AuthService {
     private final PushTicketRepository pushTicketRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
@@ -54,17 +60,16 @@ public class AuthService {
                 loginId,
                 passwordEncoder.encode(request.password())
         );
+        UserAccount savedUserAccount;
         try {
-            UserAccount savedUserAccount = userAccountRepository.saveAndFlush(userAccount);
-            return AuthResponse.from(
-                    jwtTokenProvider.issue(savedUserAccount),
-                    savedUserAccount
-            );
+            savedUserAccount = userAccountRepository.saveAndFlush(userAccount);
         } catch (DataIntegrityViolationException exception) {
             throw new DuplicateLoginIdException();
         }
+        return issueAuthentication(savedUserAccount);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         String loginId = normalizeLoginId(request.loginId());
         UserAccount userAccount = userAccountRepository.findByLoginId(loginId)
@@ -74,7 +79,23 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
 
-        return AuthResponse.from(jwtTokenProvider.issue(userAccount), userAccount);
+        return issueAuthentication(userAccount);
+    }
+
+    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
+    public TokenRefreshResponse refresh(RefreshTokenRequest request) {
+        RefreshTokenService.Rotation rotation = refreshTokenService.rotate(
+                request.refreshToken()
+        );
+        return TokenRefreshResponse.from(
+                jwtTokenProvider.issue(rotation.userAccount()),
+                rotation.refreshToken()
+        );
+    }
+
+    @Transactional
+    public void logout(RefreshTokenRequest request) {
+        refreshTokenService.revoke(request.refreshToken());
     }
 
     public MyPageResponse getMyPage(Long userId) {
@@ -130,8 +151,15 @@ public class AuthService {
         }
         pushDeviceRepository.deleteAllByUserId(userId);
 
+        refreshTokenService.deleteAllByUserId(userId);
         userAccountRepository.delete(userAccount);
         userAccountRepository.flush();
+    }
+
+    private AuthResponse issueAuthentication(UserAccount userAccount) {
+        IssuedToken accessToken = jwtTokenProvider.issue(userAccount);
+        IssuedRefreshToken refreshToken = refreshTokenService.issue(userAccount);
+        return AuthResponse.from(accessToken, refreshToken, userAccount);
     }
 
     private String normalizeLoginId(String loginId) {

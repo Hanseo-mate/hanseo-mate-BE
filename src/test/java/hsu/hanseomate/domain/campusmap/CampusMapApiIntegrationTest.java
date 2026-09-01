@@ -617,6 +617,7 @@ class CampusMapApiIntegrationTest {
             truncate("campus_buildings");
             truncate("timetable_courses");
             truncate("timetables");
+            truncate("refresh_tokens");
             truncate("user_accounts");
             truncate("course_import_issues");
             truncate("course_schedules");

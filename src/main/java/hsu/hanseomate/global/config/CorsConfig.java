@@ -129,6 +129,8 @@ public class CorsConfig {
                 adminConfiguration
         );
         source.registerCorsConfiguration("/api/auth/login", loginConfiguration);
+        source.registerCorsConfiguration("/api/auth/refresh", loginConfiguration);
+        source.registerCorsConfiguration("/api/auth/logout", loginConfiguration);
         source.registerCorsConfiguration(
                 "/api/auth/me",
                 authenticatedUserConfiguration

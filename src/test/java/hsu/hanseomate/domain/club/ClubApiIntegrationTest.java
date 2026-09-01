@@ -131,6 +131,7 @@ class ClubApiIntegrationTest {
         for (String tableName : clubTables) {
             jdbcTemplate.execute("DELETE FROM " + tableName);
         }
+        jdbcTemplate.execute("DELETE FROM refresh_tokens");
         jdbcTemplate.execute("DELETE FROM user_accounts");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
     }

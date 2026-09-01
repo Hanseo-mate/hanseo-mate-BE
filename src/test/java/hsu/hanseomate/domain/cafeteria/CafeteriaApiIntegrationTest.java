@@ -323,6 +323,7 @@ class CafeteriaApiIntegrationTest {
         try {
             jdbcTemplate.execute("TRUNCATE TABLE meal_sections");
             jdbcTemplate.execute("TRUNCATE TABLE daily_menus");
+            jdbcTemplate.execute("TRUNCATE TABLE refresh_tokens");
             jdbcTemplate.execute("TRUNCATE TABLE user_accounts");
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");

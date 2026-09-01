@@ -29,6 +29,14 @@ public class AuthExceptionHandler {
         return errorResponse(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+    }
+
     private ResponseEntity<ApiErrorResponse> errorResponse(
             HttpStatus status,
             String message,

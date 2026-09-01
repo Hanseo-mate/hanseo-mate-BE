@@ -7,7 +7,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record JwtProperties(
         String secret,
         String issuer,
-        long accessTokenExpirationSeconds
+        long accessTokenExpirationSeconds,
+        long refreshTokenExpirationSeconds
 ) {
 
     private static final int MINIMUM_HS256_SECRET_BYTES = 32;
@@ -23,6 +24,11 @@ public record JwtProperties(
         if (accessTokenExpirationSeconds <= 0) {
             throw new IllegalArgumentException(
                     "JWT access token expiration must be greater than zero."
+            );
+        }
+        if (refreshTokenExpirationSeconds <= 0) {
+            throw new IllegalArgumentException(
+                    "Refresh token expiration must be greater than zero."
             );
         }
     }

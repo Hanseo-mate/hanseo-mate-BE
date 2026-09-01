@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import hsu.hanseomate.domain.personalcalendar.entity.PersonalCalendarEvent;
 import hsu.hanseomate.domain.personalcalendar.repository.PersonalCalendarEventRepository;
+import hsu.hanseomate.domain.auth.repository.RefreshTokenRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import java.util.Map;
@@ -49,11 +50,15 @@ class PersonalCalendarApiIntegrationTest {
     private UserAccountRepository userAccountRepository;
 
     @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void cleanUp() {
         personalCalendarEventRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
     }
 
     @Test
