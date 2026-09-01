@@ -8,7 +8,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface DailyMenuRepository extends JpaRepository<DailyMenu, Long>, DailyMenuRepositoryCustom {
+public interface DailyMenuRepository extends JpaRepository<DailyMenu, Integer>, DailyMenuRepositoryCustom {
 
     @EntityGraph(attributePaths = "mealSections")
     List<DailyMenu> findAllByMenuDateAndRestaurantTypeInOrderByIdAsc(
