@@ -289,8 +289,16 @@ class AccountWithdrawalApiIntegrationTest {
                         ))))
                 .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "refreshToken", current.refreshToken()
+                        ))))
+                .andExpect(status().isUnauthorized());
+
         assertThat(count("timetables", "owner_id", current.userId())).isZero();
         assertThat(count("push_devices", "user_id", current.userId())).isZero();
+        assertThat(count("refresh_tokens", "user_id", current.userId())).isZero();
     }
 
     @Test
@@ -400,6 +408,7 @@ class AccountWithdrawalApiIntegrationTest {
         assertThat(count("timetable_courses", "timetable_id", data.timetableId())).isZero();
         assertThat(count("push_devices", "user_id", userId)).isZero();
         assertThat(count("push_tickets", "push_device_id", data.pushDeviceId())).isZero();
+        assertThat(count("refresh_tokens", "user_id", userId)).isZero();
     }
 
     private void assertOwnedDataRemains(long userId, OwnedData data) {
@@ -412,6 +421,7 @@ class AccountWithdrawalApiIntegrationTest {
         assertThat(count("timetable_courses", "timetable_id", data.timetableId())).isOne();
         assertThat(count("push_devices", "user_id", userId)).isOne();
         assertThat(count("push_tickets", "push_device_id", data.pushDeviceId())).isOne();
+        assertThat(count("refresh_tokens", "user_id", userId)).isEqualTo(2);
     }
 
     private org.springframework.test.web.servlet.ResultActions withdraw(
@@ -439,7 +449,8 @@ class AccountWithdrawalApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String accessToken = responseBody(loginResult).path("accessToken").stringValue();
-        return new AuthSession(userId, accessToken);
+        String refreshToken = responseBody(loginResult).path("refreshToken").stringValue();
+        return new AuthSession(userId, accessToken, refreshToken);
     }
 
     private String credentials(String loginId, String password) {
@@ -485,6 +496,7 @@ class AccountWithdrawalApiIntegrationTest {
             truncate("personal_calendar_events");
             truncate("timetable_courses");
             truncate("timetables");
+            truncate("refresh_tokens");
             truncate("user_accounts");
             truncate("course_import_issues");
             truncate("course_schedules");
@@ -509,7 +521,11 @@ class AccountWithdrawalApiIntegrationTest {
         jdbcTemplate.execute("TRUNCATE TABLE " + table);
     }
 
-    private record AuthSession(long userId, String accessToken) {
+    private record AuthSession(
+            long userId,
+            String accessToken,
+            String refreshToken
+    ) {
     }
 
     private record OwnedData(

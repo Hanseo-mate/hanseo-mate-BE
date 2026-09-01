@@ -88,6 +88,35 @@ class CorsIntegrationTest {
     }
 
     @Test
+    void refreshAndLogoutPreflightAllowConfiguredOrigin() throws Exception {
+        for (String path : new String[]{"/api/auth/refresh", "/api/auth/logout"}) {
+            mockMvc.perform(options(path)
+                            .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                            .header(
+                                    HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                    HttpMethod.POST.name()
+                            )
+                            .header(
+                                    HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                    HttpHeaders.CONTENT_TYPE
+                            ))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string(
+                            HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                            ALLOWED_ORIGIN
+                    ))
+                    .andExpect(header().string(
+                            HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                            containsString(HttpMethod.POST.name())
+                    ))
+                    .andExpect(header().string(
+                            HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                            containsString(HttpHeaders.CONTENT_TYPE)
+                    ));
+        }
+    }
+
+    @Test
     void myPageApiPreflightAllowsConfiguredOriginAndAuthorizationHeader()
             throws Exception {
         mockMvc.perform(options("/api/auth/me")

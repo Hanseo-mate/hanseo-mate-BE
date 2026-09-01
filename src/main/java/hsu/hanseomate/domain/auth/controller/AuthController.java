@@ -4,7 +4,9 @@ import hsu.hanseomate.domain.auth.dto.AuthResponse;
 import hsu.hanseomate.domain.auth.dto.CafeteriaPreferenceUpdateRequest;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
+import hsu.hanseomate.domain.auth.dto.RefreshTokenRequest;
 import hsu.hanseomate.domain.auth.dto.SignupRequest;
+import hsu.hanseomate.domain.auth.dto.TokenRefreshResponse;
 import hsu.hanseomate.domain.auth.dto.WithdrawalRequest;
 import hsu.hanseomate.domain.auth.service.AuthService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
@@ -44,6 +46,58 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @Operation(
+            summary = "Access Token 재발급",
+            description = "유효한 Refresh Token을 새 토큰 쌍으로 교체합니다. "
+                    + "재발급에 사용한 Refresh Token은 즉시 폐기됩니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "재발급 성공",
+                    content = @Content(schema = @Schema(
+                            implementation = TokenRefreshResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "요청 본문 누락 또는 잘못된 요청값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "유효하지 않거나 만료 또는 폐기된 Refresh Token",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @PostMapping("/refresh")
+    public TokenRefreshResponse refresh(
+            @Valid @RequestBody RefreshTokenRequest request
+    ) {
+        return authService.refresh(request);
+    }
+
+    @Operation(
+            summary = "로그아웃",
+            description = "전달한 Refresh Token을 폐기합니다. "
+                    + "이미 폐기되었거나 존재하지 않는 토큰도 동일하게 성공 처리합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "로그아웃 처리 완료"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "요청 본문 누락 또는 잘못된 요청값",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @Valid @RequestBody RefreshTokenRequest request
+    ) {
+        authService.logout(request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

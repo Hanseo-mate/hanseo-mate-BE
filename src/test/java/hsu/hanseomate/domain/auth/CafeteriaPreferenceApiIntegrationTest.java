@@ -249,6 +249,7 @@ class CafeteriaPreferenceApiIntegrationTest {
     private void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
+            jdbcTemplate.execute("TRUNCATE TABLE refresh_tokens");
             jdbcTemplate.execute("TRUNCATE TABLE user_accounts");
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");

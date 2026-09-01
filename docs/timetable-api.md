@@ -313,7 +313,7 @@ DELETE /api/timetables/{timetableId}
 
 ## 9. 현재 제한사항과 재수입 데이터 보존
 
-- Access Token만 발급하며 Refresh Token과 로그아웃은 아직 지원하지 않는다.
+- Access Token의 기본 유효기간은 1시간이며, 만료 시 `/api/auth/refresh`에서 Refresh Token을 회전하여 새 토큰 쌍을 발급받을 수 있다.
 - 한 사용자는 같은 연도·학기에 시간표 하나만 만들 수 있다.
 - 시간 충돌은 실제 시각이 아닌 현재 저장된 교시 목록을 기준으로 판단한다.
 - 과목 엑셀을 같은 학기·교육과정 범위로 다시 업로드해도 같은 과목코드·분반 조합의 기존

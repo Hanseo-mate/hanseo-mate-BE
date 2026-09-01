@@ -353,6 +353,7 @@ class MyPageApiIntegrationTest {
             jdbcTemplate.execute("TRUNCATE TABLE club_reviews");
             jdbcTemplate.execute("TRUNCATE TABLE club_likes");
             jdbcTemplate.execute("TRUNCATE TABLE clubs");
+            jdbcTemplate.execute("TRUNCATE TABLE refresh_tokens");
             jdbcTemplate.execute("TRUNCATE TABLE user_accounts");
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
