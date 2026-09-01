@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import hsu.hanseomate.domain.calendar.entity.CalendarEvent;
 import hsu.hanseomate.domain.calendar.repository.CalendarEventRepository;
+import hsu.hanseomate.domain.auth.repository.RefreshTokenRepository;
 import hsu.hanseomate.domain.personalcalendar.entity.PersonalCalendarEvent;
 import hsu.hanseomate.domain.personalcalendar.repository.PersonalCalendarEventRepository;
 import hsu.hanseomate.domain.schoolcalendar.entity.SchoolCalendarEvent;
@@ -55,9 +56,13 @@ class UnifiedCalendarApiIntegrationTest {
     @Autowired
     private UserAccountRepository userAccountRepository;
 
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
     @BeforeEach
     void cleanUp() {
         personalCalendarEventRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
         schoolCalendarEventRepository.deleteAll();
         calendarEventRepository.deleteAll();
     }

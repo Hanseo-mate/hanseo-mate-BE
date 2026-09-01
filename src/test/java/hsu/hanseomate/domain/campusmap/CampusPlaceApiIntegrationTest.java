@@ -823,6 +823,10 @@ class CampusPlaceApiIntegrationTest {
 
     private void deletePreferenceUser() {
         jdbcTemplate.update(
+                "DELETE FROM refresh_tokens WHERE user_id = ?",
+                PREFERENCE_USER_ID
+        );
+        jdbcTemplate.update(
                 "DELETE FROM user_accounts WHERE id = ?",
                 PREFERENCE_USER_ID
         );
