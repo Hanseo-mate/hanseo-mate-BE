@@ -7,14 +7,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
+import hsu.hanseomate.domain.cafeteria.entity.MealTime;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
-import java.sql.Date;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,9 @@ class CafeteriaApiIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private DailyMenuRepository dailyMenuRepository;
+
+    @Autowired
     private UserAccountRepository userAccountRepository;
 
     @BeforeEach
@@ -59,19 +65,19 @@ class CafeteriaApiIntegrationTest {
     void anonymousReceivesBothRestaurantBucketsInStableOrder()
             throws Exception {
         LocalDate menuDate = LocalDate.of(2026, 8, 20);
-        insertDailyMenu(1L, "MAIN_STUDENT", menuDate);
-        insertMealSection(10L, 1L, "DINNER", "NORMAL");
-        insertDish(100L, 10L, "김치볶음밥", true);
-        insertMealSection(11L, 1L, "LUNCH", "KOREAN");
-        insertDish(101L, 11L, "제육볶음", true);
+        saveDailyMenu("MAIN_STUDENT", menuDate,
+                new SectionFixture(MealTime.DINNER, "석식코너", 6000,
+                        List.of("김치볶음밥"), "석식코너 (6.0)\n김치볶음밥"),
+                new SectionFixture(MealTime.LUNCH, "한식코너", 5500,
+                        List.of("제육볶음", "된장국"), "한식코너 (5.5)\n제육볶음\n된장국"));
 
-        insertDailyMenu(2L, "TAEAN_STUDENT", menuDate);
-        insertMealSection(20L, 2L, "LUNCH", "NORMAL");
-        insertDish(200L, 20L, "태안 학생 메뉴", true);
+        saveDailyMenu("TAEAN_STUDENT", menuDate,
+                new SectionFixture(MealTime.LUNCH, "일품코너", 5000,
+                        List.of("태안 학생 메뉴"), "일품코너 (5.0)\n태안 학생 메뉴"));
 
-        insertDailyMenu(3L, "MAIN_STAFF", menuDate);
-        insertMealSection(30L, 3L, "LUNCH", "NORMAL");
-        insertDish(300L, 30L, "교직원 메뉴", true);
+        saveDailyMenu("MAIN_STAFF", menuDate,
+                new SectionFixture(MealTime.LUNCH, "교직원코너", 7000,
+                        List.of("교직원 메뉴"), "교직원코너 (7.0)\n교직원 메뉴"));
 
         mockMvc.perform(get("/api/cafeteria/menus")
                         .param("menuDate", "2026-08-20"))
@@ -95,8 +101,24 @@ class CafeteriaApiIntegrationTest {
                 ).value("LUNCH"))
                 .andExpect(jsonPath(
                         "$.restaurants[0].dailyMenus[0]"
-                                + ".mealSections[0].dishes[0].name"
+                                + ".mealSections[0].cornerName"
+                ).value("한식코너"))
+                .andExpect(jsonPath(
+                        "$.restaurants[0].dailyMenus[0]"
+                                + ".mealSections[0].price"
+                ).value(5500))
+                .andExpect(jsonPath(
+                        "$.restaurants[0].dailyMenus[0]"
+                                + ".mealSections[0].dishes[0]"
                 ).value("제육볶음"))
+                .andExpect(jsonPath(
+                        "$.restaurants[0].dailyMenus[0]"
+                                + ".mealSections[0].dishes[1]"
+                ).value("된장국"))
+                .andExpect(jsonPath(
+                        "$.restaurants[0].dailyMenus[0]"
+                                + ".mealSections[0].rawText"
+                ).value("한식코너 (5.5)\n제육볶음\n된장국"))
                 .andExpect(jsonPath(
                         "$.restaurants[0].dailyMenus[0]"
                                 + ".mealSections[1].mealTime"
@@ -107,7 +129,7 @@ class CafeteriaApiIntegrationTest {
                         .value(1))
                 .andExpect(jsonPath(
                         "$.restaurants[1].dailyMenus[0]"
-                                + ".mealSections[0].dishes[0].name"
+                                + ".mealSections[0].dishes[0]"
                 ).value("태안 학생 메뉴"));
     }
 
@@ -154,35 +176,24 @@ class CafeteriaApiIntegrationTest {
         LocalDate monday = LocalDate.of(2026, 8, 17);
         for (int offset = 0; offset < 5; offset++) {
             LocalDate menuDate = monday.plusDays(offset);
-            long dailyMenuId = 100L + offset;
-            insertDailyMenu(dailyMenuId, "MAIN_STUDENT", menuDate);
-            insertMealSection(
-                    1_000L + offset,
-                    dailyMenuId,
-                    "LUNCH",
-                    "NORMAL"
-            );
-            insertDish(
-                    2_000L + offset,
-                    1_000L + offset,
-                    menuDate.getDayOfWeek() + " 점심",
-                    true
-            );
+            saveDailyMenu("MAIN_STUDENT", menuDate,
+                    new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                            List.of(menuDate.getDayOfWeek() + " 점심"), "raw"));
         }
 
-        insertDailyMenu(200L, "TAEAN_STUDENT", monday);
-        insertMealSection(2_000L, 200L, "LUNCH", "NORMAL");
-        insertDish(3_000L, 2_000L, "태안 월요일", true);
-        insertDailyMenu(201L, "TAEAN_STUDENT", monday.plusDays(4));
-        insertMealSection(2_001L, 201L, "DINNER", "NORMAL");
-        insertDish(3_001L, 2_001L, "태안 금요일", true);
+        saveDailyMenu("TAEAN_STUDENT", monday,
+                new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                        List.of("태안 월요일"), "raw"));
+        saveDailyMenu("TAEAN_STUDENT", monday.plusDays(4),
+                new SectionFixture(MealTime.DINNER, "코너", 5000,
+                        List.of("태안 금요일"), "raw"));
 
-        insertDailyMenu(300L, "MAIN_STUDENT", monday.minusDays(1));
-        insertMealSection(3_000L, 300L, "LUNCH", "NORMAL");
-        insertDish(4_000L, 3_000L, "이전 주 메뉴", true);
-        insertDailyMenu(301L, "MAIN_STUDENT", monday.plusDays(5));
-        insertMealSection(3_001L, 301L, "LUNCH", "NORMAL");
-        insertDish(4_001L, 3_001L, "주말 메뉴", true);
+        saveDailyMenu("MAIN_STUDENT", monday.minusDays(1),
+                new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                        List.of("이전 주 메뉴"), "raw"));
+        saveDailyMenu("MAIN_STUDENT", monday.plusDays(5),
+                new SectionFixture(MealTime.LUNCH, "코너", 5000,
+                        List.of("주말 메뉴"), "raw"));
 
         mockMvc.perform(get("/api/cafeteria/menus"))
                 .andExpect(status().isOk())
@@ -205,34 +216,6 @@ class CafeteriaApiIntegrationTest {
     }
 
     @Test
-    void menuCategoryFiltersBothRestaurantBuckets() throws Exception {
-        LocalDate menuDate = LocalDate.of(2026, 8, 20);
-        insertMenuWithTwoCategories(1L, 10L, menuDate, "MAIN_STUDENT");
-        insertMenuWithTwoCategories(2L, 20L, menuDate, "TAEAN_STUDENT");
-
-        mockMvc.perform(get("/api/cafeteria/menus")
-                        .param("menuDate", "2026-08-20")
-                        .param("menuCategory", "KOREAN"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath(
-                        "$.restaurants[0].dailyMenus[0]"
-                                + ".mealSections.length()"
-                ).value(1))
-                .andExpect(jsonPath(
-                        "$.restaurants[0].dailyMenus[0]"
-                                + ".mealSections[0].menuCategory"
-                ).value("KOREAN"))
-                .andExpect(jsonPath(
-                        "$.restaurants[1].dailyMenus[0]"
-                                + ".mealSections.length()"
-                ).value(1))
-                .andExpect(jsonPath(
-                        "$.restaurants[1].dailyMenus[0]"
-                                + ".mealSections[0].menuCategory"
-                ).value("KOREAN"));
-    }
-
-    @Test
     void returnsTwoEmptyBucketsInsteadOfNotFound() throws Exception {
         mockMvc.perform(get("/api/cafeteria/menus")
                         .param("menuDate", "2000-01-01"))
@@ -249,18 +232,14 @@ class CafeteriaApiIntegrationTest {
     }
 
     @Test
-    void rejectsInvalidDateAndMenuCategory() throws Exception {
+    void rejectsInvalidDate() throws Exception {
         mockMvc.perform(get("/api/cafeteria/menus")
                         .param("menuDate", "2026/08/20"))
-                .andExpect(status().isBadRequest());
-
-        mockMvc.perform(get("/api/cafeteria/menus")
-                        .param("menuCategory", "INVALID"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void exposesWrapperContractWithoutRestaurantTypeParameterInOpenApi()
+    void exposesWrapperContractWithoutRemovedParametersInOpenApi()
             throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -268,8 +247,9 @@ class CafeteriaApiIntegrationTest {
                         "$.paths['/api/cafeteria/menus'].get.parameters[*].name"
                 ).value(hasItem("menuDate")))
                 .andExpect(jsonPath(
-                        "$.paths['/api/cafeteria/menus'].get.parameters[*].name"
-                ).value(hasItem("menuCategory")))
+                        "$.paths['/api/cafeteria/menus'].get.parameters"
+                                + "[?(@.name == 'menuCategory')]"
+                ).doesNotExist())
                 .andExpect(jsonPath(
                         "$.paths['/api/cafeteria/menus'].get.parameters"
                                 + "[?(@.name == 'restaurantType')]"
@@ -301,80 +281,46 @@ class CafeteriaApiIntegrationTest {
                 .andExpect(jsonPath(
                         "$.components.schemas.CafeteriaRestaurantMenusResponse"
                                 + ".properties.dailyMenus.items['$ref']"
-                ).value("#/components/schemas/DailyMenuDTO"));
+                ).value("#/components/schemas/DailyMenuDTO"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.MealSectionDTO.properties.cornerName"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.MealSectionDTO.properties.rawText"
+                ).exists());
     }
 
-    private void insertMenuWithTwoCategories(
-            long dailyMenuId,
-            long sectionId,
-            LocalDate menuDate,
-            String restaurantType
+    private record SectionFixture(
+            MealTime mealTime,
+            String cornerName,
+            Integer price,
+            List<String> dishes,
+            String rawText
     ) {
-        insertDailyMenu(dailyMenuId, restaurantType, menuDate);
-        insertMealSection(sectionId, dailyMenuId, "LUNCH", "SPECIAL");
-        insertDish(sectionId * 10, sectionId, "일품 메뉴", true);
-        insertMealSection(sectionId + 1, dailyMenuId, "LUNCH", "KOREAN");
-        insertDish(sectionId * 10 + 1, sectionId + 1, "한식 메뉴", true);
     }
 
-    private void insertDailyMenu(
-            long id,
+    private void saveDailyMenu(
             String restaurantType,
-            LocalDate menuDate
+            LocalDate menuDate,
+            SectionFixture... sections
     ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO daily_menus (id, restaurant_type, menu_date)
-                        VALUES (?, ?, ?)
-                        """,
-                id,
-                restaurantType,
-                Date.valueOf(menuDate)
-        );
-    }
-
-    private void insertMealSection(
-            long id,
-            long dailyMenuId,
-            String mealTime,
-            String menuCategory
-    ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO meal_sections (
-                            id, daily_menu_id, meal_time, menu_category
-                        ) VALUES (?, ?, ?, ?)
-                        """,
-                id,
-                dailyMenuId,
-                mealTime,
-                menuCategory
-        );
-    }
-
-    private void insertDish(
-            long id,
-            long mealSectionId,
-            String name,
-            boolean isMainDish
-    ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO dishes (
-                            id, meal_section_id, name, is_main_dish
-                        ) VALUES (?, ?, ?, ?)
-                        """,
-                id,
-                mealSectionId,
-                name,
-                isMainDish
-        );
+        DailyMenu dailyMenu = DailyMenu.of(
+                RestaurantType.valueOf(restaurantType), menuDate);
+        for (SectionFixture section : sections) {
+            dailyMenu.addMealSection(
+                    section.mealTime(),
+                    section.cornerName(),
+                    section.price(),
+                    section.dishes(),
+                    section.rawText()
+            );
+        }
+        dailyMenuRepository.saveAndFlush(dailyMenu);
     }
 
     private void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
-            jdbcTemplate.execute("TRUNCATE TABLE dishes");
             jdbcTemplate.execute("TRUNCATE TABLE meal_sections");
             jdbcTemplate.execute("TRUNCATE TABLE daily_menus");
             jdbcTemplate.execute("TRUNCATE TABLE user_accounts");

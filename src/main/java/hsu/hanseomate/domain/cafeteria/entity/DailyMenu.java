@@ -29,7 +29,7 @@ public class DailyMenu {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "restaurant_type", nullable = false, length = 20)
@@ -52,7 +52,25 @@ public class DailyMenu {
         return dailyMenu;
     }
 
-    public Long getId() {
+    /**
+     * 새 MealSection 을 생성해 이 식단에 추가한다. 리스트 추가 순서(= id 증가 순서)가
+     * 크롤러가 전달한 원본 코너 순서를 그대로 보존한다.
+     */
+    public MealSection addMealSection(
+            MealTime mealTime,
+            String cornerName,
+            Integer price,
+            List<String> dishes,
+            String rawText
+    ) {
+        MealSection section = MealSection.create(
+                this, mealTime, cornerName, price, dishes, rawText
+        );
+        mealSections.add(section);
+        return section;
+    }
+
+    public Integer getId() {
         return id;
     }
 
