@@ -7,7 +7,7 @@
 → Excel multipart 업로드
 → Spring Boot(Apache POI로 분석·검토)
 → Spring Data JPA
-→ MySQL 공통 과목 + 학기별 Offering 매핑 저장
+→ MySQL 학기별 과목 + Offering 매핑 저장
 
 사용자 앱
 → Spring Boot 강좌 조회 API
@@ -177,29 +177,30 @@ Postman 설정은 전공과 같고, `file`에 교양 시간표를 선택한다.
 academicYear + semester + curriculumType
 ```
 
-- `courses`에는 학기와 무관한 과목코드·분반별 강좌 데이터를 저장하고,
-  `course_offerings`에는 강좌가 어느 학년도·학기에 개설됐는지와 수입 출처를 저장한다.
-- 강좌 identity는 공백이 아닌 `courseCode`와 `sectionNo` 조합을 사용한다. 과목명이 같아도
-  코드가 다르면 서로 다른 과목이며, 코드가 같아도 분반이 다르면 서로 다른 강좌다.
-- 같은 과목코드·분반 조합을 처음 저장할 때 과목명, 교수, 학점, 학년, 개설 학과, 수업 시간,
-  강의실, 교양 분류와 수강 대상 정보를 함께 저장한다. 이후 다른 학기 파일에 같은 조합이
-  다시 등장해도 이 강좌 데이터는 덮어쓰지 않고 최초 저장값을 계속 사용한다.
+- `courses`에는 학년도·학기·교육과정 유형·과목코드·분반별 강좌 상세정보를 저장하고,
+  `course_offerings`에는 해당 강좌의 수입 이력과 원본 위치 및 활성 상태를 저장한다.
+- 강좌 identity는 `academicYear + semester + curriculumType + courseCode + sectionNo` 조합을
+  사용한다. 과목명이 같아도 코드가 다르면 서로 다른 과목이며, 코드가 같아도 학기 또는
+  분반이 다르면 서로 다른 강좌다.
+- 과목명, 교수, 학점, 학년, 개설 학과, 수업 시간, 강의실, 교양 분류와 수강 대상 정보는
+  해당 학기의 `Course`에 저장한다. 따라서 같은 과목코드·분반도 학기가 다르면 각 학기의
+  엑셀 값이 서로 섞이지 않는다.
 - 한 요청·같은 학기에 공백 제거와 대문자 변환 후 같은 `courseCode + sectionNo`인 행이
   여러 개면 원본 순서의 첫 행 한 건만 Course와 Offering, source cell로 저장한다. 분반이
   다른 행은 각각 저장한다. 검토 단계는 중복 후속 행까지 포함한 원본 전체를 검사하며,
   모든 행은 수입 이력의 `rawPayloadJson`에 남는다.
-- `courseCode`가 `null`이거나 공백이면 과목명으로 합치지 않는다. 해당 수입 행마다 별도
-  `Course`를 만들기 때문에 이름이 같아도 서로 다른 과목으로 취급한다.
-- 같은 과목코드·분반 조합이 여러 학기에 개설되면 `Course` 한 건을 공유하고 학기별
-  `CourseOffering`만 각각 둔다.
+- `courseCode`가 `null`이거나 공백이면 과목명으로 합치지 않는다. 학기·교육과정 유형·원본
+  시트·행을 식별값으로 사용하므로 이름이 같아도 서로 다른 원본 행은 별도 과목으로 취급한다.
+- 같은 과목코드·분반 조합이 여러 학기에 개설되면 학기별 `Course`와 `CourseOffering`을
+  각각 둔다.
 - 같은 학기·같은 과목의 재수입은 기존 `CourseOffering` UUID를 유지하면서 수입 이력과
-  원본 위치를 갱신하고 `active=true`로 되돌린다.
+  원본 위치를 갱신하고 `active=true`로 되돌린다. 과목 상세, 강좌 일정, 허용 학년,
+  수강 가능 학과와 교양 분류는 새 파일 값으로 전부 교체한다.
 - 재수입 파일에서 빠진 기존 매핑은 삭제하지 않고 `active=false`로 변경한다. 사용자 강좌
   검색에서는 활성 매핑만 노출하지만, 이미 저장된 개인 시간표의 Offering 참조는 유지한다.
-- `course_offerings.curriculum_type`은 수입 범위 판별과 인덱스에 사용한다. 비정상적으로 같은
-  코드·분반이 같은 학기의 전공·교양 파일 양쪽에 있어도 `(semester_id, course_id)` 매핑은
-  한 건만 유지한다.
-- 강좌 일정, 허용 학년, 수강 가능 학과와 교양 분류는 공통 `Course`에 연결한다. 강좌별
+- `course_offerings.curriculum_type`은 수입 범위 판별과 인덱스에 사용한다. 같은 코드·분반이
+  같은 학기의 전공·교양 파일 양쪽에 있어도 교육과정 유형이 다르면 별도 강좌로 저장한다.
+- 강좌 일정, 허용 학년, 수강 가능 학과와 교양 분류는 학기별 `Course`에 연결한다. 강좌별
   원본 셀은 파일·행 증거이므로 학기별 `CourseOffering`에 연결한다.
 - 같은 학기 전공 재수입은 같은 학기 전공의 활성 상태만 갱신하며, 같은 학기 교양과 다른
   학기의 데이터는 유지한다.
@@ -392,8 +393,8 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=GENERAL_EDUCATION&g
 목록의 강좌 항목은 다음 규칙을 따른다.
 
 - `offeringId`: 강좌 상세 조회와 시간표 강좌 추가에 사용하는 학기별 `CourseOffering` UUID.
-  공통 `Course`를 공유해도 학기가 다르면 이 값은 다르며, 같은 학기·같은 과목 재수입에서는
-  기존 값을 유지한다.
+  학기가 다르면 과목 상세와 이 값이 모두 분리되며, 같은 학기·같은 과목 재수입에서는 기존
+  값을 유지한다.
 - `credit`: 현재 정수 학점은 불필요한 소수점 없이 JSON 숫자로 반환하며, 실제 소수 학점이 존재하면 값을 자르지 않고 보존
 - `curriculumType`: `MAJOR` 또는 `GENERAL_EDUCATION`
 - `targetGrade`: 단일 대상 학년을 숫자로 반환하며, 공통학년 또는 원본에서 학년을 확정할 수 없는 강좌는 `null`
@@ -434,7 +435,7 @@ GET /api/courses/{offeringId}
 
 인증 없이 조회할 수 있다. `offeringId`에는 목록 응답의 값을 전달한다.
 목록 강좌 항목과 같은 필드를 반환하고, 엑셀의 `비고` 값만 `note`로 추가한다.
-응답의 과목명·교수·시간·분류 등은 Offering에 연결된 공통 `Course`의 최초 저장값이다.
+응답의 과목명·교수·시간·분류 등은 Offering에 연결된 학기별 `Course`의 최신 저장값이다.
 
 ```json
 {

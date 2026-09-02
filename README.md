@@ -51,10 +51,10 @@ CREATE DATABASE hanseo_mate
 로컬 환경은 `ddl-auto=update`를 사용하고 운영 환경은 `ddl-auto=validate`를 사용합니다.
 운영에서는 JPA가 테이블을 임의로 변경하지 않으며, 애플리케이션 시작 시 엔티티와 실제 DB 구조가 일치하는지만 확인합니다.
 
-기존 과목코드 단독 강좌 identity가 적용된 DB는 분반별 강좌 코드를 배포하기 전에
-[`course-section-identity-migration-mysql.sql`](docs/course-section-identity-migration-mysql.sql)을
-한 번 적용해야 합니다. 적용 절차와 재업로드 방법은
-[`course-section-identity-migration.md`](docs/course-section-identity-migration.md)를 따릅니다.
+현재 강좌 identity는 `학년도 + 학기 + 교육과정 유형 + 과목코드 + 분반`입니다.
+이전 과목코드 또는 과목코드·분반 공통 identity로 저장한 운영 데이터는 학기별 상세정보가
+섞일 수 있으므로 새 코드를 배포한 뒤 시간표·강좌 데이터를 초기화하고 원본 엑셀을 다시
+수입해야 합니다. 테이블 구조가 바뀌는 작업은 아니므로 별도 DDL은 필요하지 않습니다.
 
 로컬에서 애플리케이션을 먼저 실행하면 `ddl-auto=update`가 `campus_buildings`와
 `campus_building_aliases` 빈 테이블을 만들 수 있지만 초기 좌표 데이터는 넣지 않습니다.
@@ -306,8 +306,9 @@ GET /api/courses?academicYear=2026&semester=1&curriculumType=MAJOR&academicUnits
 ```
 
 `offeringId`는 검색 결과의 강좌를 시간표에 추가하거나 상세 조회할 때 사용하는 학기별
-매핑 식별자입니다. 같은 과목코드는 최초 저장한 공통 과목 데이터를 여러 학기에서 공유하지만,
-학기별 `offeringId`는 서로 다릅니다. 같은 학기·같은 과목 재수입에서는 기존 ID를 유지합니다.
+매핑 식별자입니다. 같은 과목코드·분반이어도 학기가 다르면 과목 상세정보와 `offeringId`를
+분리합니다. 같은 학기·같은 과목 재수입에서는 기존 ID를 유지하면서 교수·시간·강의실 등
+상세정보를 최신 파일 값으로 교체합니다.
 교양 강좌는 `generalCategory` 하나로 `REQUIRED`, `AREA_1`, `AREA_2`, `AREA_3`,
 `E_CLASS`, `HSU_CYBER`, `OCU`, `CHUNGNAM_ELEARNING`, `SDU`, `OTHER` 중 하나를
 반환합니다. 상세 조회 `GET /api/courses/{offeringId}`는 같은 정보에 엑셀의 비고를
