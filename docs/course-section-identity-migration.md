@@ -1,5 +1,9 @@
 # 과목코드·분반 강좌 식별 마이그레이션
 
+> 이 문서는 과목코드 단독 identity를 과목코드·분반 identity로 전환했던 과거 작업 기록이다.
+> 현재 코드는 학년도·학기·교육과정 유형까지 포함하므로 새 배포에 이 SQL을 실행하지 않는다.
+> 기존 강좌 데이터는 새 코드를 배포한 뒤 초기화하고 원본 엑셀을 다시 수입한다.
+
 ## 목적
 
 기존 구조는 `courseCode`만 같으면 분반이 달라도 하나의 강좌로 합쳤다. 변경 후에는
@@ -66,4 +70,3 @@ JOIN courses course ON course.id = offering.course_id
 WHERE course.course_code = '확인할 과목코드'
 ORDER BY semester.academic_year, semester.semester, course.section_no;
 ```
-

@@ -22,11 +22,11 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 학기와 무관하게 과목코드와 분반 조합으로 한 번만 저장되는 강좌 데이터입니다.
+ * 한 학기에 개설된 과목코드와 분반 조합의 강좌 상세정보입니다.
  *
- * <p>같은 과목코드와 분반 조합이 다시 수입되면 이 엔티티의 최초 저장값을 계속 사용하고,
- * 연도·학기와 수입 출처만 {@link CourseOffering}에 별도로 연결합니다. 같은 과목코드라도
- * 분반이 다르면 교수, 시간, 강의실이 서로 다른 별도 강좌로 저장합니다.
+ * <p>같은 과목코드와 분반이라도 학기가 다르면 별도 엔티티로 저장합니다. 같은 학기의
+ * 수정된 엑셀을 다시 수입하면 연결된 {@link CourseOffering}은 유지하면서 상세정보를
+ * 최신 파일 값으로 교체합니다.
  */
 @Getter
 @Entity
@@ -141,9 +141,44 @@ public class Course {
         return course;
     }
 
+    public void replaceDetails(
+            String courseCode,
+            String courseName,
+            AcademicUnit academicUnit,
+            CurriculumType curriculumType,
+            String sectionNo,
+            BigDecimal credit,
+            BigDecimal classHours,
+            String instructorName,
+            Integer targetGrade,
+            boolean commonGrade,
+            Boolean teamTeaching,
+            String note,
+            String eligibilityNote,
+            String scheduleText,
+            String classroomText
+    ) {
+        this.courseCode = courseCode;
+        this.courseName = courseName;
+        this.academicUnit = academicUnit;
+        this.curriculumType = curriculumType;
+        this.sectionNo = sectionNo;
+        this.credit = credit;
+        this.classHours = classHours;
+        this.instructorName = instructorName;
+        this.targetGrade = targetGrade;
+        this.commonGrade = commonGrade;
+        this.teamTeaching = teamTeaching;
+        this.note = note;
+        this.eligibilityNote = eligibilityNote;
+        this.scheduleText = scheduleText;
+        this.classroomText = classroomText;
+    }
+
     /**
      * 코드·이름만 먼저 만들어진 과목을 한 번만 완성합니다.
-     * 이미 상세가 저장된 강좌는 과목코드·분반 중복 정책에 따라 최초 값을 유지합니다.
+     * 이미 상세가 저장된 강좌는 변경하지 않습니다. 엑셀 재수입 갱신은
+     * {@link #replaceDetails}를 사용합니다.
      */
     public boolean initializeDetailsIfMissing(
             AcademicUnit academicUnit,
