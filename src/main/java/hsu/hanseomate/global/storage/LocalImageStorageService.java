@@ -8,6 +8,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Iterator;
@@ -62,6 +64,7 @@ public class LocalImageStorageService {
             String fileName = imageId + "." + imageMetadata.extension();
             storedPath = targetDirectory.resolve(fileName).normalize();
             move(temporaryFile, storedPath);
+            makePubliclyReadable(storedPath);
 
             String relativePath = uploadRoot.relativize(storedPath)
                     .toString()
@@ -194,6 +197,19 @@ public class LocalImageStorageService {
             Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException exception) {
             Files.move(source, target);
+        }
+    }
+
+    private void makePubliclyReadable(Path file) throws IOException {
+        PosixFileAttributeView posixView = Files.getFileAttributeView(
+                file,
+                PosixFileAttributeView.class
+        );
+        if (posixView != null) {
+            Files.setPosixFilePermissions(
+                    file,
+                    PosixFilePermissions.fromString("rw-r--r--")
+            );
         }
     }
 
