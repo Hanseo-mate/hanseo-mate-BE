@@ -1,4 +1,6 @@
--- 기존 운영 DB의 강좌 identity를 과목코드 단독에서 과목코드 + 분반 조합으로 전환합니다.
+-- 과거 과목코드 단독 identity를 과목코드 + 분반 조합으로 전환하던 이력용 스크립트입니다.
+-- 현재 코드는 학년도 + 학기 + 교육과정 유형 + 과목코드 + 분반 identity를 사용하므로
+-- 새 배포에는 이 스크립트를 실행하지 말고 강좌 데이터를 초기화한 뒤 엑셀을 재수입합니다.
 -- 대상: docs/course-offering-dedup-migration-mysql.sql 적용이 끝난 MySQL 8.0 DB
 -- 주의: 애플리케이션을 중지하고 전체 백업과 복원 검증을 완료한 뒤 한 번만 실행하세요.
 
@@ -116,4 +118,3 @@ WHERE table_schema = DATABASE()
   AND table_name = 'courses'
   AND index_name IN ('uk_course_master_key', 'uk_course_code', 'ix_course_code')
 ORDER BY index_name, seq_in_index;
-

@@ -244,8 +244,9 @@ CREATE TABLE academic_units (
     CONSTRAINT uk_academic_unit_master_key UNIQUE (master_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 공백이 아닌 course_code와 section_no 조합이 강좌 identity다.
--- 코드 없는 수입 행은 서로 다른 master_key와 id로 각각 저장할 수 있다.
+-- academic_year, semester, curriculum_type, 공백이 아닌 course_code와 section_no
+-- 조합이 강좌 identity다. 학기가 다르면 같은 코드·분반도 별도 강좌로 저장한다.
+-- 코드 없는 수입 행은 학기·유형·원본 시트·행 기준의 master_key로 저장한다.
 CREATE TABLE courses (
     id BINARY(16) NOT NULL,
     master_key VARCHAR(64) NOT NULL,

@@ -804,6 +804,98 @@ class TimetableApiIntegrationTest {
     }
 
     @Test
+    void reimportUpdatesTimetableDetailsWhileKeepingOfferingAndTimetableCourse() throws Exception {
+        importMajorFixture();
+        CourseOffering originalOffering = offeringByCodeAndSection(ALPHA_CODE, "01");
+        UUID originalOfferingId = originalOffering.getId();
+        long timetableId = createTimetable(2026, 1);
+        long timetableCourseId = addCourse(
+                timetableId,
+                originalOfferingId,
+                "REJECT"
+        );
+
+        ObjectNode replacementPayload = (ObjectNode) objectMapper.readTree(fixturePayload());
+        replacementPayload.put(
+                "importId",
+                "course-search-major-2026-1-updated-details"
+        );
+        replacementPayload.put(
+                "fileName",
+                "course-search-major-2026-1-updated-details.xlsx"
+        );
+        replacementPayload.put("fileSha256", "9".repeat(64));
+
+        ObjectNode updatedLecture = null;
+        for (JsonNode lectureNode : replacementPayload.path("lectures")) {
+            if (ALPHA_CODE.equals(lectureNode.path("courseCode").stringValue())
+                    && "01".equals(lectureNode.path("sectionNo").stringValue())) {
+                updatedLecture = (ObjectNode) lectureNode;
+                break;
+            }
+        }
+        if (updatedLecture == null) {
+            throw new AssertionError("수정할 테스트 강좌를 찾을 수 없습니다.");
+        }
+        updatedLecture.put("instructorName", "변경교수");
+        updatedLecture.put("scheduleText", "화4,5");
+        updatedLecture.put("classroomText", "수정관 707호");
+
+        ObjectNode updatedSchedule = (ObjectNode) updatedLecture.path("schedules").get(0);
+        updatedSchedule.put("dayOfWeek", "TUESDAY");
+        ArrayNode updatedPeriods = (ArrayNode) updatedSchedule.path("periods");
+        updatedPeriods.removeAll();
+        updatedPeriods.add(4);
+        updatedPeriods.add(5);
+        ObjectNode updatedClassroom = (ObjectNode) updatedSchedule.path("classroom");
+        updatedClassroom.put("buildingName", "수정관");
+        updatedClassroom.put("roomNumber", "707");
+        updatedClassroom.put("originalValue", "수정관 707호");
+
+        CourseImportResponse response = performImport(
+                objectMapper.writeValueAsString(replacementPayload)
+        );
+
+        assertThat(response.storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(response.databaseChanged()).isTrue();
+        CourseOffering preservedOffering = courseOfferingRepository
+                .findDetailedById(originalOfferingId)
+                .orElseThrow();
+        assertThat(preservedOffering.isActive()).isTrue();
+        assertThat(preservedOffering.getInstructorName()).isEqualTo("변경교수");
+        assertThat(timetableCourseRepository.existsById(timetableCourseId)).isTrue();
+        assertThat(timetableCourseRepository.existsByTimetableIdAndCourseOfferingId(
+                timetableId,
+                originalOfferingId
+        )).isTrue();
+        assertThat(timetableCourseRepository.count()).isEqualTo(1);
+
+        performAuthenticated(get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].timetableCourseId")
+                        .value(timetableCourseId))
+                .andExpect(jsonPath("$.courses[0].courseId")
+                        .value(originalOfferingId.toString()))
+                .andExpect(jsonPath("$.courses[0].instructorName").value("변경교수"))
+                .andExpect(jsonPath("$.courses[0].scheduleText").value("화4,5"))
+                .andExpect(jsonPath("$.courses[0].classroomText").value("수정관 707호"))
+                .andExpect(jsonPath("$.courses[0].meetings.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].meetings[0].dayOfWeek")
+                        .value("TUESDAY"))
+                .andExpect(jsonPath("$.courses[0].meetings[0].periods[0]").value(4))
+                .andExpect(jsonPath("$.courses[0].meetings[0].periods[1]").value(5))
+                .andExpect(jsonPath("$.courses[0].meetings[0].classroom.buildingName")
+                        .value("수정관"))
+                .andExpect(jsonPath("$.courses[0].meetings[0].classroom.roomNumber")
+                        .value("707"))
+                .andExpect(jsonPath("$.courses[0].meetings[0].classroom.originalValue")
+                        .value("수정관 707호"));
+    }
+
+    @Test
     void otherOwnersTimetableCannotBeReadChangedOrDeleted() throws Exception {
         importMajorFixture();
         CourseOffering course = offeringByCode(ALPHA_CODE);

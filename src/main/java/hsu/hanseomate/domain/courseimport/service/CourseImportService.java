@@ -17,7 +17,11 @@ import hsu.hanseomate.domain.course.repository.AcademicUnitRepository;
 import hsu.hanseomate.domain.course.repository.ClassroomRepository;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseRepository;
+import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.repository.CourseSourceCellRepository;
+import hsu.hanseomate.domain.course.repository.OfferingAllowedGradeRepository;
+import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
+import hsu.hanseomate.domain.course.repository.OfferingGeneralEducationRepository;
 import hsu.hanseomate.domain.course.repository.SemesterAcademicUnitRepository;
 import hsu.hanseomate.domain.course.repository.SemesterGeneralCategoryNodeRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
@@ -69,7 +73,11 @@ public class CourseImportService {
     private final CourseRepository courseRepository;
     private final ClassroomRepository classroomRepository;
     private final CourseOfferingRepository courseOfferingRepository;
+    private final CourseScheduleRepository courseScheduleRepository;
     private final CourseSourceCellRepository courseSourceCellRepository;
+    private final OfferingAllowedGradeRepository offeringAllowedGradeRepository;
+    private final OfferingEligibleDepartmentRepository offeringEligibleDepartmentRepository;
+    private final OfferingGeneralEducationRepository offeringGeneralEducationRepository;
     private final SemesterAcademicUnitRepository semesterAcademicUnitRepository;
     private final SemesterGeneralCategoryNodeRepository semesterGeneralCategoryNodeRepository;
     private final CourseImportHistoryRepository courseImportHistoryRepository;
@@ -144,11 +152,7 @@ public class CourseImportService {
                 lectures,
                 academicUnits
         );
-        List<LectureRequest> newlyInitializedLectures = courses.stream()
-                .filter(ResolvedCourse::detailsInitialized)
-                .map(ResolvedCourse::lecture)
-                .toList();
-        Map<String, Classroom> classrooms = resolveClassrooms(newlyInitializedLectures);
+        Map<String, Classroom> classrooms = resolveClassrooms(lectures);
 
         replaceScopeTaxonomy(semester, request.curriculumType());
 
@@ -179,7 +183,7 @@ public class CourseImportService {
                 history,
                 courses
         );
-        persistSharedCourseDetails(courses, classrooms);
+        replaceCourseDetails(courses, classrooms);
         replaceSourceCells(offerings);
         persistImportIssues(request.issues(), history);
 
@@ -232,7 +236,7 @@ public class CourseImportService {
     private List<LectureRequest> deduplicateLectures(TimetableParseResultRequest request) {
         LinkedHashMap<String, LectureRequest> uniqueLectures = new LinkedHashMap<>();
         request.lectures().forEach(lecture -> uniqueLectures.putIfAbsent(
-                courseKey(request.importId(), lecture),
+                courseKey(request, lecture),
                 lecture
         ));
         return List.copyOf(uniqueLectures.values());
@@ -271,7 +275,7 @@ public class CourseImportService {
             Map<String, AcademicUnit> academicUnits
     ) {
         Set<String> masterKeys = lectures.stream()
-                .map(lecture -> courseKey(request.importId(), lecture))
+                .map(lecture -> courseKey(request, lecture))
                 .collect(Collectors.toSet());
         Map<String, Course> byMasterKey = masterKeys.isEmpty()
                 ? Map.of()
@@ -284,14 +288,13 @@ public class CourseImportService {
 
         List<ResolvedCourse> result = new ArrayList<>(lectures.size());
         for (LectureRequest lecture : lectures) {
-            String masterKey = courseKey(request.importId(), lecture);
+            String masterKey = courseKey(request, lecture);
             String courseCode = normalizeCourseCode(lecture.courseCode());
             Course course = byMasterKey.get(masterKey);
 
             AcademicUnit academicUnit = lecture.academicUnit() == null
                     ? null
                     : academicUnits.get(academicUnitKey(lecture.academicUnit()));
-            boolean detailsInitialized;
             if (course == null) {
                 course = Course.createWithDetails(
                         masterKey,
@@ -312,9 +315,10 @@ public class CourseImportService {
                         lecture.classroomText()
                 );
                 entityManager.persist(course);
-                detailsInitialized = true;
             } else {
-                detailsInitialized = course.initializeDetailsIfMissing(
+                course.replaceDetails(
+                        courseCode,
+                        lecture.courseName(),
                         academicUnit,
                         request.curriculumType(),
                         lecture.sectionNo(),
@@ -330,7 +334,7 @@ public class CourseImportService {
                         lecture.classroomText()
                 );
             }
-            result.add(new ResolvedCourse(lecture, course, detailsInitialized));
+            result.add(new ResolvedCourse(lecture, course));
         }
         return result;
     }
@@ -456,14 +460,23 @@ public class CourseImportService {
         return result;
     }
 
-    private void persistSharedCourseDetails(
+    private void replaceCourseDetails(
             List<ResolvedCourse> courses,
             Map<String, Classroom> classrooms
     ) {
+        List<UUID> courseIds = courses.stream()
+                .map(resolved -> resolved.course().getId())
+                .distinct()
+                .toList();
+        if (!courseIds.isEmpty()) {
+            offeringGeneralEducationRepository.deleteByCourseIds(courseIds);
+            offeringAllowedGradeRepository.deleteByCourseIds(courseIds);
+            offeringEligibleDepartmentRepository.deleteByCourseIds(courseIds);
+            courseScheduleRepository.deleteByCourseIds(courseIds);
+            entityManager.flush();
+        }
+
         for (ResolvedCourse resolved : courses) {
-            if (!resolved.detailsInitialized()) {
-                continue;
-            }
             LectureRequest lecture = resolved.lecture();
             Course course = resolved.course();
 
@@ -583,16 +596,26 @@ public class CourseImportService {
                 unit.originalName(), unit.departmentName(), nullable(unit.majorName())));
     }
 
-    private String courseKey(String importId, LectureRequest lecture) {
+    private String courseKey(
+            TimetableParseResultRequest request,
+            LectureRequest lecture
+    ) {
         String normalizedCourseCode = normalizeCourseCode(lecture.courseCode());
         if (normalizedCourseCode != null) {
-            return sha256("CODE|%s|SECTION|%s".formatted(
+            return sha256("YEAR|%d|SEMESTER|%d|CURRICULUM|%s|CODE|%s|SECTION|%s".formatted(
+                    request.academicYear(),
+                    request.semester(),
+                    request.curriculumType(),
                     normalizedCourseCode,
                     normalizeSectionNo(lecture.sectionNo())
             ));
         }
-        return sha256("IMPORT|%s|%s|%d".formatted(
-                importId, lecture.sourceSheet(), lecture.sourceRow()
+        return sha256("YEAR|%d|SEMESTER|%d|CURRICULUM|%s|SHEET|%s|ROW|%d".formatted(
+                request.academicYear(),
+                request.semester(),
+                request.curriculumType(),
+                lecture.sourceSheet(),
+                lecture.sourceRow()
         ));
     }
 
@@ -646,8 +669,7 @@ public class CourseImportService {
 
     private record ResolvedCourse(
             LectureRequest lecture,
-            Course course,
-            boolean detailsInitialized
+            Course course
     ) {
     }
 

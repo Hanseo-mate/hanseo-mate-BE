@@ -13,11 +13,15 @@ import hsu.hanseomate.domain.course.entity.SemesterGeneralCategoryNode;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseRepository;
 import hsu.hanseomate.domain.course.repository.CourseSourceCellRepository;
+import hsu.hanseomate.domain.course.repository.OfferingGeneralEducationRepository;
 import hsu.hanseomate.domain.course.repository.SemesterGeneralCategoryNodeRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
 import hsu.hanseomate.domain.courseimport.dto.CourseImportResponse;
 import hsu.hanseomate.domain.courseimport.dto.TimetableParseResultRequest;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
+import hsu.hanseomate.domain.courseimport.dto.type.DeliveryProvider;
+import hsu.hanseomate.domain.courseimport.dto.type.GeneralArea;
+import hsu.hanseomate.domain.courseimport.dto.type.GeneralClassification;
 import hsu.hanseomate.domain.courseimport.dto.type.StorageStatus;
 import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
 import hsu.hanseomate.domain.courseimport.repository.CourseImportHistoryRepository;
@@ -69,6 +73,9 @@ class CourseImportApiIntegrationTest {
 
     @Autowired
     private CourseSourceCellRepository courseSourceCellRepository;
+
+    @Autowired
+    private OfferingGeneralEducationRepository offeringGeneralEducationRepository;
 
     @Autowired
     private CourseImportHistoryRepository courseImportHistoryRepository;
@@ -659,38 +666,56 @@ class CourseImportApiIntegrationTest {
     }
 
     @Test
-    void sameCourseCodeAcrossSemestersSharesCourseAndDetailsButCreatesTermOfferings()
+    void sameCourseCodeAcrossSemestersCreatesIndependentCoursesAndDetails()
             throws Exception {
         assertThat(performImport(fixture("major-ready-2026-1-a.json")).storageStatus())
                 .isEqualTo(StorageStatus.STORED);
-        assertThat(performImport(majorFixtureForSemester2(
-                "major-2026-2-same-course"
-        )).storageStatus()).isEqualTo(StorageStatus.STORED);
+        ObjectNode secondSemester = (ObjectNode) objectMapper.readTree(
+                majorFixtureForSemester2("major-2026-2-same-course")
+        );
+        replaceFirstLectureDetails(
+                secondSemester,
+                "2학기웹프로그래밍",
+                "2학기교수",
+                "화4,5,6",
+                "후속관",
+                "909"
+        );
+        assertThat(performImport(objectMapper.writeValueAsString(secondSemester)).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
 
-        assertThat(courseRepository.count()).isEqualTo(1);
+        assertThat(courseRepository.count()).isEqualTo(2);
         assertThat(courseOfferingRepository.findAll())
                 .hasSize(2)
                 .allMatch(CourseOffering::isActive);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(distinct course_id) from course_offerings",
                 Integer.class
-        )).isEqualTo(1);
-        assertThat(tableCount("course_schedules")).isEqualTo(1);
-        assertThat(tableCount("offering_allowed_grades")).isEqualTo(1);
-        assertThat(tableCount("offering_eligible_departments")).isEqualTo(1);
+        )).isEqualTo(2);
+        assertThat(tableCount("course_schedules")).isEqualTo(2);
+        assertThat(tableCount("offering_allowed_grades")).isEqualTo(2);
+        assertThat(tableCount("offering_eligible_departments")).isEqualTo(2);
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
-                        .param("semester", "1"))
+                .param("semester", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"));
+                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].instructorName").value("홍길동"))
+                .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek").value("MONDAY"))
+                .andExpect(jsonPath("$.items[0].schedules[0].buildingName").value("본관"));
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
-                        .param("semester", "2"))
+                .param("semester", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"));
+                .andExpect(jsonPath("$.items[0].courseName").value("2학기웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].instructorName").value("2학기교수"))
+                .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek").value("TUESDAY"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(4))
+                .andExpect(jsonPath("$.items[0].schedules[0].buildingName").value("후속관"))
+                .andExpect(jsonPath("$.items[0].schedules[0].roomNumber").value("909"));
     }
 
     @Test
@@ -741,39 +766,153 @@ class CourseImportApiIntegrationTest {
     }
 
     @Test
-    void laterImportWithSameCourseCodeAndSectionKeepsFirstStoredDetails() throws Exception {
+    void correctedSameSemesterImportReusesOfferingAndReplacesCourseDetails() throws Exception {
         assertThat(performImport(fixture("major-ready-2026-1-a.json")).storageStatus())
                 .isEqualTo(StorageStatus.STORED);
-        String changedDetails = majorFixtureForSemester2("major-2026-2-changed-details")
-                .replace("웹프로그래밍", "후속수입과목명")
-                .replace("\"credit\": 3.0", "\"credit\": 4.0")
-                .replace("\"instructorName\": \"홍길동\"", "\"instructorName\": \"후속교수\"")
-                .replace("\"note\": null", "\"note\": \"후속 비고\"");
+        UUID originalOfferingId = courseOfferingRepository.findAll().get(0).getId();
+        ObjectNode corrected = (ObjectNode) objectMapper.readTree(
+                fixture("major-ready-2026-1-a.json")
+        );
+        corrected.put("importId", "major-2026-1-corrected");
+        corrected.put("fileName", "major-2026-1-corrected.xlsx");
+        corrected.put(
+                "fileSha256",
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        );
+        replaceFirstLectureDetails(
+                corrected,
+                "수정된웹프로그래밍",
+                "수정교수",
+                "화4,5,6",
+                "수정관",
+                "707"
+        );
+        ((ObjectNode) corrected.path("lectures").get(0)).put("note", "수정 비고");
 
-        assertThat(performImport(changedDetails).storageStatus()).isEqualTo(StorageStatus.STORED);
+        assertThat(performImport(objectMapper.writeValueAsString(corrected)).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
 
         assertThat(courseRepository.findAll()).singleElement().satisfies(course -> {
             assertThat(course.getCourseCode()).isEqualTo("001234");
-            assertThat(course.getCourseName()).isEqualTo("웹프로그래밍");
+            assertThat(course.getCourseName()).isEqualTo("수정된웹프로그래밍");
             assertThat(course.getSectionNo()).isEqualTo("01");
-            assertThat(course.getCredit()).isEqualByComparingTo("3.0");
-            assertThat(course.getInstructorName()).isEqualTo("홍길동");
-            assertThat(course.getNote()).isNull();
+            assertThat(course.getCredit()).isEqualByComparingTo("4.0");
+            assertThat(course.getInstructorName()).isEqualTo("수정교수");
+            assertThat(course.getNote()).isEqualTo("수정 비고");
         });
         assertThat(courseOfferingRepository.findAll())
-                .hasSize(2)
-                .allMatch(CourseOffering::isActive);
+                .singleElement()
+                .satisfies(offering -> {
+                    assertThat(offering.isActive()).isTrue();
+                    assertThat(offering.getId()).isEqualTo(originalOfferingId);
+                });
         assertThat(tableCount("course_schedules")).isEqualTo(1);
+        assertThat(tableCount("offering_allowed_grades")).isEqualTo(1);
+        assertThat(tableCount("offering_eligible_departments")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForList(
+                "select grade from offering_allowed_grades",
+                Integer.class
+        )).containsExactly(4);
+        assertThat(jdbcTemplate.queryForList(
+                "select department_name from offering_eligible_departments",
+                String.class
+        )).containsExactly("수정 대상 학과");
 
         mockMvc.perform(get("/api/courses")
                         .param("academicYear", "2026")
-                        .param("semester", "2"))
+                .param("semester", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].courseName").value("웹프로그래밍"))
+                .andExpect(jsonPath("$.items[0].courseName").value("수정된웹프로그래밍"))
                 .andExpect(jsonPath("$.items[0].sectionNo").value("01"))
-                .andExpect(jsonPath("$.items[0].credit").value(3))
-                .andExpect(jsonPath("$.items[0].instructorName").value("홍길동"));
+                .andExpect(jsonPath("$.items[0].credit").value(4))
+                .andExpect(jsonPath("$.items[0].instructorName").value("수정교수"))
+                .andExpect(jsonPath("$.items[0].eligibleDepartmentNames.length()").value(1))
+                .andExpect(jsonPath("$.items[0].eligibleDepartmentNames[0]")
+                        .value("수정 대상 학과"))
+                .andExpect(jsonPath("$.items[0].schedules[0].dayOfWeek").value("TUESDAY"))
+                .andExpect(jsonPath("$.items[0].schedules[0].periods[0]").value(4))
+                .andExpect(jsonPath("$.items[0].schedules[0].buildingName").value("수정관"))
+                .andExpect(jsonPath("$.items[0].schedules[0].roomNumber").value("707"));
+    }
+
+    @Test
+    void correctedSameSemesterGeneralImportKeepsOfferingAndReplacesGeneralDetails()
+            throws Exception {
+        assertThat(performImport(fixture("general-ready-2026-1-ocu.json")).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+        UUID originalOfferingId = courseOfferingRepository.findAll().get(0).getId();
+
+        ObjectNode corrected = (ObjectNode) objectMapper.readTree(
+                fixture("general-ready-2026-1-ocu.json")
+        );
+        corrected.put("importId", "general-2026-1-area-1-corrected");
+        corrected.put("fileName", "general-2026-1-area-1-corrected.xlsx");
+        corrected.put(
+                "fileSha256",
+                "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        );
+        replaceGeneralEducationContext(
+                (ObjectNode) corrected.path("generalCategories").get(0)
+        );
+        replaceGeneralEducationContext(
+                (ObjectNode) corrected.path("lectures").get(0).path("generalEducation")
+        );
+        ((ArrayNode) corrected.path("generalCategoryNodes")).removeAll();
+        ((ObjectNode) corrected.path("statistics")).put("generalCategoryNodeCount", 0);
+
+        assertThat(performImport(objectMapper.writeValueAsString(corrected)).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+
+        assertThat(courseOfferingRepository.findAll())
+                .singleElement()
+                .satisfies(offering -> {
+                    assertThat(offering.getId()).isEqualTo(originalOfferingId);
+                    assertThat(offering.isActive()).isTrue();
+                });
+        assertThat(offeringGeneralEducationRepository.findAll())
+                .singleElement()
+                .satisfies(general -> {
+                    assertThat(general.getClassification())
+                            .isEqualTo(GeneralClassification.ELECTIVE);
+                    assertThat(general.getCategoryCode()).isEqualTo("AREA_1");
+                    assertThat(general.getCategoryName()).isEqualTo("1영역");
+                    assertThat(general.getArea()).isEqualTo(GeneralArea.EXPLORATION);
+                    assertThat(general.getDeliveryProvider())
+                            .isEqualTo(DeliveryProvider.ON_CAMPUS);
+                    assertThat(general.getDeliveryProviderName()).isEqualTo("교내");
+                    assertThat(objectMapper.readTree(general.getSourcePathJson()))
+                            .isEqualTo(objectMapper.readTree("[\"교양선택\",\"1영역\"]"));
+                });
+
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "OCU"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+        mockMvc.perform(get("/api/courses")
+                        .param("academicYear", "2026")
+                        .param("semester", "1")
+                        .param("curriculumType", "GENERAL_EDUCATION")
+                        .param("generalCategories", "AREA_1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].offeringId")
+                        .value(originalOfferingId.toString()))
+                .andExpect(jsonPath("$.items[0].generalCategory").value("AREA_1"))
+                .andExpect(jsonPath("$.items[0].cyber").value(false));
+        mockMvc.perform(get("/api/courses/{offeringId}", originalOfferingId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.offeringId").value(originalOfferingId.toString()))
+                .andExpect(jsonPath("$.generalCategory").value("AREA_1"))
+                .andExpect(jsonPath("$.cyber").value(false));
     }
 
     @Test
@@ -1276,6 +1415,58 @@ class CourseImportApiIntegrationTest {
                 .replace("\"importId\": \"major-2026-1-a\"", "\"importId\": \"" + importId + "\"")
                 .replace("\"semester\": 1", "\"semester\": 2")
                 .replace("2026학년도 1학기", "2026학년도 2학기");
+    }
+
+    private void replaceFirstLectureDetails(
+            ObjectNode payload,
+            String courseName,
+            String instructorName,
+            String scheduleText,
+            String buildingName,
+            String roomNumber
+    ) {
+        ObjectNode lecture = (ObjectNode) payload.path("lectures").get(0);
+        lecture.put("courseName", courseName);
+        lecture.put("credit", 4.0);
+        lecture.put("instructorName", instructorName);
+        lecture.put("targetGrade", 4);
+        lecture.put("scheduleText", scheduleText);
+        lecture.put("classroomText", buildingName + " " + roomNumber + "호");
+
+        ArrayNode allowedGrades = (ArrayNode) lecture.path("allowedGrades");
+        allowedGrades.removeAll();
+        allowedGrades.add(4);
+        ArrayNode eligibleDepartments = (ArrayNode) lecture.path("eligibleDepartmentNames");
+        eligibleDepartments.removeAll();
+        eligibleDepartments.add("수정 대상 학과");
+
+        ObjectNode schedule = (ObjectNode) lecture.path("schedules").get(0);
+        schedule.put("dayOfWeek", "TUESDAY");
+        ArrayNode periods = (ArrayNode) schedule.path("periods");
+        periods.removeAll();
+        periods.add(4);
+        periods.add(5);
+        periods.add(6);
+        ObjectNode classroom = (ObjectNode) schedule.path("classroom");
+        classroom.put("buildingName", buildingName);
+        classroom.put("roomNumber", roomNumber);
+        classroom.put("originalValue", buildingName + " " + roomNumber + "호");
+
+        ((ObjectNode) lecture.path("sourceCells").get(1)).put("value", courseName);
+    }
+
+    private void replaceGeneralEducationContext(ObjectNode context) {
+        context.put("classification", "ELECTIVE");
+        context.put("classificationName", "교양선택");
+        context.put("categoryCode", "AREA_1");
+        context.put("categoryName", "1영역");
+        context.put("area", "EXPLORATION");
+        context.put("deliveryProvider", "ON_CAMPUS");
+        context.put("deliveryProviderName", "교내");
+        ArrayNode sourcePath = (ArrayNode) context.path("sourcePath");
+        sourcePath.removeAll();
+        sourcePath.add("교양선택");
+        sourcePath.add("1영역");
     }
 
     private CourseOffering firstActiveOffering() {
