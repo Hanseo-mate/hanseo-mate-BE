@@ -48,4 +48,12 @@ public interface ClubLikeRepository extends JpaRepository<ClubLike, Long> {
     List<ClubLike> findAllByLikerIdWithClubOrderByIdDesc(
             @Param("likerId") Long likerId
     );
+
+    @Query("""
+            select clubLike.liker.id
+            from ClubLike clubLike
+            where clubLike.club.id = :clubId
+            order by clubLike.liker.id asc
+            """)
+    List<Long> findLikerIdsByClubId(@Param("clubId") Long clubId);
 }

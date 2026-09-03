@@ -10,10 +10,10 @@
 
 | 항목 | 내용 |
 |------|------|
-| 알림 원본 | `notifications` 테이블에 1건만 저장 (전체 발송이므로 중복 없음) |
+| 알림 원본 | 전체 알림은 1건, 동아리 모집공고 알림은 찜 사용자별로 1건 저장 |
 | 읽음 기록 | `notification_reads` 테이블에 installationId + notificationId 쌍으로 기록 |
-| 유효 범위 | 전체 알림 중 **최신 20건**만 유효한 데이터로 취급 (20건 초과분은 API에서 반환하지 않음) |
-| 사용자 식별 | 비로그인 사용자를 포함한 모든 기기를 `installationId`로 구분 |
+| 유효 범위 | 해당 기기에 보이는 전체·개인 알림을 합쳐 **최신 20건**만 반환 |
+| 사용자 식별 | 기기는 `installationId`로 구분하며, 로그인 시 연결된 `push_devices.user_id`로 개인 알림을 제한 |
 
 ---
 
@@ -27,6 +27,7 @@
 | `title` | VARCHAR | 알림 제목 |
 | `body` | TEXT | 알림 본문 |
 | `payload_data` | TEXT | 딥링크·라우팅용 JSON 문자열 |
+| `target_user_id` | BIGINT, NULL | `null`이면 전체 알림, 값이 있으면 해당 로그인 사용자 전용 알림 |
 | `created_at` | DATETIME | 생성일시 |
 
 **`payload_data` 예시**
@@ -211,8 +212,11 @@ PATCH /api/v1/notifications/read-all?installationId={installationId}
 |--------|-------------|--------|
 | 일반 공지 조회수 **정확히 100회** 달성 | `[{공지유형}] {공지제목}` | `해당 공지가 조회수 100회를 돌파하며 화제가 되고 있어요!` |
 | 학생회 공지 **신규 작성** | `[학생회 공지] {공지제목}` | `총학생회에서 새로운 공지를 등록했습니다.` |
+| 찜한 동아리 모집공고 **신규 작성** | `[동아리 모집공고] {동아리명}` | `새로운 모집공고가 등록되었습니다.` |
+| 찜한 동아리 모집공고 **내용 수정** | `[동아리 모집공고] {동아리명}` | `모집공고 내용이 수정되었습니다.` |
 
 > 알림 저장(`notifications`)과 Expo 푸시 발송 큐(`notification_outbox`) 등록이 **동일 트랜잭션**에서 원자적으로 처리됩니다.
+> 동아리명·소개 등 다른 정보만 수정하거나 모집공고 내용이 동일하면 알림을 생성하지 않습니다.
 
 ---
 
@@ -233,3 +237,6 @@ PATCH /api/v1/notifications/read-all?installationId={installationId}
 | `type` | `"notice"` | 알림 유형 |
 | `route` | `"/notices"` | 앱 내 이동 경로 |
 | `entityId` | 공지 ID (String) | 상세 화면 진입에 사용할 엔티티 ID |
+
+동아리 모집공고 알림은 `type="club_recruitment"`, `route="/clubs"`,
+`entityId="{clubId}"`를 사용합니다.

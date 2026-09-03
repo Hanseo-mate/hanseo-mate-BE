@@ -26,6 +26,10 @@ public class Notification {
     @Column(name = "payload_data", columnDefinition = "TEXT")
     private String payloadData;
 
+    /** null이면 전체 알림, 값이 있으면 해당 로그인 사용자에게만 노출됩니다. */
+    @Column(name = "target_user_id")
+    private Long targetUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -35,9 +39,10 @@ public class Notification {
     }
 
     @Builder
-    public Notification(String title, String body, String payloadData) {
+    public Notification(String title, String body, String payloadData, Long targetUserId) {
         this.title = title;
         this.body = body;
         this.payloadData = payloadData;
+        this.targetUserId = targetUserId;
     }
 }

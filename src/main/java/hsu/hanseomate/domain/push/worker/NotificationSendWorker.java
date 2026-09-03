@@ -54,15 +54,17 @@ public class NotificationSendWorker {
 
         log.info("Processing {} pending notification outbox(es)", outboxes.size());
 
-        List<PushDevice> activeDevices = dispatchService.findAllActiveDevices();
-        if (activeDevices.isEmpty()) {
-            log.info("No active devices. Marking {} outbox(es) as SENT without dispatch.", outboxes.size());
-            outboxes.forEach(o -> dispatchService.markOutboxSent(o.getId()));
-            return;
-        }
-
         for (NotificationOutbox outbox : outboxes) {
-            processOutbox(outbox, activeDevices);
+            List<PushDevice> targetDevices = outbox.getTargetUserId() == null
+                    ? dispatchService.findAllActiveDevices()
+                    : dispatchService.findActiveDevicesByUserId(outbox.getTargetUserId());
+
+            if (targetDevices.isEmpty()) {
+                log.info("No active target devices. Marking outbox id={} as SENT.", outbox.getId());
+                dispatchService.markOutboxSent(outbox.getId());
+                continue;
+            }
+            processOutbox(outbox, targetDevices);
         }
     }
 

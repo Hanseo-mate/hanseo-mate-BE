@@ -42,9 +42,18 @@ public class NotificationOutbox extends BaseTimeEntity {
     @Column(name = "error_message", length = 500)
     private String errorMessage;
 
+    /** null이면 모든 활성 기기, 값이 있으면 해당 사용자의 활성 기기에만 발송합니다. */
+    @Column(name = "target_user_id")
+    private Long targetUserId;
+
     public static NotificationOutbox create(String payload) {
+        return create(payload, null);
+    }
+
+    public static NotificationOutbox create(String payload, Long targetUserId) {
         NotificationOutbox outbox = new NotificationOutbox();
         outbox.payload = payload;
+        outbox.targetUserId = targetUserId;
         outbox.status = OutboxStatus.PENDING;
         return outbox;
     }
