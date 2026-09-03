@@ -2,16 +2,16 @@
 
 ## 1. 기능 개요
 
-관리자가 이미지와 글, 노출 기간 및 순서를 설정한 앱 시작 팝업을 관리하고 모든 사용자가
-로그인 여부와 관계없이 현재 노출 대상만 조회하는 기능입니다.
+관리자가 이미지와 글, 노출 기간, 순서 및 클릭 이동 대상을 설정한 팝업을 관리하고 모든
+사용자가 로그인 여부와 관계없이 현재 노출 대상만 조회하는 기능입니다.
 
 - 공개 조회는 JWT가 필요하지 않습니다.
 - 관리 API는 `ADMIN` 권한이 필요합니다.
-- 제목과 본문은 필수이고 이미지는 선택입니다.
-- 시간 기준은 `Asia/Seoul`이며 API 시각은 ISO `LocalDateTime` 형식입니다.
-- 공개 응답은 캐시하지 않도록 `Cache-Control: no-store`를 반환합니다.
-- 팝업이 없으면 `404`가 아니라 `200 OK`와 빈 배열 `[]`을 반환합니다.
-- “오늘 하루 보지 않기” 기록은 비로그인 사용자도 지원해야 하므로 앱 로컬 저장소가 관리합니다.
+- 시간 기준은 `Asia/Seoul`이며 시각은 ISO `LocalDateTime` 형식입니다.
+- 공개 응답은 `Cache-Control: no-store`를 반환합니다.
+- 팝업이 없으면 `200 OK`와 빈 배열 `[]`을 반환합니다.
+- “오늘 하루 보지 않기”는 앱이 `popupId + revision` 기준으로 로컬 저장합니다.
+- 백엔드는 Expo Router 경로를 저장하지 않고 합의된 `navigation.type`과 `params`만 저장합니다.
 
 ## 2. API 목록
 
@@ -25,9 +25,59 @@
 | `PATCH` | `/api/admin/popups/{popupId}/enabled` | ADMIN | 활성 상태 변경 |
 | `DELETE` | `/api/admin/popups/{popupId}` | ADMIN | 팝업 삭제 |
 
-## 3. 노출 규칙
+## 3. navigation 계약
 
-다음 조건을 모두 만족하는 팝업만 공개 API에 포함됩니다.
+이동이 없으면 `navigation`을 명시적으로 `null`로 전달합니다. 이동이 있으면 다음 구조를
+사용합니다.
+
+```json
+{
+  "schemaVersion": 1,
+  "type": "NOTICE_DETAIL",
+  "params": {
+    "noticeId": 123,
+    "noticeType": "ACADEMIC"
+  }
+}
+```
+
+| 필드 | 필수 | 설명 |
+|---|---:|---|
+| `navigation` | O | 이동 없음이면 `null` |
+| `schemaVersion` | 객체일 때 O | 현재 `1`만 지원 |
+| `type` | 객체일 때 O | 합의된 의미 기반 enum |
+| `params` | 조건부 | 해당 type이 요구하는 값만 전달 |
+
+### 지원하는 navigation.type
+
+| type | 필수 params | 검증 |
+|---|---|---|
+| `HOME` | 없음 | `params` 금지 |
+| `NOTICE_LIST` | 없음 | `params` 금지 |
+| `NOTICE_DETAIL` | `noticeId`, `noticeType` | ID는 1 이상 정수, noticeType enum |
+| `CLUB_LIST` | 없음 | `params` 금지 |
+| `CLUB_DETAIL` | `clubId` | 1 이상의 정수 |
+| `CAFETERIA` | 없음 | `params` 금지 |
+| `CALENDAR` | 없음 | `params` 금지 |
+| `TIMETABLE` | 없음 | `params` 금지 |
+| `CAMPUS_MAP` | 없음 | `params` 금지 |
+| `SYSTEM_NOTICE_LIST` | 없음 | `params` 금지 |
+| `FESTIVAL` | 없음 | `params` 금지 |
+| `EXTERNAL_URL` | `url` | 사용자 정보가 없는 HTTPS 절대 URL |
+
+`NOTICE_DETAIL.noticeType`은 다음 값만 허용합니다.
+
+```text
+STUDENT_COUNCIL
+ACADEMIC
+GENERAL
+SCHOLARSHIP
+GRADUATE
+```
+
+앱 경로, custom scheme 및 합의되지 않은 추가 params는 저장할 수 없습니다.
+
+## 4. 팝업 노출 규칙
 
 ```text
 enabled = true
@@ -35,94 +85,90 @@ AND (startsAt IS NULL OR startsAt <= 현재 한국 시각)
 AND (endsAt IS NULL OR 현재 한국 시각 < endsAt)
 ```
 
-종료 시각은 미포함 경계입니다. 예를 들어 `endsAt`이 `2026-09-04T00:00:00`이면 해당
-시각부터 응답에서 제외합니다. 공개 응답은 `displayOrder ASC`, 같은 순서에서는 `id ASC`입니다.
+종료 시각은 미포함 경계입니다. 공개 응답은 `displayOrder ASC`, 같은 순서에서는 `id ASC`로
+정렬됩니다.
 
 관리자 응답의 `status`는 다음과 같습니다.
 
 | 값 | 의미 |
 |---|---|
 | `ACTIVE` | 현재 공개 노출 조건을 만족함 |
-| `SCHEDULED` | 활성화되어 있지만 시작 시각 전임 |
-| `EXPIRED` | 활성화되어 있지만 종료 시각에 도달함 |
+| `SCHEDULED` | 활성화됐지만 시작 시각 전임 |
+| `EXPIRED` | 활성화됐지만 종료 시각에 도달함 |
 | `INACTIVE` | 관리자가 비활성화함 |
 
-비활성화가 다른 시간 조건보다 우선하므로 미래 팝업도 `enabled=false`이면 `INACTIVE`입니다.
-
-## 4. 공개 팝업 조회
+## 5. 공개 팝업 조회
 
 ```http
 GET /api/popups/active
 ```
-
-성공 응답:
 
 ```json
 [
   {
     "id": 12,
     "title": "축제 기간 안내",
-    "content": "축제 기간 동안 일부 강의실 이용이 제한됩니다.",
+    "content": "자세한 내용을 공지사항에서 확인해 주세요.",
     "imageUrl": "https://api.example.com/uploads/app-popups/uuid.png",
-    "linkUrl": "https://www.hanseo.ac.kr/notice/123",
+    "navigation": {
+      "schemaVersion": 1,
+      "type": "NOTICE_DETAIL",
+      "params": {
+        "noticeId": 123,
+        "noticeType": "ACADEMIC"
+      }
+    },
     "startsAt": "2026-09-03T00:00:00",
     "endsAt": "2026-09-07T23:59:59",
     "displayOrder": 1,
-    "revision": 3
+    "revision": 4
   }
 ]
 ```
 
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `id` | Number | 팝업 ID |
-| `title` | String | 제목, 최대 200자 |
-| `content` | String | 본문, 최대 100,000자 |
-| `imageUrl` | String 또는 null | 선택 이미지 공개 URL |
-| `linkUrl` | String 또는 null | 팝업 클릭 시 이동할 HTTP/HTTPS URL |
-| `startsAt` | String 또는 null | 노출 시작 한국 시각, null이면 즉시 |
-| `endsAt` | String 또는 null | 노출 종료 한국 시각, null이면 무기한 |
-| `displayOrder` | Number | 작은 값부터 먼저 노출 |
-| `revision` | Number | 오늘 하루 숨김 기록에 사용하는 콘텐츠 버전 |
+로그인 사용자도 같은 API를 사용합니다. 잘못된 Bearer 토큰이 우연히 전달돼도 공개 조회
+결과에는 영향을 주지 않습니다. 이동이 없는 팝업은 `"navigation": null`로 반환됩니다.
 
-로그인 사용자도 동일한 API와 응답을 사용합니다. 만료되거나 잘못된 Bearer 토큰이 우연히
-전달되더라도 이 공개 API의 조회 결과에는 영향을 주지 않습니다.
-
-## 5. 관리자 전체 및 상세 조회
+## 6. 관리자 전체 및 상세 조회
 
 ```http
 GET /api/admin/popups
 Authorization: Bearer {adminAccessToken}
 ```
 
-전체 목록은 노출 여부와 관계없이 `createdAt DESC`, 같은 생성 시각이면 `id DESC`입니다.
+전체 목록은 `createdAt DESC`, 같은 생성 시각에서는 `id DESC`입니다.
 
 ```http
 GET /api/admin/popups/12
 Authorization: Bearer {adminAccessToken}
 ```
 
-관리자 응답:
-
 ```json
 {
   "id": 12,
   "title": "축제 기간 안내",
-  "content": "축제 기간 동안 일부 강의실 이용이 제한됩니다.",
+  "content": "자세한 내용을 공지사항에서 확인해 주세요.",
   "imageUrl": "https://api.example.com/uploads/app-popups/uuid.png",
-  "linkUrl": "https://www.hanseo.ac.kr/notice/123",
+  "navigation": {
+    "schemaVersion": 1,
+    "type": "NOTICE_DETAIL",
+    "params": {
+      "noticeId": 123,
+      "noticeType": "ACADEMIC"
+    }
+  },
   "enabled": true,
   "status": "ACTIVE",
   "startsAt": "2026-09-03T00:00:00",
   "endsAt": "2026-09-07T23:59:59",
   "displayOrder": 1,
-  "revision": 3,
+  "revision": 4,
   "createdAt": "2026-09-02T14:30:00",
   "updatedAt": "2026-09-03T09:10:00"
 }
 ```
 
-## 6. 팝업 등록
+## 7. 팝업 등록
 
 ```http
 POST /api/admin/popups
@@ -130,20 +176,25 @@ Authorization: Bearer {adminAccessToken}
 Content-Type: multipart/form-data
 ```
 
-파트 구성:
-
 | 파트 | Content-Type | 필수 | 설명 |
 |---|---|---|---|
 | `request` | `application/json` | O | 팝업 정보 |
 | `image` | `image/jpeg`, `image/png`, `image/gif` | X | 선택 이미지 한 장 |
 
-`request` 예시:
+### 내부 공지 상세 이동
 
 ```json
 {
   "title": "축제 기간 안내",
-  "content": "축제 기간 동안 일부 강의실 이용이 제한됩니다.",
-  "linkUrl": "https://www.hanseo.ac.kr/notice/123",
+  "content": "자세한 내용을 공지사항에서 확인해 주세요.",
+  "navigation": {
+    "schemaVersion": 1,
+    "type": "NOTICE_DETAIL",
+    "params": {
+      "noticeId": 123,
+      "noticeType": "ACADEMIC"
+    }
+  },
   "enabled": true,
   "startsAt": "2026-09-03T00:00:00",
   "endsAt": "2026-09-07T23:59:59",
@@ -151,11 +202,44 @@ Content-Type: multipart/form-data
 }
 ```
 
-`startsAt`을 생략하거나 `null`로 보내면 즉시 노출 조건을 충족하고, `endsAt`이 `null`이면
-종료 시각 제한이 없습니다. 성공 시 `201 Created`, `Location: /api/admin/popups/{popupId}`와
-관리자 응답을 반환합니다. 최초 `revision`은 `1`입니다.
+### 외부 웹페이지 이동
 
-## 7. 팝업 전체 수정
+```json
+{
+  "title": "학교 홈페이지 안내",
+  "content": "이미지를 누르면 학교 홈페이지로 이동합니다.",
+  "navigation": {
+    "schemaVersion": 1,
+    "type": "EXTERNAL_URL",
+    "params": {
+      "url": "https://www.hanseo.ac.kr/notice/123"
+    }
+  },
+  "enabled": true,
+  "startsAt": null,
+  "endsAt": null,
+  "displayOrder": 1
+}
+```
+
+### 이동 없음
+
+```json
+{
+  "title": "단순 안내",
+  "content": "클릭 이동이 없는 팝업입니다.",
+  "navigation": null,
+  "enabled": true,
+  "startsAt": null,
+  "endsAt": null,
+  "displayOrder": 1
+}
+```
+
+성공 시 `201 Created`, `Location: /api/admin/popups/{popupId}`와 관리자 응답을 반환합니다.
+최초 `revision`은 `1`입니다.
+
+## 8. 팝업 전체 수정
 
 ```http
 PUT /api/admin/popups/12
@@ -163,13 +247,20 @@ Authorization: Bearer {adminAccessToken}
 Content-Type: multipart/form-data
 ```
 
-`request` 파트에는 등록 필드 전체와 `imageAction`을 보냅니다.
+기존 PUT 정책대로 모든 필드를 전달하며 `navigation`도 반드시 전달합니다.
 
 ```json
 {
   "title": "축제 운영시간 변경 안내",
-  "content": "운영시간이 변경되었습니다.",
-  "linkUrl": null,
+  "content": "축제 운영시간이 변경되었습니다.",
+  "navigation": {
+    "schemaVersion": 1,
+    "type": "NOTICE_DETAIL",
+    "params": {
+      "noticeId": 456,
+      "noticeType": "GENERAL"
+    }
+  },
   "enabled": true,
   "startsAt": "2026-09-03T00:00:00",
   "endsAt": "2026-09-08T00:00:00",
@@ -178,17 +269,16 @@ Content-Type: multipart/form-data
 }
 ```
 
-| `imageAction` | `image` 파트 | 처리 |
+| imageAction | image 파트 | 처리 |
 |---|---|---|
 | `KEEP` | 보내지 않음 | 기존 이미지 유지 |
 | `REPLACE` | 필수 | 새 이미지 저장 후 DB 커밋이 성공하면 기존 이미지 삭제 |
 | `REMOVE` | 보내지 않음 | DB 커밋이 성공하면 기존 이미지 삭제 |
 
-`KEEP` 또는 `REMOVE`이면서 이미지가 전달되거나, `REPLACE`인데 이미지가 없으면
-`400 Bad Request`입니다. 수정 성공 시 `revision`이 1 증가하므로 같은 날 내용을 수정한
-팝업을 앱에서 다시 노출할 수 있습니다.
+PUT 성공 시 `revision`이 1 증가합니다. 따라서 navigation이 변경된 팝업은 같은 날 숨김
+처리된 상태여도 앱에서 다시 노출할 수 있습니다.
 
-## 8. 활성 상태 변경
+## 9. 활성 상태 변경
 
 ```http
 PATCH /api/admin/popups/12/enabled
@@ -202,10 +292,10 @@ Content-Type: application/json
 }
 ```
 
-상태 값이 실제로 달라지면 `revision`이 1 증가합니다. 이미 같은 값이면 데이터와
-`revision`을 변경하지 않습니다.
+성공 응답에도 동일한 `navigation` 구조가 포함됩니다. 값이 실제로 달라지면 `revision`이 1
+증가하고, 이미 같은 값이면 변경하지 않습니다.
 
-## 9. 팝업 삭제
+## 10. 팝업 삭제
 
 ```http
 DELETE /api/admin/popups/12
@@ -214,65 +304,75 @@ Authorization: Bearer {adminAccessToken}
 
 성공 시 `204 No Content`입니다. DB 커밋 후 서버가 관리하는 이미지도 삭제합니다.
 
-## 10. 오늘 하루 보지 않기
+## 11. 오늘 하루 보지 않기 및 클릭 처리
 
-비로그인 사용자를 서버가 안정적으로 식별할 수 없으므로 숨김 API와 사용자별 숨김 테이블은
-제공하지 않습니다. 앱은 팝업별로 다음 값을 로컬 저장소에 보관합니다.
+앱은 `app-popup:{popupId}:{revision}` 키로 한국 시간 기준 다음 날 00시까지 로컬 숨김 상태를
+저장합니다. 백엔드는 사용자별 숨김 API를 제공하지 않습니다.
+
+팝업 이미지 클릭 시 앱은 다음 순서로 처리합니다.
+
+1. 현재 팝업을 먼저 닫음
+2. `navigation`이 `null`이면 이동하지 않음
+3. 지원하는 type과 유효한 params인지 앱에서도 확인
+4. 중복 탭을 방지하고 한 번만 이동
+5. 클릭 이동은 오늘 하루 보지 않기로 기록하지 않음
+
+미지원 type이나 잘못된 params를 받으면 팝업은 표시하고 이동만 비활성화합니다.
+
+## 12. navigation 검증과 오류
+
+| 조건 | 결과 |
+|---|---|
+| `navigation` 필드 누락 | `400 Bad Request` |
+| `navigation = null` | 이동 없음으로 저장 |
+| 알 수 없는 schemaVersion 또는 type | `400 Bad Request` |
+| 정적 화면 type에 params 전달 | `400 Bad Request` |
+| 필수 params 누락·초과·혼합 | `400 Bad Request` |
+| noticeId 또는 clubId가 1 미만·실수·문자열 | `400 Bad Request` |
+| 알 수 없는 noticeType | `400 Bad Request` |
+| EXTERNAL_URL이 HTTPS 절대 URL이 아님 | `400 Bad Request` |
+| URL에 username/password 포함 | `400 Bad Request` |
+| custom scheme 또는 앱 실제 route 전달 | `400 Bad Request` |
+
+오류 예시:
 
 ```json
 {
-  "popupId": 12,
-  "revision": 3,
-  "hiddenUntil": "2026-09-04T00:00:00+09:00"
+  "status": 400,
+  "message": "navigation.params.noticeId: 1 이상의 정수여야 합니다.",
+  "path": "/api/admin/popups",
+  "timestamp": "2026-09-03T01:30:00Z"
 }
 ```
 
-권장 로컬 키는 `app-popup:{popupId}:{revision}`입니다. 체크 후 닫을 때 한국 시간 기준 다음
-날 00시를 `hiddenUntil`로 저장하고, 앱 시작 시 현재 시간이 그보다 작으면 해당 팝업만
-건너뜁니다. 단순 닫기는 현재 화면에서만 닫고 로컬 숨김 값은 저장하지 않습니다.
+기존 제목·본문·기간·순서·이미지·인증 검증 정책은 그대로 유지합니다. 본문은 HTML 계약이
+없는 일반 텍스트이므로 앱에서도 HTML로 직접 삽입하지 않습니다.
 
-관리자가 팝업 내용을 수정하거나 껐다 다시 켜서 `revision`이 증가하면 같은 날이라도 새
-로컬 키가 되므로 다시 노출됩니다.
-
-## 11. 입력 검증과 오류
-
-| 조건 | 응답 |
-|---|---|
-| 제목 누락·공백 또는 200자 초과 | `400 Bad Request` |
-| 본문 누락·공백 또는 100,000자 초과 | `400 Bad Request` |
-| `enabled`, `displayOrder` 누락 | `400 Bad Request` |
-| `displayOrder`가 0 미만 또는 9999 초과 | `400 Bad Request` |
-| `endsAt <= startsAt` | `400 Bad Request` |
-| `linkUrl`이 HTTP/HTTPS URL이 아님 | `400 Bad Request` |
-| 이미지가 JPG·PNG·GIF가 아니거나 5MB 기본 제한 초과 | `400 Bad Request` |
-| 팝업 ID가 0 이하 또는 숫자가 아님 | `400 Bad Request` |
-| 수정·삭제 대상이 없음 | `404 Not Found` |
-| 관리자 토큰 없음·만료·위조 | `401 Unauthorized` |
-| 일반 사용자 토큰으로 관리 API 호출 | `403 Forbidden` |
-
-본문은 HTML 실행 계약이 없는 일반 텍스트입니다. 프론트에서도 HTML로 직접 삽입하지 말고
-텍스트와 줄바꿈으로 렌더링합니다.
-
-## 12. 이미지 저장과 운영 DB 배포
-
-팝업 이미지는 기존 공용 이미지 설정을 사용합니다.
+## 13. 이미지 저장
 
 ```text
 실제 저장: ${UPLOAD_DIRECTORY}/app-popups/{UUID}.{확장자}
 공개 URL: ${UPLOAD_PUBLIC_BASE_URL}/uploads/app-popups/{UUID}.{확장자}
 ```
 
-운영의 `UPLOAD_DIRECTORY`는 영속 디스크나 Docker 볼륨에 연결되어야 하며, 외부 웹 서버가
-있다면 `/uploads/` 경로가 동일 디렉터리를 제공해야 합니다.
+운영의 `UPLOAD_DIRECTORY`는 영속 디스크나 Docker 볼륨이어야 합니다.
 
-운영 프로필은 `spring.jpa.hibernate.ddl-auto=validate`이므로 코드 배포 전에 다음 순서를
-지킵니다.
+## 14. 운영 DB 적용
 
-1. 운영 DB 백업 및 `app_popups` 테이블 존재 여부 확인
-2. 테이블이 없을 때만 `docs/app-popup-migration-mysql.sql`의 `CREATE TABLE` 실행
-3. 스크립트 하단의 컬럼·인덱스 확인 쿼리 실행
-4. 애플리케이션 배포 후 `ddl-auto=validate` 기동 성공 확인
-5. 관리자 등록과 공개 조회를 각각 스모크 테스트
+아직 `app_popups` 테이블이 없다면 코드 배포 전에 다음 파일을 실행합니다.
 
-`docs/database-schema-mysql.sql`은 완전히 비어 있는 신규 DB 전용이므로 기존 운영 DB에는
-실행하지 않습니다.
+```text
+docs/app-popup-migration-mysql.sql
+```
+
+기존 `link_url` 기반 `app_popups` 테이블을 이미 만들었다면 다음 증분 파일을 실행합니다.
+
+```text
+docs/app-popup-navigation-migration-mysql.sql
+```
+
+증분 파일은 기존 HTTPS `link_url`을 `EXTERNAL_URL` navigation으로 변환하고 `revision`을 1
+증가시킵니다. 롤백 확인을 위해 `link_url` 컬럼은 이번 배포에서 물리적으로 삭제하지 않지만,
+신규 애플리케이션은 해당 컬럼을 읽거나 쓰거나 응답하지 않습니다.
+
+`docs/database-schema-mysql.sql`은 완전히 비어 있는 신규 DB 전용입니다.

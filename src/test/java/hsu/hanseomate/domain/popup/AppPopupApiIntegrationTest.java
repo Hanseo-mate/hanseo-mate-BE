@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.popup;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -113,7 +114,9 @@ class AppPopupApiIntegrationTest {
                 "title",
                 "content",
                 "image_url",
-                "link_url",
+                "navigation_schema_version",
+                "navigation_type",
+                "navigation_params",
                 "enabled",
                 "starts_at",
                 "ends_at",
@@ -192,12 +195,14 @@ class AppPopupApiIntegrationTest {
     }
 
     @Test
-    void adminCreatesTextPopupAndNormalizesOptionalLink() throws Exception {
+    void adminCreatesTextPopupAndNormalizesExternalNavigation() throws Exception {
         MvcResult result = mockMvc.perform(multipart("/api/admin/popups")
                         .file(requestPart(createRequestJson(
                                 "  새 팝업  ",
                                 "팝업 내용\n두 번째 줄",
-                                "  https://www.hanseo.ac.kr/notice/1  ",
+                                externalNavigationJson(
+                                        "  https://www.hanseo.ac.kr/notice/1  "
+                                ),
                                 true,
                                 null,
                                 null,
@@ -208,7 +213,9 @@ class AppPopupApiIntegrationTest {
                 .andExpect(jsonPath("$.title").value("새 팝업"))
                 .andExpect(jsonPath("$.content").value("팝업 내용\n두 번째 줄"))
                 .andExpect(jsonPath("$.imageUrl").value(nullValue()))
-                .andExpect(jsonPath("$.linkUrl")
+                .andExpect(jsonPath("$.navigation.schemaVersion").value(1))
+                .andExpect(jsonPath("$.navigation.type").value("EXTERNAL_URL"))
+                .andExpect(jsonPath("$.navigation.params.url")
                         .value("https://www.hanseo.ac.kr/notice/1"))
                 .andExpect(jsonPath("$.enabled").value(true))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
@@ -233,6 +240,184 @@ class AppPopupApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_PNG))
                 .andExpect(content().bytes(TINY_PNG));
+    }
+
+    @Test
+    void navigationIsReturnedByPublicAndEveryAdminSuccessResponse() throws Exception {
+        String noticeNavigation = """
+                {
+                  "schemaVersion": 1,
+                  "type": "NOTICE_DETAIL",
+                  "params": {
+                    "noticeId": 123,
+                    "noticeType": "ACADEMIC"
+                  }
+                }
+                """;
+        MvcResult created = mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(createRequestJson(
+                                "공지 이동",
+                                "내용",
+                                noticeNavigation,
+                                true,
+                                null,
+                                null,
+                                0
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.navigation.schemaVersion").value(1))
+                .andExpect(jsonPath("$.navigation.type").value("NOTICE_DETAIL"))
+                .andExpect(jsonPath("$.navigation.params.noticeId").value(123))
+                .andExpect(jsonPath("$.navigation.params.noticeType").value("ACADEMIC"))
+                .andReturn();
+        long popupId = responseId(created);
+
+        mockMvc.perform(get("/api/popups/active").with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].navigation.type").value("NOTICE_DETAIL"));
+        mockMvc.perform(get("/api/admin/popups"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].navigation.type").value("NOTICE_DETAIL"));
+        mockMvc.perform(get("/api/admin/popups/{popupId}", popupId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigation.type").value("NOTICE_DETAIL"));
+
+        String clubNavigation = """
+                {
+                  "schemaVersion": 1,
+                  "type": "CLUB_DETAIL",
+                  "params": {
+                    "clubId": 45
+                  }
+                }
+                """;
+        mockMvc.perform(multipart("/api/admin/popups/{popupId}", popupId)
+                        .file(requestPart(updateRequestJson(
+                                "동아리 이동",
+                                "수정 내용",
+                                true,
+                                0,
+                                "KEEP",
+                                clubNavigation
+                        )))
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigation.type").value("CLUB_DETAIL"))
+                .andExpect(jsonPath("$.navigation.params.clubId").value(45))
+                .andExpect(jsonPath("$.revision").value(2));
+
+        mockMvc.perform(patch("/api/admin/popups/{popupId}/enabled", popupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigation.type").value("CLUB_DETAIL"))
+                .andExpect(jsonPath("$.revision").value(3));
+    }
+
+    @Test
+    void supportsNullAndStaticNavigationWithoutParams() throws Exception {
+        mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(defaultCreateRequestJson("이동 없음"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.navigation").value(nullValue()));
+
+        String homeNavigation = """
+                {
+                  "schemaVersion": 1,
+                  "type": "HOME"
+                }
+                """;
+        mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(createRequestJson(
+                                "홈 이동",
+                                "내용",
+                                homeNavigation,
+                                true,
+                                null,
+                                null,
+                                0
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.navigation.schemaVersion").value(1))
+                .andExpect(jsonPath("$.navigation.type").value("HOME"))
+                .andExpect(jsonPath("$.navigation.params").doesNotExist());
+    }
+
+    @Test
+    void rejectsMissingOrInvalidNavigationContracts() throws Exception {
+        String missingNavigation = """
+                {
+                  "title": "이동 필드 누락",
+                  "content": "내용",
+                  "enabled": true,
+                  "startsAt": null,
+                  "endsAt": null,
+                  "displayOrder": 0
+                }
+                """;
+        mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(missingNavigation)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("navigation: 필수 필드")));
+
+        assertNavigationRejected(
+                "{\"schemaVersion\":2,\"type\":\"HOME\"}",
+                "navigation.schemaVersion"
+        );
+        assertNavigationRejected(
+                "{\"schemaVersion\":1,\"type\":\"UNKNOWN\"}",
+                "navigation.type"
+        );
+        assertNavigationRejected(
+                "{\"schemaVersion\":1,\"type\":\"HOME\",\"params\":{}}",
+                "navigation.params"
+        );
+        assertNavigationRejected(
+                "{\"schemaVersion\":1,\"type\":\"NOTICE_DETAIL\","
+                        + "\"params\":{\"noticeId\":1}}",
+                "navigation.params"
+        );
+        assertNavigationRejected(
+                "{\"schemaVersion\":1,\"type\":\"NOTICE_DETAIL\","
+                        + "\"params\":{\"noticeId\":1,\"noticeType\":\"GENERAL\","
+                        + "\"route\":\"/notices/1\"}}",
+                "navigation.params"
+        );
+        assertNavigationRejected(
+                "{\"schemaVersion\":1,\"type\":\"NOTICE_DETAIL\","
+                        + "\"params\":{\"noticeId\":1,\"noticeType\":\"INVALID\"}}",
+                "navigation.params.noticeType"
+        );
+        assertNavigationRejected(
+                "{\"schemaVersion\":1,\"type\":\"CLUB_DETAIL\","
+                        + "\"params\":{\"clubId\":1.5}}",
+                "navigation.params.clubId"
+        );
+        assertNavigationRejected(externalNavigationJson("http://example.com"),
+                "navigation.params.url");
+        assertNavigationRejected(externalNavigationJson("https://user:password@example.com"),
+                "navigation.params.url");
+        assertNavigationRejected(externalNavigationJson("javascript:alert(1)"),
+                "navigation.params.url");
+
+        String legacyLinkUrl = """
+                {
+                  "title": "레거시 링크",
+                  "content": "내용",
+                  "navigation": null,
+                  "linkUrl": "https://example.com",
+                  "enabled": true,
+                  "startsAt": null,
+                  "endsAt": null,
+                  "displayOrder": 0
+                }
+                """;
+        mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(legacyLinkUrl)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -375,7 +560,7 @@ class AppPopupApiIntegrationTest {
                         .file(requestPart(createRequestJson(
                                 "링크 오류",
                                 "내용",
-                                "javascript:alert(1)",
+                                externalNavigationJson("javascript:alert(1)"),
                                 true,
                                 null,
                                 null,
@@ -565,8 +750,20 @@ class AppPopupApiIntegrationTest {
                         "$.components.schemas.ActiveAppPopupResponse.properties.revision"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.components.schemas.ActiveAppPopupResponse.properties.navigation"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.components.schemas.AppPopupUpdateRequest.properties.imageAction"
-                ).exists());
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AppPopupCreateRequest.properties.navigation"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AppPopupCreateRequest.required"
+                ).value(hasItem("navigation")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AppPopupCreateRequest.properties.linkUrl"
+                ).doesNotExist());
     }
 
     private AppPopup savePopup(
@@ -632,7 +829,7 @@ class AppPopupApiIntegrationTest {
     private String createRequestJson(
             String title,
             String content,
-            String linkUrl,
+            String navigationJson,
             boolean enabled,
             String startsAt,
             String endsAt,
@@ -642,7 +839,7 @@ class AppPopupApiIntegrationTest {
                 {
                   "title": %s,
                   "content": %s,
-                  "linkUrl": %s,
+                  "navigation": %s,
                   "enabled": %s,
                   "startsAt": %s,
                   "endsAt": %s,
@@ -651,7 +848,7 @@ class AppPopupApiIntegrationTest {
                 """.formatted(
                 jsonString(title),
                 jsonString(content),
-                jsonNullableString(linkUrl),
+                navigationJson == null ? "null" : navigationJson,
                 enabled,
                 jsonNullableString(startsAt),
                 jsonNullableString(endsAt),
@@ -666,11 +863,29 @@ class AppPopupApiIntegrationTest {
             int displayOrder,
             String imageAction
     ) {
+        return updateRequestJson(
+                title,
+                content,
+                enabled,
+                displayOrder,
+                imageAction,
+                null
+        );
+    }
+
+    private String updateRequestJson(
+            String title,
+            String content,
+            boolean enabled,
+            int displayOrder,
+            String imageAction,
+            String navigationJson
+    ) {
         return """
                 {
                   "title": %s,
                   "content": %s,
-                  "linkUrl": null,
+                  "navigation": %s,
                   "enabled": %s,
                   "startsAt": null,
                   "endsAt": null,
@@ -680,14 +895,45 @@ class AppPopupApiIntegrationTest {
                 """.formatted(
                 jsonString(title),
                 jsonString(content),
+                navigationJson == null ? "null" : navigationJson,
                 enabled,
                 displayOrder,
                 jsonString(imageAction)
         );
     }
 
+    private void assertNavigationRejected(
+            String navigationJson,
+            String expectedMessagePart
+    ) throws Exception {
+        mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(createRequestJson(
+                                "잘못된 이동",
+                                "내용",
+                                navigationJson,
+                                true,
+                                null,
+                                null,
+                                0
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString(expectedMessagePart)));
+    }
+
     private String jsonNullableString(String value) {
         return value == null ? "null" : jsonString(value);
+    }
+
+    private String externalNavigationJson(String url) {
+        return """
+                {
+                  "schemaVersion": 1,
+                  "type": "EXTERNAL_URL",
+                  "params": {
+                    "url": %s
+                  }
+                }
+                """.formatted(jsonString(url));
     }
 
     private String jsonString(String value) {

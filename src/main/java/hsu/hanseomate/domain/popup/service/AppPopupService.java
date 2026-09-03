@@ -6,6 +6,7 @@ import hsu.hanseomate.domain.popup.dto.AppPopupResponse;
 import hsu.hanseomate.domain.popup.dto.AppPopupUpdateRequest;
 import hsu.hanseomate.domain.popup.entity.AppPopup;
 import hsu.hanseomate.domain.popup.exception.AppPopupNotFoundException;
+import hsu.hanseomate.domain.popup.model.PopupNavigation;
 import hsu.hanseomate.domain.popup.repository.AppPopupRepository;
 import hsu.hanseomate.domain.popup.type.PopupImageAction;
 import hsu.hanseomate.global.exception.BadRequestException;
@@ -32,6 +33,7 @@ public class AppPopupService {
 
     private final AppPopupRepository appPopupRepository;
     private final LocalImageStorageService imageStorageService;
+    private final PopupNavigationValidator navigationValidator;
     private final Clock clock;
 
     public List<ActiveAppPopupResponse> getActivePopups() {
@@ -62,21 +64,26 @@ public class AppPopupService {
             AppPopupCreateRequest request,
             MultipartFile image
     ) {
-        validateSchedule(request.startsAt(), request.endsAt());
+        PopupNavigation navigation = navigationValidator.validateRequired(
+                request.hasNavigation(),
+                request.hasLegacyLinkUrl(),
+                request.getNavigation()
+        );
+        validateSchedule(request.getStartsAt(), request.getEndsAt());
         StoredImage storedImage = image == null
                 ? null
                 : imageStorageService.store(image, STORAGE_DIRECTORY);
 
         try {
             AppPopup popup = appPopupRepository.saveAndFlush(AppPopup.create(
-                    request.title().trim(),
-                    request.content(),
+                    request.getTitle().trim(),
+                    request.getContent(),
                     storedImage == null ? null : storedImage.url(),
-                    normalizeLinkUrl(request.linkUrl()),
-                    request.enabled(),
-                    request.startsAt(),
-                    request.endsAt(),
-                    request.displayOrder()
+                    navigation,
+                    request.getEnabled(),
+                    request.getStartsAt(),
+                    request.getEndsAt(),
+                    request.getDisplayOrder()
             ));
             registerCreatedImageCleanup(storedImage);
             return toAdminResponse(popup, now());
@@ -92,15 +99,20 @@ public class AppPopupService {
             AppPopupUpdateRequest request,
             MultipartFile image
     ) {
-        validateSchedule(request.startsAt(), request.endsAt());
-        validateImageRequest(request.imageAction(), image);
+        PopupNavigation navigation = navigationValidator.validateRequired(
+                request.hasNavigation(),
+                request.hasLegacyLinkUrl(),
+                request.getNavigation()
+        );
+        validateSchedule(request.getStartsAt(), request.getEndsAt());
+        validateImageRequest(request.getImageAction(), image);
 
         AppPopup popup = findPopupForUpdate(popupId);
         String previousImageUrl = popup.getImageUrl();
-        StoredImage storedImage = request.imageAction() == PopupImageAction.REPLACE
+        StoredImage storedImage = request.getImageAction() == PopupImageAction.REPLACE
                 ? imageStorageService.store(image, STORAGE_DIRECTORY)
                 : null;
-        String nextImageUrl = switch (request.imageAction()) {
+        String nextImageUrl = switch (request.getImageAction()) {
             case KEEP -> previousImageUrl;
             case REPLACE -> storedImage.url();
             case REMOVE -> null;
@@ -108,18 +120,18 @@ public class AppPopupService {
 
         try {
             popup.update(
-                    request.title().trim(),
-                    request.content(),
+                    request.getTitle().trim(),
+                    request.getContent(),
                     nextImageUrl,
-                    normalizeLinkUrl(request.linkUrl()),
-                    request.enabled(),
-                    request.startsAt(),
-                    request.endsAt(),
-                    request.displayOrder()
+                    navigation,
+                    request.getEnabled(),
+                    request.getStartsAt(),
+                    request.getEndsAt(),
+                    request.getDisplayOrder()
             );
             appPopupRepository.flush();
             registerUpdatedImageCleanup(
-                    request.imageAction(),
+                    request.getImageAction(),
                     storedImage,
                     previousImageUrl
             );
@@ -192,13 +204,6 @@ public class AppPopupService {
                     "이미지를 업로드하려면 imageAction을 REPLACE로 지정해야 합니다."
             );
         }
-    }
-
-    private String normalizeLinkUrl(String linkUrl) {
-        if (linkUrl == null || linkUrl.isBlank()) {
-            return null;
-        }
-        return linkUrl.trim();
     }
 
     private void registerCreatedImageCleanup(StoredImage storedImage) {
