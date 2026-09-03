@@ -27,6 +27,24 @@ CREATE TABLE home_posters (
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE app_popups (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    title VARCHAR(200) NOT NULL,
+    content LONGTEXT NOT NULL,
+    image_url VARCHAR(2048) NULL,
+    link_url VARCHAR(2048) NULL,
+    enabled BIT(1) NOT NULL,
+    starts_at DATETIME(6) NULL,
+    ends_at DATETIME(6) NULL,
+    display_order INT NOT NULL,
+    revision BIGINT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_app_popups_exposure (enabled, starts_at, ends_at, display_order, id),
+    INDEX idx_app_popups_created_at (created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE student_council_notices (
     id BIGINT NOT NULL AUTO_INCREMENT,
     title VARCHAR(500) NOT NULL,

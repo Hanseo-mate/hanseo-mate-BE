@@ -151,6 +151,10 @@ public class CorsConfig {
                 "/api/system-notices/**",
                 publicReadConfiguration
         );
+        source.registerCorsConfiguration(
+                "/api/popups/**",
+                publicReadConfiguration
+        );
         source.registerCorsConfiguration("/api/home", publicReadConfiguration);
         source.registerCorsConfiguration(
                 "/api/bus-schedules",
