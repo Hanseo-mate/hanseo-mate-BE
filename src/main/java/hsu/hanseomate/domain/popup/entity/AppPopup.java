@@ -1,18 +1,26 @@
 package hsu.hanseomate.domain.popup.entity;
 
+import hsu.hanseomate.domain.popup.model.PopupNavigation;
 import hsu.hanseomate.domain.popup.type.AppPopupStatus;
+import hsu.hanseomate.domain.popup.type.PopupNavigationType;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
@@ -45,8 +53,16 @@ public class AppPopup extends BaseTimeEntity {
     @Column(name = "image_url", length = 2048)
     private String imageUrl;
 
-    @Column(name = "link_url", length = 2048)
-    private String linkUrl;
+    @Column(name = "navigation_schema_version", columnDefinition = "smallint")
+    private Short navigationSchemaVersion;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "navigation_type", length = 40)
+    private PopupNavigationType navigationType;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "navigation_params", columnDefinition = "json")
+    private Map<String, Object> navigationParams;
 
     @Column(nullable = false)
     private boolean enabled;
@@ -67,7 +83,7 @@ public class AppPopup extends BaseTimeEntity {
             String title,
             String content,
             String imageUrl,
-            String linkUrl,
+            PopupNavigation navigation,
             boolean enabled,
             LocalDateTime startsAt,
             LocalDateTime endsAt,
@@ -76,7 +92,7 @@ public class AppPopup extends BaseTimeEntity {
         this.title = title;
         this.content = content;
         this.imageUrl = imageUrl;
-        this.linkUrl = linkUrl;
+        applyNavigation(navigation);
         this.enabled = enabled;
         this.startsAt = startsAt;
         this.endsAt = endsAt;
@@ -88,7 +104,7 @@ public class AppPopup extends BaseTimeEntity {
             String title,
             String content,
             String imageUrl,
-            String linkUrl,
+            PopupNavigation navigation,
             boolean enabled,
             LocalDateTime startsAt,
             LocalDateTime endsAt,
@@ -98,7 +114,7 @@ public class AppPopup extends BaseTimeEntity {
                 title,
                 content,
                 imageUrl,
-                linkUrl,
+                navigation,
                 enabled,
                 startsAt,
                 endsAt,
@@ -110,7 +126,7 @@ public class AppPopup extends BaseTimeEntity {
             String title,
             String content,
             String imageUrl,
-            String linkUrl,
+            PopupNavigation navigation,
             boolean enabled,
             LocalDateTime startsAt,
             LocalDateTime endsAt,
@@ -119,12 +135,40 @@ public class AppPopup extends BaseTimeEntity {
         this.title = title;
         this.content = content;
         this.imageUrl = imageUrl;
-        this.linkUrl = linkUrl;
+        applyNavigation(navigation);
         this.enabled = enabled;
         this.startsAt = startsAt;
         this.endsAt = endsAt;
         this.displayOrder = displayOrder;
         this.revision++;
+    }
+
+    public PopupNavigation navigation() {
+        if (navigationSchemaVersion == null && navigationType == null) {
+            return null;
+        }
+        if (navigationSchemaVersion == null || navigationType == null) {
+            throw new IllegalStateException("팝업 이동 정보가 불완전합니다. popupId=" + id);
+        }
+        return new PopupNavigation(
+                navigationSchemaVersion,
+                navigationType,
+                navigationParams
+        );
+    }
+
+    private void applyNavigation(PopupNavigation navigation) {
+        if (navigation == null) {
+            this.navigationSchemaVersion = null;
+            this.navigationType = null;
+            this.navigationParams = null;
+            return;
+        }
+        this.navigationSchemaVersion = navigation.schemaVersion();
+        this.navigationType = navigation.type();
+        this.navigationParams = navigation.params() == null
+                ? null
+                : new LinkedHashMap<>(navigation.params());
     }
 
     public void updateEnabled(boolean enabled) {
