@@ -290,6 +290,73 @@ class GradeCalculatorApiIntegrationTest {
     }
 
     @Test
+    void manuallyAddedTimetableCourseParticipatesInGradeCalculationAndSurvivesImport()
+            throws Exception {
+        String accessToken = registerAndLogin("manual-timetable-grade-user");
+        long timetableId = createTimetable(accessToken, 2026, 1);
+        MvcResult createResult = performAuthenticated(accessToken, post(
+                        TIMETABLE_PATH + "/{timetableId}/custom-courses",
+                        timetableId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "courseName": "개인 프로젝트",
+                                  "credit": 2.5,
+                                  "dayOfWeek": "THURSDAY",
+                                  "startTime": "15:00",
+                                  "endTime": "16:30"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long timetableCourseId = responseBody(createResult)
+                .path("timetableCourseId")
+                .asLong();
+
+        performAuthenticated(accessToken, get(TIMETABLE_COURSES_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].timetableCourseId")
+                        .value(timetableCourseId))
+                .andExpect(jsonPath("$.courses[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.courses[0].courseName")
+                        .value("개인 프로젝트"))
+                .andExpect(jsonPath("$.courses[0].credit").value(2.5))
+                .andExpect(jsonPath("$.courses[0].curriculumType")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.courses[0].expectedGrade")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.ungradedCourseCount").value(1));
+
+        updateGrade(accessToken, timetableCourseId, "\"A+\"")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50));
+
+        performAuthenticated(accessToken, post(
+                        TIMETABLE_COURSES_PATH + "/import"
+                )
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].timetableCourseId")
+                        .value(timetableCourseId))
+                .andExpect(jsonPath("$.courses[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.courses[0].courseName")
+                        .value("개인 프로젝트"))
+                .andExpect(jsonPath("$.courses[0].credit").value(2.5))
+                .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
+                .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50));
+    }
+
+    @Test
     void customCourseNameAndCreditRejectNullOrInvalidValues() throws Exception {
         importMajorFixture(2026, 1);
         String accessToken = registerAndLogin("grade-custom-validation-user");

@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.timetable.composition.controller;
 
+import hsu.hanseomate.domain.timetable.composition.dto.CustomTimetableCourseCreateRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseAddRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseResponse;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCreateRequest;
@@ -63,6 +64,15 @@ public class TimetableController {
     ) {
         return ResponseEntity.status(201)
                 .body(timetableService.addCourse(timetableId, request));
+    }
+
+    @PostMapping("/{timetableId}/custom-courses")
+    public ResponseEntity<TimetableCourseResponse> addCustomCourse(
+            @PathVariable Long timetableId,
+            @Valid @RequestBody CustomTimetableCourseCreateRequest request
+    ) {
+        return ResponseEntity.status(201)
+                .body(timetableService.addCustomCourse(timetableId, request));
     }
 
     @DeleteMapping("/courses/{timetableCourseId}")

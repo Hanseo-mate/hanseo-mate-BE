@@ -40,6 +40,10 @@ public enum TimetableErrorCode {
             HttpStatus.NOT_FOUND,
             "시간표에서 해당 과목을 찾을 수 없습니다."
     ),
+    INVALID_CUSTOM_COURSE_TIME_RANGE(
+            HttpStatus.BAD_REQUEST,
+            "종료 시간은 시작 시간보다 늦어야 합니다."
+    ),
     INVALID_TIMETABLE_TERM(
             HttpStatus.BAD_REQUEST,
             "시간표의 연도 또는 학기 값이 유효하지 않습니다."

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import hsu.hanseomate.domain.course.entity.Course;
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +53,46 @@ class TimetableConflictDetectorTest {
         assertThat(detector.conflicts(
                 List.of(),
                 List.of(schedule(DayOfWeek.MONDAY, 1, 2))
+        )).isFalse();
+    }
+
+    @Test
+    void customTimeConflictsWithOverlappingRegisteredPeriod() {
+        assertThat(detector.conflicts(
+                DayOfWeek.MONDAY,
+                LocalTime.of(9, 45),
+                LocalTime.of(10, 15),
+                List.of(schedule(DayOfWeek.MONDAY, 1, 2))
+        )).isTrue();
+    }
+
+    @Test
+    void customTimeCanBeAdjacentToRegisteredPeriod() {
+        assertThat(detector.conflicts(
+                DayOfWeek.MONDAY,
+                LocalTime.of(10, 30),
+                LocalTime.of(11, 0),
+                List.of(schedule(DayOfWeek.MONDAY, 1, 2))
+        )).isFalse();
+    }
+
+    @Test
+    void customTimesConflictOnlyWhenDayAndTimeOverlap() {
+        assertThat(detector.conflicts(
+                DayOfWeek.WEDNESDAY,
+                LocalTime.of(13, 0),
+                LocalTime.of(14, 0),
+                DayOfWeek.WEDNESDAY,
+                LocalTime.of(13, 30),
+                LocalTime.of(14, 30)
+        )).isTrue();
+        assertThat(detector.conflicts(
+                DayOfWeek.WEDNESDAY,
+                LocalTime.of(13, 0),
+                LocalTime.of(14, 0),
+                DayOfWeek.THURSDAY,
+                LocalTime.of(13, 30),
+                LocalTime.of(14, 30)
         )).isFalse();
     }
 

@@ -11,6 +11,7 @@
 - 다시 불러오면 수정한 과목명·학점은 원본 시간표 값으로 돌아가고 예상 성적은 유지된다.
 - 선택 학기 통계와 사용자의 전체 학기 누적 통계를 함께 계산한다.
 - 시간표 상세 응답에도 화면 하단 표시용 학기·누적 요약을 포함한다.
+- 시간표에 직접 입력한 개인 과목도 같은 학기·누적 학점 계산에 포함한다.
 
 과목명과 학점의 기본값은 `CourseOffering -> Course`에서 읽는다. 사용자가 수정한 값은
 `timetable_courses`의 사용자별 덮어쓰기로만 저장하므로 다른 사용자나 다른 학기의 공용
@@ -133,7 +134,8 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-- `courseId`는 학기별 `CourseOffering` UUID다.
+- 등록 강좌의 `courseId`는 학기별 `CourseOffering` UUID다. 직접 입력 과목은
+  `courseId`와 `curriculumType`이 `null`이다.
 - `courseName`과 `credit`은 처음에는 공용 강좌의 원본 값이며, 수정한 뒤에는 사용자별
   덮어쓰기 값을 반환한다.
 - `expectedGrade`가 `null`이면 아직 성적을 설정하지 않은 과목이다.
@@ -166,8 +168,9 @@ Content-Type: application/json
 | `credit` | 0 초과 20 이하, 소수 셋째 자리까지 | 명시적 `null`은 `400` |
 | `expectedGrade` | 성적 선택 옵션 중 하나 | 저장된 성적 초기화 |
 
-과목명이나 학점의 사용자 덮어쓰기만 개별적으로 `null`로 지우는 PATCH 계약은 제공하지
-않는다. 두 값을 원본으로 되돌릴 때는 다음 절의 다시 불러오기 API를 사용한다.
+등록 강좌의 과목명이나 학점 덮어쓰기만 개별적으로 `null`로 지우는 PATCH 계약은 제공하지
+않는다. 두 값을 원본으로 되돌릴 때는 다음 절의 다시 불러오기 API를 사용한다. 직접 입력
+과목은 공용 원본이 없으므로 수정한 과목명과 학점이 해당 개인 과목의 값이 된다.
 
 성적을 미입력 상태로 되돌리려면 다음과 같이 보낸다.
 
@@ -187,10 +190,12 @@ POST /api/grade-calculations/timetable-courses/import?year=2026&semester=1
 Authorization: Bearer {accessToken}
 ```
 
-선택 학기의 모든 시간표 과목에서 `custom_course_name`, `custom_credit`를 제거한다. 다음
-응답의 `courseName`, `credit`은 공용 강좌에 저장된 원본 값으로 돌아간다.
+선택 학기에서 `CourseOffering`에 연결된 등록 강좌의 `custom_course_name`,
+`custom_credit`만 제거한다. 다음 응답의 등록 강좌 `courseName`, `credit`은 공용 강좌에
+저장된 원본 값으로 돌아간다.
 
 - 저장된 `expectedGrade`는 지우거나 변경하지 않는다.
+- 사용자가 시간표에 직접 추가한 개인 과목의 과목명·학점·요일·시간은 유지한다.
 - 시간표 과목 자체를 삭제하거나 다시 생성하지 않는다.
 - 다른 학기의 사용자 덮어쓰기는 변경하지 않는다.
 - 해당 학기의 본인 시간표가 없으면 `404 TIMETABLE_NOT_FOUND`를 반환한다.
@@ -315,8 +320,8 @@ Content-Type: application/json
 
 ## 12. 운영 DB 반영
 
-운영은 `spring.jpa.hibernate.ddl-auto=validate`이므로 과목명·학점 수정 코드 배포 전에
-다음 증분 DDL을 한 번 적용해야 한다.
+운영은 `spring.jpa.hibernate.ddl-auto=validate`이므로 과목명·학점 수정 기능에는 다음
+증분 DDL이 적용되어 있어야 한다.
 
 ```text
 docs/timetable-course-grade-overrides-migration-mysql.sql
@@ -327,6 +332,16 @@ docs/timetable-course-grade-overrides-migration-mysql.sql
 기존 행은 `custom_course_name = NULL`, `custom_credit = NULL`로 시작하며 저장돼 있던
 `expected_grade`는 변경하지 않는다. 전체 스키마 파일은 빈 DB 생성용이므로 기존 운영
 DB에 실행하지 않는다.
+
+개인 과목 직접 추가 기능을 배포하기 전에는 위 DDL 적용 후 다음 증분 DDL도 한 번
+적용해야 한다.
+
+```text
+docs/timetable-custom-course-migration-mysql.sql
+```
+
+이 DDL은 `course_offering_id`를 nullable로 변경하고 직접 입력 과목의 요일·시작 시간·종료
+시간 컬럼과 데이터 무결성 CHECK 제약을 추가한다.
 
 ## 13. 공식 기준
 
