@@ -16,6 +16,8 @@ public interface PushDeviceRepository extends JpaRepository<PushDevice, Long> {
 
     List<PushDevice> findAllByIsActiveTrue();
 
+    List<PushDevice> findAllByUserIdAndIsActiveTrue(Long userId);
+
     @Query("select device.id from PushDevice device where device.userId = :userId")
     List<Long> findIdsByUserId(@Param("userId") Long userId);
 

@@ -6,6 +6,8 @@ import hsu.hanseomate.domain.notification.entity.Notification;
 import hsu.hanseomate.domain.notification.entity.NotificationRead;
 import hsu.hanseomate.domain.notification.repository.NotificationReadRepository;
 import hsu.hanseomate.domain.notification.repository.NotificationRepository;
+import hsu.hanseomate.domain.push.entity.PushDevice;
+import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
 import hsu.hanseomate.global.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -26,6 +29,7 @@ public class NotificationInboxService {
 
     private final NotificationRepository notificationRepository;
     private final NotificationReadRepository notificationReadRepository;
+    private final PushDeviceRepository pushDeviceRepository;
 
     /**
      * 알림 목록 조회 (최신 20개 범위 내에서 페이지 처리)
@@ -33,7 +37,7 @@ public class NotificationInboxService {
      */
     @Transactional(readOnly = true)
     public List<NotificationResponse> getNotifications(String installationId, int page, int size) {
-        List<Notification> top20 = notificationRepository.findTop20ByOrderByCreatedAtDesc();
+        List<Notification> top20 = findVisibleNotifications(installationId);
 
         if (top20.isEmpty()) {
             return List.of();
@@ -66,7 +70,7 @@ public class NotificationInboxService {
      */
     @Transactional(readOnly = true)
     public UnreadCountResponse getUnreadCount(String installationId) {
-        List<Notification> top20 = notificationRepository.findTop20ByOrderByCreatedAtDesc();
+        List<Notification> top20 = findVisibleNotifications(installationId);
 
         if (top20.isEmpty()) {
             return new UnreadCountResponse(0);
@@ -87,6 +91,11 @@ public class NotificationInboxService {
     public void markAsRead(Long notificationId, String installationId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("알림을 찾을 수 없습니다. id=" + notificationId));
+        Long currentUserId = resolveUserId(installationId);
+        if (notification.getTargetUserId() != null
+                && !Objects.equals(notification.getTargetUserId(), currentUserId)) {
+            throw new ResourceNotFoundException("알림을 찾을 수 없습니다. id=" + notificationId);
+        }
 
         boolean alreadyRead = notificationReadRepository
                 .existsByInstallationIdAndNotification(installationId, notification);
@@ -106,7 +115,7 @@ public class NotificationInboxService {
      */
     @Transactional
     public void markAllAsRead(String installationId) {
-        List<Notification> top20 = notificationRepository.findTop20ByOrderByCreatedAtDesc();
+        List<Notification> top20 = findVisibleNotifications(installationId);
 
         if (top20.isEmpty()) {
             return;
@@ -127,5 +136,17 @@ public class NotificationInboxService {
         if (!toInsert.isEmpty()) {
             notificationReadRepository.saveAll(toInsert);
         }
+    }
+
+    private List<Notification> findVisibleNotifications(String installationId) {
+        return notificationRepository.findTop20VisibleToUserOrderByCreatedAtDesc(
+                resolveUserId(installationId)
+        );
+    }
+
+    private Long resolveUserId(String installationId) {
+        return pushDeviceRepository.findByInstallationId(installationId)
+                .map(PushDevice::getUserId)
+                .orElse(null);
     }
 }

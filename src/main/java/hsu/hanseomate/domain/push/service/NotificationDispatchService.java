@@ -49,6 +49,12 @@ public class NotificationDispatchService {
         return pushDeviceRepository.findAllByIsActiveTrue();
     }
 
+    /** 특정 로그인 사용자에게 연결된 활성 Push Device를 조회합니다. */
+    @Transactional(readOnly = true)
+    public List<PushDevice> findActiveDevicesByUserId(Long userId) {
+        return pushDeviceRepository.findAllByUserIdAndIsActiveTrue(userId);
+    }
+
     /** Outbox를 SENT로 완료 처리합니다. */
     @Transactional
     public void markOutboxSent(Long outboxId) {

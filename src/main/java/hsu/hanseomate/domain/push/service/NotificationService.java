@@ -7,6 +7,8 @@ import hsu.hanseomate.domain.notification.repository.NotificationRepository;
 import hsu.hanseomate.domain.push.dto.NotificationPayload;
 import hsu.hanseomate.domain.push.entity.NotificationOutbox;
 import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,9 +76,37 @@ public class NotificationService {
         enqueue(title, body, data);
     }
 
+    /** 동아리 모집공고 작성·수정 알림을 공고 변경 당시의 찜 사용자에게만 Enqueue합니다. */
+    @Transactional
+    public void enqueueClubRecruitmentNotification(
+            String title,
+            String body,
+            String clubId,
+            Collection<Long> recipientUserIds
+    ) {
+        Map<String, Object> data = Map.of(
+                "version", 1,
+                "type", "club_recruitment",
+                "route", "/clubs",
+                "entityId", clubId
+        );
+        new LinkedHashSet<>(recipientUserIds).stream()
+                .filter(java.util.Objects::nonNull)
+                .forEach(userId -> enqueue(title, body, data, userId));
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void enqueue(String title, String body, Map<String, Object> data) {
+        enqueue(title, body, data, null);
+    }
+
+    private void enqueue(
+            String title,
+            String body,
+            Map<String, Object> data,
+            Long targetUserId
+    ) {
         try {
             String dataJson = objectMapper.writeValueAsString(data);
             String payloadJson = objectMapper.writeValueAsString(new NotificationPayload(title, body, data));
@@ -86,12 +116,13 @@ public class NotificationService {
                     .title(title)
                     .body(body)
                     .payloadData(dataJson)
+                    .targetUserId(targetUserId)
                     .build());
 
             // Expo 발송 Outbox에 저장
-            outboxRepository.save(NotificationOutbox.create(payloadJson));
+            outboxRepository.save(NotificationOutbox.create(payloadJson, targetUserId));
 
-            log.info("Enqueued notification title=\"{}\"", title);
+            log.info("Enqueued notification title=\"{}\", targetUserId={}", title, targetUserId);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize notification payload", e);
             throw new IllegalStateException("Failed to serialize notification payload", e);

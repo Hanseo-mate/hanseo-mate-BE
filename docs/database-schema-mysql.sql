@@ -168,9 +168,11 @@ CREATE TABLE notification_outbox (
     payload TEXT NOT NULL,
     status VARCHAR(20) NOT NULL,
     error_message VARCHAR(500) NULL,
+    target_user_id BIGINT NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    INDEX idx_notification_outbox_target_user (target_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE push_devices (
