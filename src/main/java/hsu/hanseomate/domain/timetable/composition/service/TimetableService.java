@@ -6,8 +6,10 @@ import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentNameProjection;
 import hsu.hanseomate.domain.course.repository.OfferingEligibleDepartmentRepository;
+import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
 import hsu.hanseomate.domain.gradecalculator.service.GradeCalculatorService;
 import hsu.hanseomate.domain.timetable.composition.currentuser.CurrentUserIdProvider;
+import hsu.hanseomate.domain.timetable.composition.dto.CustomTimetableCourseCreateRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseAddRequest;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCourseResponse;
 import hsu.hanseomate.domain.timetable.composition.dto.TimetableCreateRequest;
@@ -21,6 +23,7 @@ import hsu.hanseomate.domain.timetable.composition.repository.TimetableCourseRep
 import hsu.hanseomate.domain.timetable.composition.repository.TimetableRepository;
 import hsu.hanseomate.domain.timetable.composition.type.ConflictPolicy;
 import hsu.hanseomate.domain.timetable.composition.type.TimetableErrorCode;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,12 +131,10 @@ public class TimetableService {
                 schedulesByOffering.getOrDefault(candidate.getId(), List.of());
 
         List<TimetableCourse> conflicts = existingCourses.stream()
-                .filter(existing -> conflictDetector.conflicts(
+                .filter(existing -> conflictsWithRegisteredCourse(
                         candidateSchedules,
-                        schedulesByOffering.getOrDefault(
-                                existing.getCourseOffering().getId(),
-                                List.of()
-                        )
+                        existing,
+                        schedulesByOffering
                 ))
                 .toList();
 
@@ -165,6 +166,51 @@ public class TimetableService {
             }
             throw exception;
         }
+    }
+
+    @Transactional
+    public TimetableCourseResponse addCustomCourse(
+            Long timetableId,
+            CustomTimetableCourseCreateRequest request
+    ) {
+        validateCustomTimeRange(request.startTime(), request.endTime());
+        Long ownerId = currentUserIdProvider.currentUserId();
+        Timetable timetable = findOwnedForUpdate(timetableId, ownerId);
+        List<TimetableCourse> existingCourses =
+                timetableCourseRepository.findAllByTimetableIdOrderById(timetableId);
+        Map<UUID, List<CourseSchedule>> schedulesByOffering =
+                loadSchedulesForOfferings(existingCourses.stream()
+                        .filter(course -> !course.isCustomCourse())
+                        .map(TimetableCourse::getCourseOffering)
+                        .toList());
+
+        List<TimetableCourse> conflicts = existingCourses.stream()
+                .filter(existing -> conflictsWithCustomCourse(
+                        request.dayOfWeek(),
+                        request.startTime(),
+                        request.endTime(),
+                        existing,
+                        schedulesByOffering
+                ))
+                .toList();
+        if (!conflicts.isEmpty()) {
+            throw new TimetableApiException(
+                    TimetableErrorCode.TIMETABLE_TIME_CONFLICT,
+                    toCourseResponses(conflicts, schedulesByOffering)
+            );
+        }
+
+        TimetableCourse created = timetableCourseRepository.saveAndFlush(
+                TimetableCourse.createCustom(
+                        timetable,
+                        request.courseName().strip(),
+                        request.credit(),
+                        request.dayOfWeek(),
+                        request.startTime(),
+                        request.endTime()
+                )
+        );
+        return TimetableCourseResponse.fromCustom(created);
     }
 
     @Transactional
@@ -246,6 +292,7 @@ public class TimetableService {
         List<CourseOffering> offerings = new ArrayList<>(existingCourses.size() + 1);
         offerings.add(candidate);
         existingCourses.stream()
+                .filter(course -> !course.isCustomCourse())
                 .map(TimetableCourse::getCourseOffering)
                 .forEach(offerings::add);
         return loadSchedulesForOfferings(offerings);
@@ -258,6 +305,7 @@ public class TimetableService {
             return List.of();
         }
         List<CourseOffering> offerings = timetableCourses.stream()
+                .filter(course -> !course.isCustomCourse())
                 .map(TimetableCourse::getCourseOffering)
                 .toList();
         Map<UUID, List<CourseSchedule>> schedulesByOffering =
@@ -270,23 +318,85 @@ public class TimetableService {
             Map<UUID, List<CourseSchedule>> schedulesByOffering
     ) {
         List<CourseOffering> offerings = timetableCourses.stream()
+                .filter(course -> !course.isCustomCourse())
                 .map(TimetableCourse::getCourseOffering)
                 .toList();
         Map<UUID, List<String>> eligibleDepartmentsByOffering =
                 loadEligibleDepartmentNames(offerings);
         return timetableCourses.stream()
-                .map(timetableCourse -> TimetableCourseResponse.from(
-                        timetableCourse,
-                        schedulesByOffering.getOrDefault(
-                                timetableCourse.getCourseOffering().getId(),
-                                List.of()
-                        ),
-                        eligibleDepartmentsByOffering.getOrDefault(
-                                timetableCourse.getCourseOffering().getId(),
-                                List.of()
-                        )
-                ))
+                .map(timetableCourse -> {
+                    if (timetableCourse.isCustomCourse()) {
+                        return TimetableCourseResponse.fromCustom(timetableCourse);
+                    }
+                    UUID offeringId = timetableCourse.getCourseOffering().getId();
+                    return TimetableCourseResponse.from(
+                            timetableCourse,
+                            schedulesByOffering.getOrDefault(offeringId, List.of()),
+                            eligibleDepartmentsByOffering.getOrDefault(
+                                    offeringId,
+                                    List.of()
+                            )
+                    );
+                })
                 .toList();
+    }
+
+    private boolean conflictsWithRegisteredCourse(
+            List<CourseSchedule> candidateSchedules,
+            TimetableCourse existing,
+            Map<UUID, List<CourseSchedule>> schedulesByOffering
+    ) {
+        if (existing.isCustomCourse()) {
+            return conflictDetector.conflicts(
+                    existing.getCustomDayOfWeek(),
+                    existing.getCustomStartTime(),
+                    existing.getCustomEndTime(),
+                    candidateSchedules
+            );
+        }
+        return conflictDetector.conflicts(
+                candidateSchedules,
+                schedulesByOffering.getOrDefault(
+                        existing.getCourseOffering().getId(),
+                        List.of()
+                )
+        );
+    }
+
+    private boolean conflictsWithCustomCourse(
+            DayOfWeek dayOfWeek,
+            LocalTime startTime,
+            LocalTime endTime,
+            TimetableCourse existing,
+            Map<UUID, List<CourseSchedule>> schedulesByOffering
+    ) {
+        if (existing.isCustomCourse()) {
+            return conflictDetector.conflicts(
+                    dayOfWeek,
+                    startTime,
+                    endTime,
+                    existing.getCustomDayOfWeek(),
+                    existing.getCustomStartTime(),
+                    existing.getCustomEndTime()
+            );
+        }
+        return conflictDetector.conflicts(
+                dayOfWeek,
+                startTime,
+                endTime,
+                schedulesByOffering.getOrDefault(
+                        existing.getCourseOffering().getId(),
+                        List.of()
+                )
+        );
+    }
+
+    private void validateCustomTimeRange(LocalTime startTime, LocalTime endTime) {
+        if (startTime == null || endTime == null || !startTime.isBefore(endTime)) {
+            throw new TimetableApiException(
+                    TimetableErrorCode.INVALID_CUSTOM_COURSE_TIME_RANGE
+            );
+        }
     }
 
     private Map<UUID, List<CourseSchedule>> loadSchedulesForOfferings(

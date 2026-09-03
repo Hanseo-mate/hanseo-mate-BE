@@ -18,10 +18,10 @@ public record TimetableGradeCourseResponse(
         var offering = timetableCourse.getCourseOffering();
         return new TimetableGradeCourseResponse(
                 timetableCourse.getId(),
-                offering.getId(),
+                offering == null ? null : offering.getId(),
                 timetableCourse.getGradeCourseName(),
                 timetableCourse.getGradeCredit(),
-                offering.getScopeCurriculumType(),
+                offering == null ? null : offering.getScopeCurriculumType(),
                 timetableCourse.getExpectedGrade()
         );
     }

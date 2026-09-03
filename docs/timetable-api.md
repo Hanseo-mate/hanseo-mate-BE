@@ -3,7 +3,7 @@
 ## 1. 기능 개요
 
 사용자는 학년도와 학기별로 시간표를 하나 만들고, 기존 강좌 검색 결과에서 선택한
-강좌를 시간표에 추가하거나 삭제할 수 있다.
+강좌 또는 직접 입력한 개인 과목을 시간표에 추가하거나 삭제할 수 있다.
 
 모든 시간표 API는 로그인이 필요하다. 요청에서 `userId`를 받지 않고 JWT의 `sub`에
 저장된 사용자 ID를 사용하므로, 각 사용자는 본인의 시간표만 조회하고 변경할 수 있다.
@@ -48,12 +48,15 @@ Offering UUID를 모두 분리한다. 같은 학기·같은 분반을 재수입�
 
 ### 시간 충돌
 
-현재 강좌 데이터는 시작·종료 시각이 아니라 `요일 + 교시 목록`으로 저장된다.
+등록 강좌 데이터는 `요일 + 교시 목록`, 직접 입력 과목은
+`요일 + 시작 시간 + 종료 시간`으로 저장된다.
 
-다음 두 조건을 모두 만족하면 충돌이다.
+같은 요일에 수업 시간 구간이 겹치면 충돌이다.
 
-- 요일이 같음
-- 두 교시 목록에 하나 이상의 같은 교시가 있음
+- 등록 강좌끼리는 두 교시 목록에 하나 이상의 같은 교시가 있으면 충돌한다.
+- 직접 입력 과목끼리는 시작·종료 시간 구간을 비교한다.
+- 직접 입력 과목과 등록 강좌는 등록 강좌의 교시를 실제 시간 구간으로 변환해 비교한다.
+- 한 과목의 종료 시간과 다른 과목의 시작 시간이 같은 연속 일정은 허용한다.
 
 구조화된 수업 시간이 없는 온라인·미정 강좌는 충돌 검사에서 제외되며 시간표에는
 추가할 수 있다. 조회 응답의 `meetings`는 빈 배열이고 원본 `scheduleText`와
@@ -107,6 +110,7 @@ GET /api/timetables?year=2026&semester=2
   "courses": [
     {
       "timetableCourseId": 31,
+      "customCourse": false,
       "courseId": "7da5b546-d431-4b4d-9992-0a50d97399d5",
       "courseCode": "001234",
       "courseName": "자료구조",
@@ -122,6 +126,8 @@ GET /api/timetables?year=2026&semester=2
         {
           "dayOfWeek": "MONDAY",
           "periods": [1, 2],
+          "startTime": "09:30",
+          "endTime": "10:30",
           "classroom": {
             "campusCode": "TAEAN",
             "buildingName": "공학관",
@@ -172,6 +178,9 @@ GET /api/timetables?year=2026&semester=2
   `OTHER` 중 하나
 - `eligibleDepartmentNames`: 엑셀의 수강대상 학과 목록이며 제한 정보가 없으면 `[]`
 - `sectionNo`: 엑셀의 분반 값을 문자열로 보존
+- `customCourse`: 사용자가 직접 입력한 개인 과목이면 `true`
+- 직접 입력 과목은 `courseId`, `courseCode`, `sectionNo`, `generalCategory`,
+  `instructorName`, `classroomText`가 `null`이며 `meetings[].periods`가 빈 배열이다.
 
 ## 5. 시간표에 과목 추가
 
@@ -205,6 +214,7 @@ HTTP/1.1 201 Created
 ```json
 {
   "timetableCourseId": 31,
+  "customCourse": false,
   "courseId": "7da5b546-d431-4b4d-9992-0a50d97399d5",
   "courseCode": "001234",
   "courseName": "자료구조",
@@ -220,6 +230,8 @@ HTTP/1.1 201 Created
     {
       "dayOfWeek": "MONDAY",
       "periods": [1, 2],
+      "startTime": "09:30",
+      "endTime": "10:30",
       "classroom": {
         "campusCode": "TAEAN",
         "buildingName": "공학관",
@@ -247,6 +259,7 @@ HTTP/1.1 409 Conflict
   "conflicts": [
     {
       "timetableCourseId": 30,
+      "customCourse": false,
       "courseId": "490baf4d-f8c9-491c-bcb2-ddad71d35914",
       "courseCode": "009451",
       "courseName": "운영체제",
@@ -262,6 +275,8 @@ HTTP/1.1 409 Conflict
         {
           "dayOfWeek": "MONDAY",
           "periods": [1, 2],
+          "startTime": "09:30",
+          "endTime": "10:30",
           "classroom": {
             "campusCode": "TAEAN",
             "buildingName": "공학관",
@@ -278,7 +293,73 @@ HTTP/1.1 409 Conflict
 과목 추가 성공 응답과 시간 충돌의 `conflicts` 항목도 시간표 조회의 강좌 객체와
 동일하게 `sectionNo`, `cyber`, `generalCategory`, `eligibleDepartmentNames`를 반환한다.
 
-## 6. 시간표 과목 삭제
+## 6. 개인 과목 직접 추가
+
+```http
+POST /api/timetables/{timetableId}/custom-courses
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+### 요청
+
+```json
+{
+  "courseName": "개인 프로젝트",
+  "credit": 2.5,
+  "dayOfWeek": "WEDNESDAY",
+  "startTime": "13:00",
+  "endTime": "14:30"
+}
+```
+
+| 필드 | 필수 | 규칙 |
+|---|---|---|
+| `courseName` | Y | 앞뒤 공백 제거 후 1~255자 |
+| `credit` | Y | 0 초과 20 이하, 소수 셋째 자리까지 |
+| `dayOfWeek` | Y | `MONDAY`~`SUNDAY` |
+| `startTime` | Y | `HH:mm` |
+| `endTime` | Y | `HH:mm`, `startTime`보다 늦어야 함 |
+
+### 성공 응답
+
+```http
+HTTP/1.1 201 Created
+```
+
+```json
+{
+  "timetableCourseId": 32,
+  "customCourse": true,
+  "courseId": null,
+  "courseCode": null,
+  "courseName": "개인 프로젝트",
+  "sectionNo": null,
+  "credit": 2.5,
+  "cyber": false,
+  "generalCategory": null,
+  "eligibleDepartmentNames": [],
+  "instructorName": null,
+  "scheduleText": "WEDNESDAY 13:00~14:30",
+  "classroomText": null,
+  "meetings": [
+    {
+      "dayOfWeek": "WEDNESDAY",
+      "periods": [],
+      "startTime": "13:00",
+      "endTime": "14:30",
+      "classroom": null
+    }
+  ]
+}
+```
+
+JWT 사용자 소유의 시간표에만 추가할 수 있다. 기존 과목과 시간이 겹치면
+`409 TIMETABLE_TIME_CONFLICT`와 충돌 과목 목록을 반환하며, 기존 과목을 삭제하거나
+교체하지 않는다. 직접 입력 과목은 일반 `courses` 배열에 포함되고 학점 계산에도
+자동 반영된다.
+
+## 7. 시간표 과목 삭제
 
 ```http
 DELETE /api/timetables/courses/{timetableCourseId}
@@ -288,7 +369,7 @@ DELETE /api/timetables/courses/{timetableCourseId}
 시간표에 추가된 항목의 `timetableCourseId`이다. 삭제 대상 항목에 연결된 시간표를
 기준으로 현재 로그인 사용자의 소유권을 검사한다.
 
-## 7. 시간표 전체 삭제
+## 8. 시간표 전체 삭제
 
 ```http
 DELETE /api/timetables/{timetableId}
@@ -296,7 +377,7 @@ DELETE /api/timetables/{timetableId}
 
 성공하면 `204 No Content`를 반환하고 연결된 시간표 과목도 모두 삭제한다.
 
-## 8. 오류 코드
+## 9. 오류 코드
 
 | HTTP 상태 | 코드 | 설명 |
 |---:|---|---|
@@ -309,13 +390,14 @@ DELETE /api/timetables/{timetableId}
 | 400 | `COURSE_TERM_MISMATCH` | 시간표와 강좌의 연도 또는 학기가 다름 |
 | 409 | `TIMETABLE_TIME_CONFLICT` | 기존 과목과 교시가 겹침 |
 | 404 | `TIMETABLE_COURSE_NOT_FOUND` | 해당 시간표에 시간표 과목이 없음 |
+| 400 | `INVALID_CUSTOM_COURSE_TIME_RANGE` | 직접 입력 과목의 종료 시간이 시작 시간보다 늦지 않음 |
 | 400 | `INVALID_TIMETABLE_TERM` | 연도 또는 학기 값이 유효하지 않음 |
 
-## 9. 현재 제한사항과 재수입 데이터 보존
+## 10. 현재 제한사항과 재수입 데이터 보존
 
 - Access Token의 기본 유효기간은 1시간이며, 만료 시 `/api/auth/refresh`에서 Refresh Token을 회전하여 새 토큰 쌍을 발급받을 수 있다.
 - 한 사용자는 같은 연도·학기에 시간표 하나만 만들 수 있다.
-- 시간 충돌은 실제 시각이 아닌 현재 저장된 교시 목록을 기준으로 판단한다.
+- 직접 입력 과목은 한 요청에 하나의 요일·시간 구간만 저장한다.
 - 과목 엑셀을 같은 학기·교육과정 범위로 다시 업로드해도 같은 과목코드·분반 조합의 기존
   Offering UUID를 재사용한다. 새 파일에서 누락된 Offering은 삭제하지 않고 비활성화하므로
   이미 저장한 시간표 과목 선택은 제거되지 않는다.

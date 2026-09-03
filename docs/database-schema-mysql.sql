@@ -885,10 +885,13 @@ CREATE TABLE course_schedules (
 CREATE TABLE timetable_courses (
     id BIGINT NOT NULL AUTO_INCREMENT,
     timetable_id BIGINT NOT NULL,
-    course_offering_id BINARY(16) NOT NULL,
+    course_offering_id BINARY(16) NULL,
     expected_grade VARCHAR(20) NULL,
     custom_course_name VARCHAR(255) NULL,
     custom_credit DECIMAL(8,3) NULL,
+    custom_day_of_week VARCHAR(20) NULL,
+    custom_start_time TIME NULL,
+    custom_end_time TIME NULL,
     created_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_timetable_course_offering
@@ -902,6 +905,42 @@ CREATE TABLE timetable_courses (
     CONSTRAINT ck_timetable_course_custom_credit CHECK (
         custom_credit IS NULL
         OR (custom_credit >= 0.001 AND custom_credit <= 20.000)
+    ),
+    CONSTRAINT ck_timetable_course_custom_day CHECK (
+        custom_day_of_week IS NULL
+        OR BINARY custom_day_of_week IN (
+            BINARY 'MONDAY',
+            BINARY 'TUESDAY',
+            BINARY 'WEDNESDAY',
+            BINARY 'THURSDAY',
+            BINARY 'FRIDAY',
+            BINARY 'SATURDAY',
+            BINARY 'SUNDAY'
+        )
+    ),
+    CONSTRAINT ck_timetable_course_custom_time CHECK (
+        (custom_start_time IS NULL AND custom_end_time IS NULL)
+        OR (
+            custom_start_time IS NOT NULL
+            AND custom_end_time IS NOT NULL
+            AND custom_start_time < custom_end_time
+        )
+    ),
+    CONSTRAINT ck_timetable_course_source CHECK (
+        (
+            course_offering_id IS NOT NULL
+            AND custom_day_of_week IS NULL
+            AND custom_start_time IS NULL
+            AND custom_end_time IS NULL
+        )
+        OR (
+            course_offering_id IS NULL
+            AND custom_course_name IS NOT NULL
+            AND custom_credit IS NOT NULL
+            AND custom_day_of_week IS NOT NULL
+            AND custom_start_time IS NOT NULL
+            AND custom_end_time IS NOT NULL
+        )
     ),
     CONSTRAINT ck_timetable_course_expected_grade CHECK (
         expected_grade IS NULL

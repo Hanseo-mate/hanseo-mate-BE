@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.timetable.composition.entity;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
+import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
 import hsu.hanseomate.domain.gradecalculator.type.ExpectedGrade;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,6 +19,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -54,8 +56,8 @@ public class TimetableCourse {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Timetable timetable;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "course_offering_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "course_offering_id")
     @OnDelete(action = OnDeleteAction.CASCADE)
     private CourseOffering courseOffering;
 
@@ -70,6 +72,17 @@ public class TimetableCourse {
     @Column(name = "custom_credit", precision = 8, scale = 3)
     private BigDecimal customCredit;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "custom_day_of_week", length = 20)
+    private DayOfWeek customDayOfWeek;
+
+    @Column(name = "custom_start_time")
+    private LocalTime customStartTime;
+
+    @Column(name = "custom_end_time")
+    private LocalTime customEndTime;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,8 +92,42 @@ public class TimetableCourse {
         this.courseOffering = courseOffering;
     }
 
+    private TimetableCourse(
+            Timetable timetable,
+            String courseName,
+            BigDecimal credit,
+            DayOfWeek dayOfWeek,
+            LocalTime startTime,
+            LocalTime endTime
+    ) {
+        this.timetable = timetable;
+        this.customCourseName = courseName;
+        this.customCredit = credit;
+        this.customDayOfWeek = dayOfWeek;
+        this.customStartTime = startTime;
+        this.customEndTime = endTime;
+    }
+
     public static TimetableCourse create(Timetable timetable, CourseOffering courseOffering) {
         return new TimetableCourse(timetable, courseOffering);
+    }
+
+    public static TimetableCourse createCustom(
+            Timetable timetable,
+            String courseName,
+            BigDecimal credit,
+            DayOfWeek dayOfWeek,
+            LocalTime startTime,
+            LocalTime endTime
+    ) {
+        return new TimetableCourse(
+                timetable,
+                courseName,
+                credit,
+                dayOfWeek,
+                startTime,
+                endTime
+        );
     }
 
     public void updateExpectedGrade(ExpectedGrade expectedGrade) {
@@ -107,7 +154,14 @@ public class TimetableCourse {
                 : courseOffering.getCredit();
     }
 
+    public boolean isCustomCourse() {
+        return courseOffering == null;
+    }
+
     public void resetGradeCourseOverrides() {
+        if (isCustomCourse()) {
+            return;
+        }
         this.customCourseName = null;
         this.customCredit = null;
     }
