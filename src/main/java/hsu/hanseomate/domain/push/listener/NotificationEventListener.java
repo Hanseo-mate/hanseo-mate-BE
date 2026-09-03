@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.push.listener;
 
 import hsu.hanseomate.domain.notices.event.NoticeViewCountMilestoneEvent;
+import hsu.hanseomate.domain.club.event.ClubRecruitmentChangedEvent;
 import hsu.hanseomate.domain.push.service.NotificationService;
 import hsu.hanseomate.domain.studentcouncilnotice.event.StudentCouncilNoticeCreatedEvent;
 import hsu.hanseomate.domain.systemnotice.event.SystemNoticeCreatedEvent;
@@ -91,6 +92,31 @@ public class NotificationEventListener {
                 title,
                 body,
                 event.noticeId().toString()
+        );
+    }
+
+    /** 동아리 모집공고 작성·수정 알림을 해당 동아리 찜 사용자에게만 등록합니다. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onClubRecruitmentChanged(ClubRecruitmentChangedEvent event) {
+        if (event.recipientUserIds().isEmpty()) {
+            log.info("[NotificationEvent] Club recruitment changed without recipients: clubId={}",
+                    event.clubId());
+            return;
+        }
+
+        String title = truncate("[동아리 모집공고] %s".formatted(event.clubName()), 255);
+        String body = event.changeType() == ClubRecruitmentChangedEvent.ChangeType.CREATED
+                ? "새로운 모집공고가 등록되었습니다."
+                : "모집공고 내용이 수정되었습니다.";
+
+        log.info("[NotificationEvent] Club recruitment changed: clubId={}, changeType={}, recipients={}",
+                event.clubId(), event.changeType(), event.recipientUserIds().size());
+
+        notificationService.enqueueClubRecruitmentNotification(
+                title,
+                body,
+                event.clubId().toString(),
+                event.recipientUserIds()
         );
     }
 

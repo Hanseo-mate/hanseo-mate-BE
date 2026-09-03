@@ -19,6 +19,12 @@ import com.jayway.jsonpath.JsonPath;
 import hsu.hanseomate.support.AdminMockMvcConfiguration;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
+import hsu.hanseomate.domain.notification.entity.Notification;
+import hsu.hanseomate.domain.notification.repository.NotificationRepository;
+import hsu.hanseomate.domain.push.entity.NotificationOutbox;
+import hsu.hanseomate.domain.push.entity.PushDevice;
+import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
+import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
 import hsu.hanseomate.global.security.JwtProperties;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +115,15 @@ class ClubApiIntegrationTest {
     private UserAccountRepository userAccountRepository;
 
     @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private NotificationOutboxRepository notificationOutboxRepository;
+
+    @Autowired
+    private PushDeviceRepository pushDeviceRepository;
+
+    @Autowired
     private JwtEncoder jwtEncoder;
 
     @Autowired
@@ -131,6 +146,11 @@ class ClubApiIntegrationTest {
         for (String tableName : clubTables) {
             jdbcTemplate.execute("DELETE FROM " + tableName);
         }
+        jdbcTemplate.execute("DELETE FROM notification_reads");
+        jdbcTemplate.execute("DELETE FROM notifications");
+        jdbcTemplate.execute("DELETE FROM push_tickets");
+        jdbcTemplate.execute("DELETE FROM notification_outbox");
+        jdbcTemplate.execute("DELETE FROM push_devices");
         jdbcTemplate.execute("DELETE FROM refresh_tokens");
         jdbcTemplate.execute("DELETE FROM user_accounts");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
@@ -440,6 +460,93 @@ class ClubApiIntegrationTest {
         assertThat(detail.get("introduction")).isEqualTo(longIntroduction.strip());
         assertThat(detail.get("activityContent")).isEqualTo(longActivityContent.strip());
         assertThat(detail.get("recruitmentContent")).isEqualTo(longRecruitment.strip());
+    }
+
+    @Test
+    void recruitmentChangesCreateNotificationsOnlyForUsersWhoLikedTheClub()
+            throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/admin/clubs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(clubRequest("알림 동아리", "ACADEMIC"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long clubId = responseId(createResult);
+
+        long likedUserId = createReviewUser();
+        long unlikedUserId = createReviewUser();
+        toggleLikeAsUser(clubId, likedUserId);
+
+        saveInactivePushDevice(likedUserId, "liked-installation", "liked-token");
+        saveInactivePushDevice(unlikedUserId, "unliked-installation", "unliked-token");
+
+        Map<String, Object> createdRequest = clubUpdateRequest(
+                "알림 동아리",
+                "모집공고 알림 테스트",
+                null,
+                null,
+                null,
+                null,
+                "신입 부원을 모집합니다."
+        );
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(createdRequest)))
+                .andExpect(status().isNoContent());
+
+        List<Notification> createdNotifications = notificationRepository.findAll();
+        assertThat(createdNotifications).hasSize(1);
+        assertThat(createdNotifications.get(0).getTargetUserId()).isEqualTo(likedUserId);
+        assertThat(createdNotifications.get(0).getTitle())
+                .isEqualTo("[동아리 모집공고] 알림 동아리");
+        assertThat(createdNotifications.get(0).getBody())
+                .isEqualTo("새로운 모집공고가 등록되었습니다.");
+        assertThat(createdNotifications.get(0).getPayloadData())
+                .contains("\"type\":\"club_recruitment\"")
+                .contains("\"route\":\"/clubs\"")
+                .contains("\"entityId\":\"" + clubId + "\"");
+
+        List<NotificationOutbox> createdOutboxes = notificationOutboxRepository.findAll();
+        assertThat(createdOutboxes).hasSize(1);
+        assertThat(createdOutboxes.get(0).getTargetUserId()).isEqualTo(likedUserId);
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .param("installationId", "liked-installation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].body")
+                        .value("새로운 모집공고가 등록되었습니다."));
+        mockMvc.perform(get("/api/v1/notifications")
+                        .param("installationId", "unliked-installation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+
+        Map<String, Object> updatedRequest = new LinkedHashMap<>(createdRequest);
+        updatedRequest.put("recruitmentContent", "모집 기간을 연장합니다.");
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(updatedRequest)))
+                .andExpect(status().isNoContent());
+
+        assertThat(notificationRepository.findAll())
+                .hasSize(2)
+                .extracting(Notification::getTargetUserId)
+                .containsOnly(likedUserId);
+        assertThat(notificationRepository.findAll())
+                .extracting(Notification::getBody)
+                .contains("모집공고 내용이 수정되었습니다.");
+        assertThat(notificationOutboxRepository.findAll())
+                .hasSize(2)
+                .extracting(NotificationOutbox::getTargetUserId)
+                .containsOnly(likedUserId);
+
+        updatedRequest.put("shortDescription", "모집공고는 그대로인 소개 수정");
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(updatedRequest)))
+                .andExpect(status().isNoContent());
+
+        assertThat(notificationRepository.count()).isEqualTo(2);
+        assertThat(notificationOutboxRepository.count()).isEqualTo(2);
     }
 
     @Test
@@ -1234,6 +1341,23 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.likedByMe").value(expectedState))
                 .andExpect(jsonPath("$.liked").doesNotExist())
                 .andExpect(jsonPath("$.likeCount").value(expectedCount));
+    }
+
+    private void saveInactivePushDevice(
+            long userId,
+            String installationId,
+            String tokenKey
+    ) {
+        PushDevice device = PushDevice.create(
+                userId,
+                installationId,
+                "ExponentPushToken[" + tokenKey + "]",
+                "android",
+                "test-project",
+                "1.0.0"
+        );
+        device.deactivate("TEST");
+        pushDeviceRepository.saveAndFlush(device);
     }
 
     private void putReview(long clubId, List<String> tags) throws Exception {

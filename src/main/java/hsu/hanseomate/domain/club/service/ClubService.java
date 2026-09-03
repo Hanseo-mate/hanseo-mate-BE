@@ -15,6 +15,8 @@ import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.entity.Club;
 import hsu.hanseomate.domain.club.entity.ClubLike;
 import hsu.hanseomate.domain.club.entity.ClubReview;
+import hsu.hanseomate.domain.club.event.ClubRecruitmentChangedEvent;
+import hsu.hanseomate.domain.club.event.ClubRecruitmentChangedEvent.ChangeType;
 import hsu.hanseomate.domain.club.repository.ClubLikeCountProjection;
 import hsu.hanseomate.domain.club.repository.ClubLikeRepository;
 import hsu.hanseomate.domain.club.repository.ClubRepository;
@@ -38,11 +40,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +68,7 @@ public class ClubService {
     private final ClubReviewRepository clubReviewRepository;
     private final UserAccountRepository userAccountRepository;
     private final LocalImageStorageService imageStorageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<ClubSummaryResponse> getClubs(String category) {
         return getClubs(category, Optional.empty());
@@ -164,6 +169,8 @@ public class ClubService {
     public void updateClub(Long clubId, ClubUpdateRequest request) {
         Club club = findClubForUpdate(clubId);
         String name = required(request.name());
+        String previousRecruitmentContent = club.getRecruitmentContent();
+        String recruitmentContent = content(request.recruitmentContent());
         validateUniqueName(name, clubId);
 
         club.update(
@@ -173,13 +180,26 @@ public class ClubService {
                 content(request.activityContent()),
                 optional(request.instagramUrl()),
                 optional(request.kakaoTalkUrl()),
-                content(request.recruitmentContent())
+                recruitmentContent
         );
 
         try {
             clubRepository.flush();
         } catch (DataIntegrityViolationException exception) {
             throw duplicateClubName(name);
+        }
+
+        if (recruitmentContent != null
+                && !Objects.equals(previousRecruitmentContent, recruitmentContent)) {
+            ChangeType changeType = previousRecruitmentContent == null
+                    ? ChangeType.CREATED
+                    : ChangeType.UPDATED;
+            eventPublisher.publishEvent(new ClubRecruitmentChangedEvent(
+                    clubId,
+                    name,
+                    changeType,
+                    clubLikeRepository.findLikerIdsByClubId(clubId)
+            ));
         }
     }
 
