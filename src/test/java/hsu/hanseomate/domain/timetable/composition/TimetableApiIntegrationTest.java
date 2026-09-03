@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.timetable.composition;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,13 +15,16 @@ import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.courseimport.dto.CourseImportResponse;
 import hsu.hanseomate.domain.courseimport.dto.TimetableParseResultRequest;
+import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
 import hsu.hanseomate.domain.courseimport.dto.type.StorageStatus;
 import hsu.hanseomate.domain.courseimport.service.CourseImportService;
 import hsu.hanseomate.domain.timetable.composition.entity.Timetable;
 import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
 import hsu.hanseomate.domain.timetable.composition.repository.TimetableCourseRepository;
 import hsu.hanseomate.domain.timetable.composition.repository.TimetableRepository;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
@@ -203,6 +207,173 @@ class TimetableApiIntegrationTest {
     void timetableTermListRequiresAuthentication() throws Exception {
         mockMvc.perform(get(TIMETABLE_PATH + "/terms"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void customCourseCreationRequiresAuthentication() throws Exception {
+        mockMvc.perform(post(TIMETABLE_PATH + "/1/custom-courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "courseName", "개인 프로젝트",
+                                "credit", 2,
+                                "dayOfWeek", "MONDAY",
+                                "startTime", "10:00",
+                                "endTime", "11:30"
+                        ))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void addsCustomCourseToOwnedTimetableAndReturnsItInTimetable() throws Exception {
+        long timetableId = createTimetable(2026, 1);
+
+        MvcResult result = addCustomCourseRequest(
+                timetableId,
+                "  개인 프로젝트  ",
+                2.5,
+                "WEDNESDAY",
+                "13:00",
+                "14:30"
+        )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.timetableCourseId").isNumber())
+                .andExpect(jsonPath("$.customCourse").value(true))
+                .andExpect(jsonPath("$.courseId").value(nullValue()))
+                .andExpect(jsonPath("$.courseCode").value(nullValue()))
+                .andExpect(jsonPath("$.courseName").value("개인 프로젝트"))
+                .andExpect(jsonPath("$.credit").value(2.5))
+                .andExpect(jsonPath("$.cyber").value(false))
+                .andExpect(jsonPath("$.meetings.length()").value(1))
+                .andExpect(jsonPath("$.meetings[0].dayOfWeek").value("WEDNESDAY"))
+                .andExpect(jsonPath("$.meetings[0].periods").isEmpty())
+                .andExpect(jsonPath("$.meetings[0].startTime").value("13:00"))
+                .andExpect(jsonPath("$.meetings[0].endTime").value("14:30"))
+                .andExpect(jsonPath("$.meetings[0].classroom").value(nullValue()))
+                .andReturn();
+
+        long timetableCourseId = responseBody(result).path("timetableCourseId").asLong();
+        TimetableCourse saved = timetableCourseRepository.findById(timetableCourseId)
+                .orElseThrow();
+        assertThat(saved.getTimetable().getId()).isEqualTo(timetableId);
+        assertThat(saved.getCourseOffering()).isNull();
+        assertThat(saved.getCustomCourseName()).isEqualTo("개인 프로젝트");
+        assertThat(saved.getCustomCredit()).isEqualByComparingTo(new BigDecimal("2.5"));
+        assertThat(saved.getCustomDayOfWeek()).isEqualTo(DayOfWeek.WEDNESDAY);
+        assertThat(saved.getCustomStartTime()).isEqualTo(LocalTime.of(13, 0));
+        assertThat(saved.getCustomEndTime()).isEqualTo(LocalTime.of(14, 30));
+
+        performAuthenticated(get(TIMETABLE_PATH)
+                        .param("year", "2026")
+                        .param("semester", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses.length()").value(1))
+                .andExpect(jsonPath("$.courses[0].timetableCourseId")
+                        .value(timetableCourseId))
+                .andExpect(jsonPath("$.courses[0].customCourse").value(true))
+                .andExpect(jsonPath("$.courses[0].courseName").value("개인 프로젝트"))
+                .andExpect(jsonPath("$.cyberCourses").isEmpty())
+                .andExpect(jsonPath("$.gradeSummary.termSummary.totalCredits")
+                        .value(2.5))
+                .andExpect(jsonPath("$.gradeSummary.termSummary.ungradedCourseCount")
+                        .value(1));
+
+        performAuthenticated(delete(
+                        TIMETABLE_PATH + "/courses/{timetableCourseId}",
+                        timetableCourseId
+                ))
+                .andExpect(status().isNoContent());
+        assertThat(timetableCourseRepository.existsById(timetableCourseId)).isFalse();
+    }
+
+    @Test
+    void customCourseRejectsInvalidTimeRange() throws Exception {
+        long timetableId = createTimetable(2026, 1);
+
+        expectTimetableError(
+                addCustomCourseRequest(
+                        timetableId,
+                        "잘못된 시간",
+                        2,
+                        "MONDAY",
+                        "14:00",
+                        "14:00"
+                ),
+                HttpStatus.BAD_REQUEST,
+                "INVALID_CUSTOM_COURSE_TIME_RANGE",
+                "종료 시간은 시작 시간보다 늦어야 합니다.",
+                TIMETABLE_PATH + "/" + timetableId + "/custom-courses"
+        );
+        assertThat(timetableCourseRepository.count()).isZero();
+    }
+
+    @Test
+    void customCourseConflictDoesNotDeleteOrReplaceExistingCourse() throws Exception {
+        long timetableId = createTimetable(2026, 1);
+        long firstCourseId = addCustomCourse(
+                timetableId,
+                "첫 번째 일정",
+                2,
+                "TUESDAY",
+                "10:00",
+                "11:00"
+        );
+
+        expectTimetableError(
+                addCustomCourseRequest(
+                        timetableId,
+                        "겹치는 일정",
+                        3,
+                        "TUESDAY",
+                        "10:30",
+                        "11:30"
+                ),
+                HttpStatus.CONFLICT,
+                "TIMETABLE_TIME_CONFLICT",
+                "기존 과목과 수업 시간이 겹칩니다.",
+                TIMETABLE_PATH + "/" + timetableId + "/custom-courses"
+        )
+                .andExpect(jsonPath("$.conflicts.length()").value(1))
+                .andExpect(jsonPath("$.conflicts[0].timetableCourseId")
+                        .value(firstCourseId))
+                .andExpect(jsonPath("$.conflicts[0].customCourse").value(true));
+
+        assertThat(timetableCourseRepository.count()).isEqualTo(1);
+        assertThat(timetableCourseRepository.findById(firstCourseId)).isPresent();
+
+        addCustomCourseRequest(
+                timetableId,
+                "이어지는 일정",
+                1,
+                "TUESDAY",
+                "11:00",
+                "12:00"
+        ).andExpect(status().isCreated());
+        assertThat(timetableCourseRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void customCourseCanOnlyBeAddedToCurrentUsersTimetable() throws Exception {
+        AuthSession otherUser = registerAndLogin("custom-course-owner");
+        Timetable otherOwnersTimetable = timetableRepository.saveAndFlush(
+                Timetable.create(otherUser.userId(), 2026, 1)
+        );
+
+        expectTimetableError(
+                addCustomCourseRequest(
+                        otherOwnersTimetable.getId(),
+                        "남의 시간표 과목",
+                        2,
+                        "FRIDAY",
+                        "09:00",
+                        "10:00"
+                ),
+                HttpStatus.FORBIDDEN,
+                "TIMETABLE_ACCESS_DENIED",
+                "해당 시간표에 접근할 권한이 없습니다.",
+                TIMETABLE_PATH + "/" + otherOwnersTimetable.getId()
+                        + "/custom-courses"
+        );
+        assertThat(timetableCourseRepository.count()).isZero();
     }
 
     @Test
@@ -1089,6 +1260,49 @@ class TimetableApiIntegrationTest {
             String conflictPolicy
     ) throws Exception {
         MvcResult result = addCourseRequest(timetableId, courseId, conflictPolicy)
+                .andExpect(status().isCreated())
+                .andReturn();
+        return responseBody(result).path("timetableCourseId").asLong();
+    }
+
+    private ResultActions addCustomCourseRequest(
+            long timetableId,
+            String courseName,
+            Number credit,
+            String dayOfWeek,
+            String startTime,
+            String endTime
+    ) throws Exception {
+        return performAuthenticated(post(
+                        TIMETABLE_PATH + "/{timetableId}/custom-courses",
+                        timetableId
+                )
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "courseName", courseName,
+                        "credit", credit,
+                        "dayOfWeek", dayOfWeek,
+                        "startTime", startTime,
+                        "endTime", endTime
+                ))));
+    }
+
+    private long addCustomCourse(
+            long timetableId,
+            String courseName,
+            Number credit,
+            String dayOfWeek,
+            String startTime,
+            String endTime
+    ) throws Exception {
+        MvcResult result = addCustomCourseRequest(
+                timetableId,
+                courseName,
+                credit,
+                dayOfWeek,
+                startTime,
+                endTime
+        )
                 .andExpect(status().isCreated())
                 .andReturn();
         return responseBody(result).path("timetableCourseId").asLong();
