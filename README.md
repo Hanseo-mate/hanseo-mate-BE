@@ -5,7 +5,8 @@
 현재 구현된 기능은 학교생활 필수 링크 관리, 학기별 강좌 일괄 수입·조회와 개인 시간표 구성,
 로그인 사용자의 학기별 예상 성적 저장과 학기·누적 학점 계산,
 중앙동아리 정보 관리, 로그인 사용자 기반 좋아요와 선택형 활동 후기, 동아리 이미지 업로드,
-학생회 공지 CRUD, 시스템 공지 CRUD와 관리자용 홈 포스터 이미지 관리입니다.
+학생회 공지 CRUD, 시스템 공지 CRUD, 관리자용 홈 포스터 이미지 관리와 로그인 여부에
+관계없이 노출되는 앱 시작 팝업 관리입니다.
 
 ## 기술 스택
 
@@ -106,7 +107,7 @@ DB_PASSWORD
 
 운영 환경에서는 `SPRING_PROFILES_ACTIVE=prod`를 사용하며 세 가지 DB 환경변수가 모두 필요합니다.
 
-동아리·홈 포스터·학생회 공지 이미지 파일 저장 위치와 반환 URL, 학생회 공지 일반
+동아리·홈 포스터·앱 시작 팝업·학생회 공지 이미지 파일 저장 위치와 반환 URL, 학생회 공지 일반
 첨부파일의 비공개 저장 위치는 다음 환경변수로 설정합니다.
 
 ```text
@@ -172,6 +173,10 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 관리자 홈 포스터 이미지·선택 링크 관리 계약은
 [홈 포스터 API 명세서](docs/home-poster-api.md)에서 확인할 수 있습니다.
 
+앱 시작 팝업의 공개 조회·관리자 CRUD·오늘 하루 숨김 연동 계약은
+[앱 시작 팝업 API 명세서](docs/app-popup-api.md)에서 확인할 수 있습니다.
+기존 운영 DB에는 [앱 시작 팝업 증분 DDL](docs/app-popup-migration-mysql.sql)을 코드보다 먼저 적용합니다.
+
 학생회 캘린더 조회와 관리 계약은 [학생회 캘린더 API 명세서](docs/calendar-api.md)에서 확인할 수 있습니다.
 
 로그인 사용자 개인 일정 계약은 [개인 일정 API 명세서](docs/personal-calendar-api.md)에서 확인할 수 있습니다.
@@ -236,6 +241,13 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 | `GET` | `/api/admin/home-posters` | 관리자용 홈 포스터 전체 조회 |
 | `PUT` | `/api/admin/home-posters/{posterId}` | 홈 포스터 이미지와 선택 링크 교체 |
 | `DELETE` | `/api/admin/home-posters/{posterId}` | 홈 포스터 삭제 |
+| `GET` | `/api/popups/active` | 로그인 없이 현재 노출 중인 앱 시작 팝업 조회 |
+| `GET` | `/api/admin/popups` | 관리자용 전체 팝업 및 노출 상태 조회 |
+| `GET` | `/api/admin/popups/{popupId}` | 관리자용 팝업 상세 조회 |
+| `POST` | `/api/admin/popups` | 관리자 전용 팝업과 선택 이미지 등록 |
+| `PUT` | `/api/admin/popups/{popupId}` | 관리자 전용 팝업 전체 수정 및 이미지 유지·교체·제거 |
+| `PATCH` | `/api/admin/popups/{popupId}/enabled` | 관리자 전용 팝업 활성 상태 변경 |
+| `DELETE` | `/api/admin/popups/{popupId}` | 관리자 전용 팝업과 관리 이미지 삭제 |
 | `GET` | `/api/home` | 포스터·오늘 시간표·인기 공지·사용자 설정 기준 오늘 학식 통합 조회 |
 | `GET` | `/api/cafeteria/menus` | 서산·태안 학생식당 식단과 로그인 사용자의 선호 식당 통합 조회 |
 | `GET` | `/api/notices/categories/admin` | 학생회 공지 목록 조회 |
