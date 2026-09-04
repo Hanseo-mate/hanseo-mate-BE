@@ -61,6 +61,7 @@ class AppPopupNavigationRepositoryMySqlContainerTest {
                 "공지 이동",
                 "내용",
                 null,
+                "https://www.hanseo.ac.kr",
                 new PopupNavigation(
                         (short) 1,
                         PopupNavigationType.NOTICE_DETAIL,
@@ -76,6 +77,9 @@ class AppPopupNavigationRepositoryMySqlContainerTest {
         PopupNavigation navigation = appPopupRepository.findById(saved.getId())
                 .orElseThrow()
                 .navigation();
+
+        assertThat(appPopupRepository.findById(saved.getId()).orElseThrow().getLinkUrl())
+                .isEqualTo("https://www.hanseo.ac.kr");
 
         assertThat(navigation.schemaVersion()).isEqualTo((short) 1);
         assertThat(navigation.type()).isEqualTo(PopupNavigationType.NOTICE_DETAIL);

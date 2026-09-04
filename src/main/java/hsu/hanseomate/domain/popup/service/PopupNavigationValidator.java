@@ -33,12 +33,8 @@ public class PopupNavigationValidator {
 
     public PopupNavigation validateRequired(
             boolean navigationProvided,
-            boolean legacyLinkUrlProvided,
             PopupNavigationRequest request
     ) {
-        if (legacyLinkUrlProvided) {
-            throw invalid("linkUrl", "더 이상 지원하지 않습니다. navigation을 사용해야 합니다.");
-        }
         if (!navigationProvided) {
             throw invalid("navigation", "필수 필드입니다. 이동이 없으면 null을 전달해야 합니다.");
         }
@@ -50,6 +46,13 @@ public class PopupNavigationValidator {
         PopupNavigationType type = validateType(request.type());
         Map<String, Object> params = validateParams(type, request.params());
         return new PopupNavigation(schemaVersion, type, params);
+    }
+
+    public String validateOptionalLinkUrl(String linkUrl) {
+        if (linkUrl == null || linkUrl.isBlank()) {
+            return null;
+        }
+        return validateHttpsUrl(linkUrl, "linkUrl");
     }
 
     private short validateSchemaVersion(Integer schemaVersion) {
@@ -115,9 +118,13 @@ public class PopupNavigationValidator {
         if (!(rawUrl instanceof String url)) {
             throw invalid("navigation.params.url", "HTTPS 절대 URL 문자열이어야 합니다.");
         }
+        return Map.of("url", validateHttpsUrl(url, "navigation.params.url"));
+    }
+
+    private String validateHttpsUrl(String url, String path) {
         String normalizedUrl = url.trim();
         if (normalizedUrl.length() > MAX_URL_LENGTH) {
-            throw invalid("navigation.params.url", "2048자 이하여야 합니다.");
+            throw invalid(path, "2048자 이하여야 합니다.");
         }
 
         try {
@@ -127,14 +134,14 @@ public class PopupNavigationValidator {
                     || uri.getHost().isBlank()
                     || uri.getUserInfo() != null) {
                 throw invalid(
-                        "navigation.params.url",
+                        path,
                         "사용자 정보가 없는 HTTPS 절대 URL이어야 합니다."
                 );
             }
         } catch (URISyntaxException exception) {
-            throw invalid("navigation.params.url", "올바른 HTTPS 절대 URL이어야 합니다.");
+            throw invalid(path, "올바른 HTTPS 절대 URL이어야 합니다.");
         }
-        return Map.of("url", normalizedUrl);
+        return normalizedUrl;
     }
 
     private void requireExactKeys(

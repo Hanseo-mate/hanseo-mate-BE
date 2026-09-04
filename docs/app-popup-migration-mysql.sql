@@ -13,6 +13,7 @@ CREATE TABLE app_popups (
     title VARCHAR(200) NOT NULL,
     content LONGTEXT NOT NULL,
     image_url VARCHAR(2048) NULL,
+    link_url VARCHAR(2048) NULL,
     navigation_schema_version SMALLINT NULL,
     navigation_type VARCHAR(40) NULL,
     navigation_params JSON NULL,
@@ -28,7 +29,7 @@ CREATE TABLE app_popups (
     INDEX idx_app_popups_created_at (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 적용 결과를 확인합니다. 컬럼은 정확히 14개여야 합니다.
+-- 적용 결과를 확인합니다. 컬럼은 정확히 15개여야 합니다.
 SELECT column_name, column_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = DATABASE()

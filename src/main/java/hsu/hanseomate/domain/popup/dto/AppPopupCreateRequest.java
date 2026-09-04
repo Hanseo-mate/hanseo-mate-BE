@@ -30,6 +30,14 @@ public final class AppPopupCreateRequest {
     private String content;
 
     @Schema(
+            description = "팝업 이미지 클릭 시 이동할 선택 HTTPS 절대 URL",
+            nullable = true,
+            maxLength = 2048
+    )
+    @Size(max = 2048, message = "링크 URL은 2048자 이하여야 합니다.")
+    private String linkUrl;
+
+    @Schema(
             description = "의미 기반 클릭 이동 정보. 이동이 없으면 명시적으로 null",
             nullable = true,
             requiredMode = Schema.RequiredMode.REQUIRED
@@ -57,10 +65,6 @@ public final class AppPopupCreateRequest {
     @Setter(AccessLevel.NONE)
     private boolean navigationProvided;
 
-    @Getter(AccessLevel.NONE)
-    @Setter(AccessLevel.NONE)
-    private boolean legacyLinkUrlProvided;
-
     @JsonSetter("navigation")
     public void setNavigation(PopupNavigationRequest navigation) {
         this.navigation = navigation;
@@ -72,14 +76,4 @@ public final class AppPopupCreateRequest {
         return navigationProvided;
     }
 
-    @JsonSetter("linkUrl")
-    @Schema(hidden = true)
-    public void setLegacyLinkUrl(Object ignored) {
-        this.legacyLinkUrlProvided = true;
-    }
-
-    @JsonIgnore
-    public boolean hasLegacyLinkUrl() {
-        return legacyLinkUrlProvided;
-    }
 }
