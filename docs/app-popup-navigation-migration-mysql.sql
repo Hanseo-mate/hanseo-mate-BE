@@ -99,8 +99,8 @@ DELIMITER ;
 CALL migrate_app_popup_navigation();
 DROP PROCEDURE migrate_app_popup_navigation;
 
--- link_url은 구버전 롤백과 데이터 확인을 위해 이번 배포에서는 삭제하지 않습니다.
--- 신규 애플리케이션은 link_url을 읽거나 쓰지 않습니다.
+-- link_url은 팝업 이미지 클릭용 선택 외부 URL로 계속 사용합니다.
+-- 신규 애플리케이션은 HTTPS 절대 URL만 새로 저장합니다.
 
 SELECT id,
        link_url,

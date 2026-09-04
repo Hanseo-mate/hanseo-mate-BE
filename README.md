@@ -178,6 +178,8 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 기존 운영 DB에는 [앱 시작 팝업 증분 DDL](docs/app-popup-migration-mysql.sql)을 코드보다 먼저 적용합니다.
 이전 `link_url` 기반 팝업 테이블을 이미 생성했다면 신규 테이블 DDL 대신
 [팝업 navigation 전환 DDL](docs/app-popup-navigation-migration-mysql.sql)을 적용합니다.
+navigation 기반 테이블에 이미지 클릭 링크 컬럼이 없다면
+[팝업 이미지 링크 증분 DDL](docs/app-popup-link-url-migration-mysql.sql)을 적용합니다.
 
 학생회 캘린더 조회와 관리 계약은 [학생회 캘린더 API 명세서](docs/calendar-api.md)에서 확인할 수 있습니다.
 

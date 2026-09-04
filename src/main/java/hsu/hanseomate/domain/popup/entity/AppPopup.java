@@ -53,6 +53,9 @@ public class AppPopup extends BaseTimeEntity {
     @Column(name = "image_url", length = 2048)
     private String imageUrl;
 
+    @Column(name = "link_url", length = 2048)
+    private String linkUrl;
+
     @Column(name = "navigation_schema_version", columnDefinition = "smallint")
     private Short navigationSchemaVersion;
 
@@ -83,6 +86,7 @@ public class AppPopup extends BaseTimeEntity {
             String title,
             String content,
             String imageUrl,
+            String linkUrl,
             PopupNavigation navigation,
             boolean enabled,
             LocalDateTime startsAt,
@@ -92,6 +96,7 @@ public class AppPopup extends BaseTimeEntity {
         this.title = title;
         this.content = content;
         this.imageUrl = imageUrl;
+        this.linkUrl = linkUrl;
         applyNavigation(navigation);
         this.enabled = enabled;
         this.startsAt = startsAt;
@@ -104,6 +109,7 @@ public class AppPopup extends BaseTimeEntity {
             String title,
             String content,
             String imageUrl,
+            String linkUrl,
             PopupNavigation navigation,
             boolean enabled,
             LocalDateTime startsAt,
@@ -114,6 +120,7 @@ public class AppPopup extends BaseTimeEntity {
                 title,
                 content,
                 imageUrl,
+                linkUrl,
                 navigation,
                 enabled,
                 startsAt,
@@ -126,6 +133,7 @@ public class AppPopup extends BaseTimeEntity {
             String title,
             String content,
             String imageUrl,
+            String linkUrl,
             PopupNavigation navigation,
             boolean enabled,
             LocalDateTime startsAt,
@@ -135,6 +143,7 @@ public class AppPopup extends BaseTimeEntity {
         this.title = title;
         this.content = content;
         this.imageUrl = imageUrl;
+        this.linkUrl = linkUrl;
         applyNavigation(navigation);
         this.enabled = enabled;
         this.startsAt = startsAt;

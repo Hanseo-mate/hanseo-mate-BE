@@ -66,8 +66,10 @@ public class AppPopupService {
     ) {
         PopupNavigation navigation = navigationValidator.validateRequired(
                 request.hasNavigation(),
-                request.hasLegacyLinkUrl(),
                 request.getNavigation()
+        );
+        String linkUrl = navigationValidator.validateOptionalLinkUrl(
+                request.getLinkUrl()
         );
         validateSchedule(request.getStartsAt(), request.getEndsAt());
         StoredImage storedImage = image == null
@@ -79,6 +81,7 @@ public class AppPopupService {
                     request.getTitle().trim(),
                     request.getContent(),
                     storedImage == null ? null : storedImage.url(),
+                    linkUrl,
                     navigation,
                     request.getEnabled(),
                     request.getStartsAt(),
@@ -101,8 +104,10 @@ public class AppPopupService {
     ) {
         PopupNavigation navigation = navigationValidator.validateRequired(
                 request.hasNavigation(),
-                request.hasLegacyLinkUrl(),
                 request.getNavigation()
+        );
+        String linkUrl = navigationValidator.validateOptionalLinkUrl(
+                request.getLinkUrl()
         );
         validateSchedule(request.getStartsAt(), request.getEndsAt());
         validateImageRequest(request.getImageAction(), image);
@@ -123,6 +128,7 @@ public class AppPopupService {
                     request.getTitle().trim(),
                     request.getContent(),
                     nextImageUrl,
+                    linkUrl,
                     navigation,
                     request.getEnabled(),
                     request.getStartsAt(),
