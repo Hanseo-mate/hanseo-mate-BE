@@ -393,18 +393,21 @@ Spring Boot → Python FastAPI 크롤러 서버 (`http://34.64.250.12:8000`)
 
 ##### Upsert 로직
 
-1. `installationId`로 기존 레코드 조회
-2. **존재 시**: `expo_push_token`, `user_id`, `project_id`, `app_version` 갱신. `is_active = true`, `last_registered_at` 갱신
-3. **없을 시**: 신규 레코드 생성
-4. 토큰이 변경된 경우, 해당 토큰을 보유한 다른 기기를 자동으로 비활성화(`TOKEN_REASSIGNED`)
+1. `installationId`와 `expoPushToken`으로 기존 레코드를 함께 조회
+2. **같은 installationId 존재 시**: 토큰·플랫폼·프로젝트·앱 버전을 갱신하고 다시 활성화
+3. 로그인 JWT가 있으면 `user_id`를 연결하고, 같은 installationId의 비인증 갱신은 기존 `user_id`를 유지
+4. **같은 Expo token만 존재 시**: 기존 행을 새 installationId로 옮겨 유니크 키 충돌 없이 재사용. 비인증 요청이면 이전 사용자 연결은 승계하지 않음
+5. 둘 다 없으면 신규 레코드 생성
 
 ##### 앱에서 이 API를 호출해야 하는 시점
 
 - 알림 권한을 허용한 직후
-- 로그인 직후
+- 로그인 직후 (**반드시 Bearer JWT 포함**)
 - 앱 실행 시 저장된 토큰과 새 토큰이 다를 때
 - 앱 재설치 후
 - 사용자 계정이 변경됐을 때
+
+> 같은 installationId의 비인증 갱신은 로그인 연결을 보존합니다. 로그아웃 또는 계정 연결 해제 시에는 아래 DELETE API를 명시적으로 호출해야 합니다.
 
 ---
 

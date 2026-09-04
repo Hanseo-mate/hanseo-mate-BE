@@ -4,6 +4,8 @@ import hsu.hanseomate.domain.push.dto.RegisterPushTokenRequest;
 import hsu.hanseomate.domain.push.entity.PushDevice;
 import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
+import java.util.List;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -12,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Push Token 등록/해제 비즈니스 로직.
- * installation_id 기준으로 upsert하며, 동일 토큰을 보유한 다른 기기는 비활성화합니다.
+ * installation_id와 Expo token을 함께 식별 기준으로 사용하여 upsert합니다.
  */
 @Slf4j
 @Service
@@ -31,11 +33,22 @@ public class PushTokenService {
     @Transactional
     public void registerOrUpdateToken(Long userId, RegisterPushTokenRequest request) {
         requireExistingUserWhenAuthenticated(userId);
-        pushDeviceRepository.findByInstallationId(request.installationId())
-                .ifPresentOrElse(
-                        existing -> updateExistingDevice(existing, userId, request),
-                        () -> createNewDevice(userId, request)
-                );
+        List<PushDevice> candidates = pushDeviceRepository.findRegistrationCandidatesForUpdate(
+                request.installationId(),
+                request.expoPushToken()
+        );
+        PushDevice installationMatch = findByInstallationId(candidates, request.installationId());
+        PushDevice tokenMatch = findByExpoPushToken(candidates, request.expoPushToken());
+
+        if (installationMatch != null) {
+            updateExistingInstallation(installationMatch, tokenMatch, userId, request);
+            return;
+        }
+        if (tokenMatch != null) {
+            reassignExistingToken(tokenMatch, userId, request);
+            return;
+        }
+        createNewDevice(userId, request);
     }
 
     private void requireExistingUserWhenAuthenticated(Long userId) {
@@ -64,19 +77,48 @@ public class PushTokenService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private void updateExistingDevice(PushDevice device, Long userId, RegisterPushTokenRequest request) {
-        // 토큰이 바뀐 경우, 새 토큰을 보유한 다른 기기를 먼저 비활성화
-        if (!device.getExpoPushToken().equals(request.expoPushToken())) {
-            deactivateConflictingToken(request.expoPushToken(), device.getInstallationId());
+    private void updateExistingInstallation(
+            PushDevice installationMatch,
+            PushDevice tokenMatch,
+            Long userId,
+            RegisterPushTokenRequest request
+    ) {
+        if (tokenMatch != null && !Objects.equals(installationMatch.getId(), tokenMatch.getId())) {
+            Long conflictingDeviceId = tokenMatch.getId();
+            pushDeviceRepository.delete(tokenMatch);
+            // UNIQUE(expo_push_token)을 해제한 다음 현재 installation 행에 토큰을 적용합니다.
+            pushDeviceRepository.flush();
+            log.info("Removed conflicting push device id={} before token reassignment",
+                    conflictingDeviceId);
         }
-        device.update(userId, request.expoPushToken(), request.projectId(), request.appVersion());
+
+        installationMatch.refreshRegistration(
+                userId,
+                request.expoPushToken(),
+                request.platform(),
+                request.projectId(),
+                request.appVersion()
+        );
         log.info("Updated push device installationId={}", request.installationId());
     }
 
-    private void createNewDevice(Long userId, RegisterPushTokenRequest request) {
-        // 동일 Expo 토큰이 다른 설치 ID로 이미 등록된 경우 비활성화
-        deactivateConflictingToken(request.expoPushToken(), null);
+    private void reassignExistingToken(
+            PushDevice device,
+            Long userId,
+            RegisterPushTokenRequest request
+    ) {
+        device.reassignInstallation(
+                userId,
+                request.installationId(),
+                request.platform(),
+                request.projectId(),
+                request.appVersion()
+        );
+        log.info("Reassigned push device id={} to installationId={}",
+                device.getId(), request.installationId());
+    }
 
+    private void createNewDevice(Long userId, RegisterPushTokenRequest request) {
         PushDevice device = PushDevice.create(
                 userId,
                 request.installationId(),
@@ -89,13 +131,17 @@ public class PushTokenService {
         log.info("Registered new push device installationId={}", request.installationId());
     }
 
-    private void deactivateConflictingToken(String expoPushToken, String excludeInstallationId) {
-        pushDeviceRepository.findByExpoPushToken(expoPushToken)
-                .filter(d -> excludeInstallationId == null
-                        || !d.getInstallationId().equals(excludeInstallationId))
-                .ifPresent(d -> {
-                    d.deactivate("TOKEN_REASSIGNED");
-                    log.info("Deactivated conflicting device id={} (token reassigned)", d.getId());
-                });
+    private PushDevice findByInstallationId(List<PushDevice> candidates, String installationId) {
+        return candidates.stream()
+                .filter(device -> device.getInstallationId().equals(installationId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private PushDevice findByExpoPushToken(List<PushDevice> candidates, String expoPushToken) {
+        return candidates.stream()
+                .filter(device -> device.getExpoPushToken().equals(expoPushToken))
+                .findFirst()
+                .orElse(null);
     }
 }
