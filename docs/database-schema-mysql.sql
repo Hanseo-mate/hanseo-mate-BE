@@ -32,6 +32,7 @@ CREATE TABLE app_popups (
     title VARCHAR(200) NOT NULL,
     content LONGTEXT NOT NULL,
     image_url VARCHAR(2048) NULL,
+    link_url VARCHAR(2048) NULL,
     navigation_schema_version SMALLINT NULL,
     navigation_type VARCHAR(40) NULL,
     navigation_params JSON NULL,

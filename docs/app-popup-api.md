@@ -12,6 +12,7 @@
 - 팝업이 없으면 `200 OK`와 빈 배열 `[]`을 반환합니다.
 - “오늘 하루 보지 않기”는 앱이 `popupId + revision` 기준으로 로컬 저장합니다.
 - 백엔드는 Expo Router 경로를 저장하지 않고 합의된 `navigation.type`과 `params`만 저장합니다.
+- 선택 `linkUrl`이 있으면 프론트는 팝업 사진 클릭 시 해당 HTTPS 주소로 이동합니다.
 
 ## 2. API 목록
 
@@ -25,7 +26,20 @@
 | `PATCH` | `/api/admin/popups/{popupId}/enabled` | ADMIN | 활성 상태 변경 |
 | `DELETE` | `/api/admin/popups/{popupId}` | ADMIN | 팝업 삭제 |
 
-## 3. navigation 계약
+## 3. 클릭 이동 계약
+
+`linkUrl`은 팝업 사진 클릭용 선택 외부 URL입니다. 값을 보내지 않거나 `null`, 빈 문자열로
+보내면 링크 없이 저장됩니다. 값이 있으면 사용자·관리자 응답에 정규화된 HTTPS 절대 URL을
+반환합니다.
+
+```json
+{
+  "linkUrl": "https://www.hanseo.ac.kr/notice/123"
+}
+```
+
+프론트는 사진 클릭 시 `linkUrl`을 우선 사용합니다. `linkUrl`이 `null`이면 기존
+`navigation`을 사용해 내부 화면 또는 외부 URL 이동을 처리합니다.
 
 이동이 없으면 `navigation`을 명시적으로 `null`로 전달합니다. 이동이 있으면 다음 구조를
 사용합니다.
@@ -110,6 +124,7 @@ GET /api/popups/active
     "title": "축제 기간 안내",
     "content": "자세한 내용을 공지사항에서 확인해 주세요.",
     "imageUrl": "https://api.example.com/uploads/app-popups/uuid.png",
+    "linkUrl": "https://www.hanseo.ac.kr/notice/123",
     "navigation": {
       "schemaVersion": 1,
       "type": "NOTICE_DETAIL",
@@ -149,6 +164,7 @@ Authorization: Bearer {adminAccessToken}
   "title": "축제 기간 안내",
   "content": "자세한 내용을 공지사항에서 확인해 주세요.",
   "imageUrl": "https://api.example.com/uploads/app-popups/uuid.png",
+  "linkUrl": "https://www.hanseo.ac.kr/notice/123",
   "navigation": {
     "schemaVersion": 1,
     "type": "NOTICE_DETAIL",
@@ -187,6 +203,7 @@ Content-Type: multipart/form-data
 {
   "title": "축제 기간 안내",
   "content": "자세한 내용을 공지사항에서 확인해 주세요.",
+  "linkUrl": null,
   "navigation": {
     "schemaVersion": 1,
     "type": "NOTICE_DETAIL",
@@ -202,19 +219,14 @@ Content-Type: multipart/form-data
 }
 ```
 
-### 외부 웹페이지 이동
+### 팝업 사진 클릭 시 외부 웹페이지 이동
 
 ```json
 {
   "title": "학교 홈페이지 안내",
   "content": "이미지를 누르면 학교 홈페이지로 이동합니다.",
-  "navigation": {
-    "schemaVersion": 1,
-    "type": "EXTERNAL_URL",
-    "params": {
-      "url": "https://www.hanseo.ac.kr/notice/123"
-    }
-  },
+  "linkUrl": "https://www.hanseo.ac.kr/notice/123",
+  "navigation": null,
   "enabled": true,
   "startsAt": null,
   "endsAt": null,
@@ -228,6 +240,7 @@ Content-Type: multipart/form-data
 {
   "title": "단순 안내",
   "content": "클릭 이동이 없는 팝업입니다.",
+  "linkUrl": null,
   "navigation": null,
   "enabled": true,
   "startsAt": null,
@@ -253,6 +266,7 @@ Content-Type: multipart/form-data
 {
   "title": "축제 운영시간 변경 안내",
   "content": "축제 운영시간이 변경되었습니다.",
+  "linkUrl": "https://www.hanseo.ac.kr/festival",
   "navigation": {
     "schemaVersion": 1,
     "type": "NOTICE_DETAIL",
@@ -312,10 +326,11 @@ Authorization: Bearer {adminAccessToken}
 팝업 이미지 클릭 시 앱은 다음 순서로 처리합니다.
 
 1. 현재 팝업을 먼저 닫음
-2. `navigation`이 `null`이면 이동하지 않음
-3. 지원하는 type과 유효한 params인지 앱에서도 확인
-4. 중복 탭을 방지하고 한 번만 이동
-5. 클릭 이동은 오늘 하루 보지 않기로 기록하지 않음
+2. `linkUrl`이 있으면 해당 HTTPS 주소를 외부 브라우저로 열고 종료
+3. `linkUrl`이 없고 `navigation`이 `null`이면 이동하지 않음
+4. 지원하는 type과 유효한 params인지 앱에서도 확인
+5. 중복 탭을 방지하고 한 번만 이동
+6. 클릭 이동은 오늘 하루 보지 않기로 기록하지 않음
 
 미지원 type이나 잘못된 params를 받으면 팝업은 표시하고 이동만 비활성화합니다.
 
@@ -323,6 +338,9 @@ Authorization: Bearer {adminAccessToken}
 
 | 조건 | 결과 |
 |---|---|
+| `linkUrl` 미입력·null·빈 문자열 | 링크 없음으로 저장 |
+| `linkUrl`이 HTTPS 절대 URL이 아님 | `400 Bad Request` |
+| `linkUrl`에 username/password 포함 | `400 Bad Request` |
 | `navigation` 필드 누락 | `400 Bad Request` |
 | `navigation = null` | 이동 없음으로 저장 |
 | 알 수 없는 schemaVersion 또는 type | `400 Bad Request` |
@@ -371,8 +389,13 @@ docs/app-popup-migration-mysql.sql
 docs/app-popup-navigation-migration-mysql.sql
 ```
 
-증분 파일은 기존 HTTPS `link_url`을 `EXTERNAL_URL` navigation으로 변환하고 `revision`을 1
-증가시킵니다. 롤백 확인을 위해 `link_url` 컬럼은 이번 배포에서 물리적으로 삭제하지 않지만,
-신규 애플리케이션은 해당 컬럼을 읽거나 쓰거나 응답하지 않습니다.
+증분 파일은 기존 HTTPS `link_url`을 `EXTERNAL_URL` navigation으로도 변환하고 `revision`을
+1 증가시킵니다. 기존 `link_url`은 팝업 사진 클릭 URL로 계속 읽고 씁니다.
+
+navigation 기반 테이블에 `link_url` 컬럼이 없다면 다음 증분 파일을 실행합니다.
+
+```text
+docs/app-popup-link-url-migration-mysql.sql
+```
 
 `docs/database-schema-mysql.sql`은 완전히 비어 있는 신규 DB 전용입니다.

@@ -114,6 +114,7 @@ class AppPopupApiIntegrationTest {
                 "title",
                 "content",
                 "image_url",
+                "link_url",
                 "navigation_schema_version",
                 "navigation_type",
                 "navigation_params",
@@ -240,6 +241,60 @@ class AppPopupApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_PNG))
                 .andExpect(content().bytes(TINY_PNG));
+    }
+
+    @Test
+    void optionalLinkUrlIsReturnedByPublicAndAdminApisAndCanBeCleared() throws Exception {
+        MvcResult created = mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(createRequestJson(
+                                "링크 팝업",
+                                "사진을 누르면 이동합니다.",
+                                "  https://www.hanseo.ac.kr/notice/1  ",
+                                null,
+                                true,
+                                null,
+                                null,
+                                0
+                        )))
+                        .file(imagePart("linked.png")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrl").isString())
+                .andExpect(jsonPath("$.linkUrl")
+                        .value("https://www.hanseo.ac.kr/notice/1"))
+                .andExpect(jsonPath("$.navigation").value(nullValue()))
+                .andReturn();
+        long popupId = responseId(created);
+
+        mockMvc.perform(get("/api/popups/active").with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].linkUrl")
+                        .value("https://www.hanseo.ac.kr/notice/1"));
+        mockMvc.perform(get("/api/admin/popups"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].linkUrl")
+                        .value("https://www.hanseo.ac.kr/notice/1"));
+        mockMvc.perform(get("/api/admin/popups/{popupId}", popupId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.linkUrl")
+                        .value("https://www.hanseo.ac.kr/notice/1"));
+
+        mockMvc.perform(multipart("/api/admin/popups/{popupId}", popupId)
+                        .file(requestPart(updateRequestJson(
+                                "링크 제거",
+                                "내용",
+                                true,
+                                0,
+                                "KEEP",
+                                null,
+                                "   "
+                        )))
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.linkUrl").value(nullValue()))
+                .andExpect(jsonPath("$.revision").value(2));
     }
 
     @Test
@@ -403,21 +458,6 @@ class AppPopupApiIntegrationTest {
         assertNavigationRejected(externalNavigationJson("javascript:alert(1)"),
                 "navigation.params.url");
 
-        String legacyLinkUrl = """
-                {
-                  "title": "레거시 링크",
-                  "content": "내용",
-                  "navigation": null,
-                  "linkUrl": "https://example.com",
-                  "enabled": true,
-                  "startsAt": null,
-                  "endsAt": null,
-                  "displayOrder": 0
-                }
-                """;
-        mockMvc.perform(multipart("/api/admin/popups")
-                        .file(requestPart(legacyLinkUrl)))
-                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -567,6 +607,10 @@ class AppPopupApiIntegrationTest {
                                 0
                         ))))
                 .andExpect(status().isBadRequest());
+
+        assertLinkUrlRejected("http://example.com");
+        assertLinkUrlRejected("https://user:password@example.com");
+        assertLinkUrlRejected("javascript:alert(1)");
 
         AppPopup popup = savePopup("수정 대상", true, null, null, 0);
         mockMvc.perform(multipart("/api/admin/popups/{popupId}", popup.getId())
@@ -763,7 +807,10 @@ class AppPopupApiIntegrationTest {
                 ).value(hasItem("navigation")))
                 .andExpect(jsonPath(
                         "$.components.schemas.AppPopupCreateRequest.properties.linkUrl"
-                ).doesNotExist());
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ActiveAppPopupResponse.properties.linkUrl"
+                ).exists());
     }
 
     private AppPopup savePopup(
@@ -776,6 +823,7 @@ class AppPopupApiIntegrationTest {
         return appPopupRepository.saveAndFlush(AppPopup.create(
                 title,
                 "내용",
+                null,
                 null,
                 null,
                 enabled,
@@ -835,10 +883,33 @@ class AppPopupApiIntegrationTest {
             String endsAt,
             int displayOrder
     ) {
+        return createRequestJson(
+                title,
+                content,
+                null,
+                navigationJson,
+                enabled,
+                startsAt,
+                endsAt,
+                displayOrder
+        );
+    }
+
+    private String createRequestJson(
+            String title,
+            String content,
+            String linkUrl,
+            String navigationJson,
+            boolean enabled,
+            String startsAt,
+            String endsAt,
+            int displayOrder
+    ) {
         return """
                 {
                   "title": %s,
                   "content": %s,
+                  "linkUrl": %s,
                   "navigation": %s,
                   "enabled": %s,
                   "startsAt": %s,
@@ -848,6 +919,7 @@ class AppPopupApiIntegrationTest {
                 """.formatted(
                 jsonString(title),
                 jsonString(content),
+                jsonNullableString(linkUrl),
                 navigationJson == null ? "null" : navigationJson,
                 enabled,
                 jsonNullableString(startsAt),
@@ -881,10 +953,31 @@ class AppPopupApiIntegrationTest {
             String imageAction,
             String navigationJson
     ) {
+        return updateRequestJson(
+                title,
+                content,
+                enabled,
+                displayOrder,
+                imageAction,
+                navigationJson,
+                null
+        );
+    }
+
+    private String updateRequestJson(
+            String title,
+            String content,
+            boolean enabled,
+            int displayOrder,
+            String imageAction,
+            String navigationJson,
+            String linkUrl
+    ) {
         return """
                 {
                   "title": %s,
                   "content": %s,
+                  "linkUrl": %s,
                   "navigation": %s,
                   "enabled": %s,
                   "startsAt": null,
@@ -895,6 +988,7 @@ class AppPopupApiIntegrationTest {
                 """.formatted(
                 jsonString(title),
                 jsonString(content),
+                jsonNullableString(linkUrl),
                 navigationJson == null ? "null" : navigationJson,
                 enabled,
                 displayOrder,
@@ -918,6 +1012,22 @@ class AppPopupApiIntegrationTest {
                         ))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString(expectedMessagePart)));
+    }
+
+    private void assertLinkUrlRejected(String linkUrl) throws Exception {
+        mockMvc.perform(multipart("/api/admin/popups")
+                        .file(requestPart(createRequestJson(
+                                "잘못된 링크",
+                                "내용",
+                                linkUrl,
+                                null,
+                                true,
+                                null,
+                                null,
+                                0
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("linkUrl")));
     }
 
     private String jsonNullableString(String value) {
