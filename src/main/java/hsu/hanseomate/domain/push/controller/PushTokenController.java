@@ -37,8 +37,10 @@ public class PushTokenController {
 
     @Operation(
             summary = "Push Token 등록/갱신",
-            description = "앱 설치 단위(installationId) 기준으로 토큰을 upsert합니다. "
-                    + "로그인 상태라면 JWT에서 userId를 추출하여 함께 저장합니다."
+            description = "앱 설치 단위(installationId)와 Expo token을 기준으로 토큰을 upsert합니다. "
+                    + "로그인 상태라면 JWT에서 userId를 추출하여 연결합니다. "
+                    + "같은 installationId의 비인증 갱신은 기존 사용자 연결을 유지하며, "
+                    + "로그아웃 시 DELETE API로 명시적으로 연결을 해제해야 합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "등록/갱신 성공"),
