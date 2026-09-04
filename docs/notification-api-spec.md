@@ -15,6 +15,14 @@
 | 유효 범위 | 해당 기기에 보이는 전체·개인 알림을 합쳐 **최신 20건**만 반환 |
 | 사용자 식별 | 기기는 `installationId`로 구분하며, 로그인 시 연결된 `push_devices.user_id`로 개인 알림을 제한 |
 
+### 개인 알림 수신 전제
+
+- 앱은 설치 후 생성한 동일한 `installationId`를 계속 저장해서 사용해야 합니다.
+- 로그인 직후 `Authorization: Bearer {accessToken}`을 포함해 `PUT /api/v1/push-tokens`를 호출해야 해당 기기와 사용자가 연결됩니다.
+- 같은 `installationId`로 보내는 비인증 토큰 갱신은 기존 사용자 연결을 유지합니다.
+- 로그아웃 시 `DELETE /api/v1/push-tokens/{installationId}`를 호출해야 사용자 연결이 해제됩니다.
+- 같은 Expo token이 새로운 `installationId`로 들어오면 기존 기기 행을 재사용합니다. 이 요청이 비인증이면 이전 사용자의 연결은 승계하지 않습니다.
+
 ---
 
 ## DB 스키마

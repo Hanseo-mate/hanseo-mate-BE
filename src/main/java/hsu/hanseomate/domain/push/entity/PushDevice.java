@@ -22,7 +22,8 @@ import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * 기기별 Expo Push Token 저장 엔티티.
- * installation_id 기준으로 upsert하며, user_id는 비로그인 사용자를 위해 nullable입니다.
+ * installation_id와 Expo token을 함께 식별 기준으로 사용하며,
+ * user_id는 비로그인 사용자를 위해 nullable입니다.
  */
 @Getter
 @Entity
@@ -103,10 +104,46 @@ public class PushDevice extends BaseTimeEntity {
         return device;
     }
 
-    /** 토큰 재등록(upsert) 시 기존 레코드 갱신 */
-    public void update(Long userId, String expoPushToken, String projectId, String appVersion) {
-        this.userId = userId;
+    /**
+     * 같은 설치에서 토큰 정보를 갱신합니다.
+     *
+     * <p>인증 없이 주기적으로 갱신하는 요청은 기존 사용자 연결을 유지합니다.
+     * 사용자 연결 해제는 로그아웃 API({@link #clearUserId()})에서만 명시적으로 처리합니다.</p>
+     */
+    public void refreshRegistration(
+            Long authenticatedUserId,
+            String expoPushToken,
+            String platform,
+            String projectId,
+            String appVersion
+    ) {
+        if (authenticatedUserId != null) {
+            this.userId = authenticatedUserId;
+        }
         this.expoPushToken = expoPushToken;
+        this.platform = platform;
+        this.projectId = projectId;
+        this.appVersion = appVersion;
+        this.isActive = true;
+        this.lastRegisteredAt = LocalDateTime.now();
+        this.disabledAt = null;
+        this.lastErrorCode = null;
+    }
+
+    /**
+     * 동일 Expo 토큰이 새로운 installationId로 등록된 경우 기존 행을 재사용합니다.
+     * 새 설치 요청이 비인증 상태라면 이전 설치의 사용자 연결은 승계하지 않습니다.
+     */
+    public void reassignInstallation(
+            Long authenticatedUserId,
+            String installationId,
+            String platform,
+            String projectId,
+            String appVersion
+    ) {
+        this.userId = authenticatedUserId;
+        this.installationId = installationId;
+        this.platform = platform;
         this.projectId = projectId;
         this.appVersion = appVersion;
         this.isActive = true;

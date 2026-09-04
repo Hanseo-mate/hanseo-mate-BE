@@ -1,9 +1,11 @@
 package hsu.hanseomate.domain.push.repository;
 
 import hsu.hanseomate.domain.push.entity.PushDevice;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,6 +15,19 @@ public interface PushDeviceRepository extends JpaRepository<PushDevice, Long> {
     Optional<PushDevice> findByInstallationId(String installationId);
 
     Optional<PushDevice> findByExpoPushToken(String expoPushToken);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select device
+            from PushDevice device
+            where device.installationId = :installationId
+               or device.expoPushToken = :expoPushToken
+            order by device.id
+            """)
+    List<PushDevice> findRegistrationCandidatesForUpdate(
+            @Param("installationId") String installationId,
+            @Param("expoPushToken") String expoPushToken
+    );
 
     List<PushDevice> findAllByIsActiveTrue();
 

@@ -476,8 +476,16 @@ class ClubApiIntegrationTest {
         long unlikedUserId = createReviewUser();
         toggleLikeAsUser(clubId, likedUserId);
 
-        saveInactivePushDevice(likedUserId, "liked-installation", "liked-token");
-        saveInactivePushDevice(unlikedUserId, "unliked-installation", "unliked-token");
+        registerRefreshAndDeactivatePushDevice(
+                likedUserId,
+                "liked-installation",
+                "liked-token"
+        );
+        registerRefreshAndDeactivatePushDevice(
+                unlikedUserId,
+                "unliked-installation",
+                "unliked-token"
+        );
 
         Map<String, Object> createdRequest = clubUpdateRequest(
                 "알림 동아리",
@@ -1343,19 +1351,36 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.likeCount").value(expectedCount));
     }
 
-    private void saveInactivePushDevice(
+    private void registerRefreshAndDeactivatePushDevice(
             long userId,
             String installationId,
             String tokenKey
-    ) {
-        PushDevice device = PushDevice.create(
-                userId,
-                installationId,
-                "ExponentPushToken[" + tokenKey + "]",
-                "android",
-                "test-project",
-                "1.0.0"
-        );
+    ) throws Exception {
+        String requestBody = json(Map.of(
+                "expoPushToken", "ExponentPushToken[" + tokenKey + "]",
+                "projectId", "test-project",
+                "platform", "android",
+                "installationId", installationId,
+                "appVersion", "1.0.0"
+        ));
+
+        mockMvc.perform(put("/api/v1/push-tokens")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(userId)
+                        )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/v1/push-tokens")
+                        .with(anonymous())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk());
+
+        PushDevice device = pushDeviceRepository.findByInstallationId(installationId)
+                .orElseThrow();
+        assertThat(device.getUserId()).isEqualTo(userId);
         device.deactivate("TEST");
         pushDeviceRepository.saveAndFlush(device);
     }
