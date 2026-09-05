@@ -191,12 +191,14 @@ CREATE TABLE notification_outbox (
     id BIGINT NOT NULL AUTO_INCREMENT,
     payload TEXT NOT NULL,
     status VARCHAR(20) NOT NULL,
+    expires_at DATETIME(6) NULL,
     error_message VARCHAR(500) NULL,
     target_user_id BIGINT NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
-    INDEX idx_notification_outbox_target_user (target_user_id)
+    INDEX idx_notification_outbox_target_user (target_user_id),
+    INDEX idx_notification_outbox_status (status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE push_devices (
@@ -987,6 +989,16 @@ CREATE TABLE timetable_courses (
         FOREIGN KEY (timetable_id) REFERENCES timetables (id) ON DELETE CASCADE,
     CONSTRAINT fk_timetable_course_offering
         FOREIGN KEY (course_offering_id) REFERENCES course_offerings (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE timetable_class_reminders (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    timetable_course_id BIGINT NOT NULL,
+    starts_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_timetable_class_reminder_occurrence UNIQUE (timetable_course_id, starts_at),
+    CONSTRAINT fk_class_reminder_timetable_course FOREIGN KEY (timetable_course_id)
+        REFERENCES timetable_courses (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE course_source_cells (

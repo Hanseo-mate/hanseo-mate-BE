@@ -10,6 +10,12 @@ import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Objects;
+import hsu.hanseomate.domain.timetable.reminder.support.TimetableReminderPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -95,6 +101,36 @@ public class NotificationService {
                 .forEach(userId -> enqueue(title, body, data, userId));
     }
 
+    /** 개인 시간표의 실제 수업 시작 1시간 전 알림입니다. 전체 발송은 허용하지 않습니다. */
+    @Transactional
+    public void enqueueTimetableClassReminder(
+            Long userId, Long timetableId, Long timetableCourseId,
+            int year, int semester, String courseName, OffsetDateTime startsAt
+    ) {
+        Objects.requireNonNull(userId, "Class reminder requires a target user");
+        String title = "[수업 알림] " + courseName;
+        if (title.length() > 255) {
+            title = title.substring(0, 255);
+        }
+        Map<String, Object> data = Map.of(
+                "version", 1,
+                "type", "schedule",
+                "subType", "class_start_reminder",
+                "route", "/timetable",
+                "entityId", timetableId.toString(),
+                "timetableCourseId", timetableCourseId.toString(),
+                "year", year,
+                "semester", semester,
+                "startsAt", startsAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                "minutesBefore", TimetableReminderPolicy.MINUTES_BEFORE
+        );
+        LocalDateTime expiresAt = startsAt
+                .minusMinutes(TimetableReminderPolicy.MINUTES_BEFORE)
+                .plusMinutes(TimetableReminderPolicy.EXPIRY_MINUTES)
+                .withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        enqueue(title, courseName + " 수업 시작 1시간 전입니다.", data, userId, expiresAt);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void enqueue(String title, String body, Map<String, Object> data) {
@@ -106,6 +142,16 @@ public class NotificationService {
             String body,
             Map<String, Object> data,
             Long targetUserId
+    ) {
+        enqueue(title, body, data, targetUserId, null);
+    }
+
+    private void enqueue(
+            String title,
+            String body,
+            Map<String, Object> data,
+            Long targetUserId,
+            LocalDateTime expiresAt
     ) {
         try {
             String dataJson = objectMapper.writeValueAsString(data);
@@ -120,7 +166,7 @@ public class NotificationService {
                     .build());
 
             // Expo 발송 Outbox에 저장
-            outboxRepository.save(NotificationOutbox.create(payloadJson, targetUserId));
+            outboxRepository.save(NotificationOutbox.create(payloadJson, targetUserId, expiresAt));
 
             log.info("Enqueued notification title=\"{}\", targetUserId={}", title, targetUserId);
         } catch (JsonProcessingException e) {
