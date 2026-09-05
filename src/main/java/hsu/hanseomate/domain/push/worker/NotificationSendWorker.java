@@ -12,6 +12,9 @@ import hsu.hanseomate.domain.push.entity.PushTicket;
 import hsu.hanseomate.domain.push.service.NotificationDispatchService;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -42,6 +45,7 @@ public class NotificationSendWorker {
     private final NotificationDispatchService dispatchService;
     private final ExpoPushClient expoPushClient;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
     /**
      * 30초마다 실행. PENDING Outbox를 일괄 처리합니다.
@@ -55,6 +59,10 @@ public class NotificationSendWorker {
         log.info("Processing {} pending notification outbox(es)", outboxes.size());
 
         for (NotificationOutbox outbox : outboxes) {
+            if (outbox.isExpiredAt(LocalDateTime.now(clock.withZone(ZoneOffset.UTC)))) {
+                dispatchService.markOutboxExpired(outbox.getId());
+                continue;
+            }
             List<PushDevice> targetDevices = outbox.getTargetUserId() == null
                     ? dispatchService.findAllActiveDevices()
                     : dispatchService.findActiveDevicesByUserId(outbox.getTargetUserId());
