@@ -14,7 +14,13 @@ public record HomePageResponse(
         List<HomePosterItemResponse> posters,
         List<HomeTodayCourseResponse> todayCourses,
         List<HomeNoticeResponse> popularNotices,
-        List<HomeCafeteriaMenuResponse> todayCafeteriaMenus
+        List<HomeCafeteriaMenuResponse> todayCafeteriaMenus,
+        @Schema(
+                description = "축제 플로팅 버튼 노출 여부. 설정이 없으면 false",
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                defaultValue = "false"
+        )
+        boolean festivalFloatingButtonVisible
 ) {
     public HomePageResponse {
         posterImageUrls = posterImageUrls == null

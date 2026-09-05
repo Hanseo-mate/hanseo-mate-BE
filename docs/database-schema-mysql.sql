@@ -27,6 +27,29 @@ CREATE TABLE home_posters (
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE app_feature_settings (
+    setting_key VARCHAR(64) NOT NULL,
+    enabled BIT(1) NOT NULL DEFAULT b'0',
+    updated_at DATETIME(6) NULL,
+    updated_by BIGINT NULL,
+    PRIMARY KEY (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE app_feature_setting_audits (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    setting_key VARCHAR(64) NOT NULL,
+    changed_by BIGINT NOT NULL,
+    changed_at DATETIME(6) NOT NULL,
+    previous_enabled BIT(1) NOT NULL,
+    new_enabled BIT(1) NOT NULL,
+    request_ip VARCHAR(64) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_feature_setting_audits_key_id (setting_key, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO app_feature_settings (setting_key, enabled)
+VALUES ('FESTIVAL_FLOATING_BUTTON', false);
+
 CREATE TABLE app_popups (
     id BIGINT NOT NULL AUTO_INCREMENT,
     title VARCHAR(200) NOT NULL,

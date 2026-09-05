@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
@@ -31,7 +33,8 @@ public class HomeController {
 
     @Operation(
             summary = "메인 페이지 통합 조회",
-            description = "로그인은 선택 사항입니다. 비로그인 사용자는 서산 학생식당, 로그인 사용자는 저장된 선호 식당 기준 오늘 학식을 함께 반환합니다."
+            description = "로그인은 선택 사항입니다. 비로그인 사용자는 서산 학생식당, 로그인 사용자는 저장된 선호 식당 기준 오늘 학식을 함께 반환합니다. "
+                    + "축제 플로팅 버튼 노출 설정을 항상 boolean으로 반환하며 응답은 캐시하지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -42,8 +45,9 @@ public class HomeController {
             )
     })
     @GetMapping
-    public HomePageResponse getHome(Authentication authentication) {
-        return homePageService.getHome(optionalCurrentUserId(authentication));
+    public ResponseEntity<HomePageResponse> getHome(Authentication authentication) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(homePageService.getHome(optionalCurrentUserId(authentication)));
     }
 
     private Optional<Long> optionalCurrentUserId(Authentication authentication) {
