@@ -1,11 +1,13 @@
 package hsu.hanseomate.domain.timetable.composition.repository;
 
 import hsu.hanseomate.domain.timetable.composition.entity.TimetableCourse;
+import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,6 +15,34 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TimetableCourseRepository extends JpaRepository<TimetableCourse, Long> {
+
+    @EntityGraph(attributePaths = {
+            "timetable", "courseOffering", "courseOffering.course",
+            "courseOffering.course.generalEducation"
+    })
+    @Query("""
+            select tc from TimetableCourse tc
+            left join tc.courseOffering offering
+            where tc.id > :afterId
+              and tc.timetable.academicYear = :academicYear
+              and tc.timetable.semester = :semester
+              and (
+                (tc.courseOffering is null and tc.customDayOfWeek = :dayOfWeek)
+                or (offering.active = true and exists (
+                    select schedule.id from CourseSchedule schedule
+                    where schedule.course = offering.course
+                      and schedule.dayOfWeek = :dayOfWeek
+                ))
+              )
+            order by tc.id
+            """)
+    List<TimetableCourse> findReminderEntries(
+            @Param("academicYear") int academicYear,
+            @Param("semester") int semester,
+            @Param("dayOfWeek") DayOfWeek dayOfWeek,
+            @Param("afterId") long afterId,
+            Pageable pageable
+    );
 
     boolean existsByTimetableIdAndCourseOfferingId(Long timetableId, UUID courseOfferingId);
 

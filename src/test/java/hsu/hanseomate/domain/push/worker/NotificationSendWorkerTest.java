@@ -16,6 +16,7 @@ import hsu.hanseomate.domain.push.entity.PushDevice;
 import hsu.hanseomate.domain.push.service.NotificationDispatchService;
 import java.util.List;
 import java.util.Map;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -29,7 +30,8 @@ class NotificationSendWorkerTest {
         NotificationSendWorker worker = new NotificationSendWorker(
                 dispatchService,
                 expoPushClient,
-                objectMapper
+                objectMapper,
+                Clock.systemUTC()
         );
 
         long targetUserId = 42L;

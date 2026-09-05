@@ -8,10 +8,12 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
 
 /**
  * 알림 발송 요청 큐 테이블.
@@ -20,7 +22,8 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(name = "notification_outbox")
+@Table(name = "notification_outbox", indexes = @Index(
+        name = "idx_notification_outbox_status", columnList = "status,id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class NotificationOutbox extends BaseTimeEntity {
 
@@ -46,14 +49,23 @@ public class NotificationOutbox extends BaseTimeEntity {
     @Column(name = "target_user_id")
     private Long targetUserId;
 
+    /** UTC 기준 발송 유효 기한. null인 기존 일반 알림에는 만료가 적용되지 않습니다. */
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
     public static NotificationOutbox create(String payload) {
         return create(payload, null);
     }
 
     public static NotificationOutbox create(String payload, Long targetUserId) {
+        return create(payload, targetUserId, null);
+    }
+
+    public static NotificationOutbox create(String payload, Long targetUserId, LocalDateTime expiresAt) {
         NotificationOutbox outbox = new NotificationOutbox();
         outbox.payload = payload;
         outbox.targetUserId = targetUserId;
+        outbox.expiresAt = expiresAt;
         outbox.status = OutboxStatus.PENDING;
         return outbox;
     }
@@ -64,6 +76,14 @@ public class NotificationOutbox extends BaseTimeEntity {
 
     public void markSent() {
         this.status = OutboxStatus.SENT;
+    }
+
+    public boolean isExpiredAt(LocalDateTime utcNow) {
+        return expiresAt != null && !expiresAt.isAfter(utcNow);
+    }
+
+    public void markExpired() {
+        this.status = OutboxStatus.EXPIRED;
     }
 
     public void markFailed(String errorMessage) {

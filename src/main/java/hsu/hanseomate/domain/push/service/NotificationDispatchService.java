@@ -62,6 +62,12 @@ public class NotificationDispatchService {
                 .ifPresent(NotificationOutbox::markSent);
     }
 
+    @Transactional
+    public void markOutboxExpired(Long outboxId) {
+        outboxRepository.findById(outboxId)
+                .ifPresent(NotificationOutbox::markExpired);
+    }
+
     /** Outbox를 FAILED로 처리합니다. */
     @Transactional
     public void markOutboxFailed(Long outboxId, String errorMessage) {
