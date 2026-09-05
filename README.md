@@ -6,7 +6,13 @@
 로그인 사용자의 학기별 예상 성적 저장과 학기·누적 학점 계산,
 중앙동아리 정보 관리, 로그인 사용자 기반 좋아요와 선택형 활동 후기, 동아리 이미지 업로드,
 학생회 공지 CRUD, 시스템 공지 CRUD, 관리자용 홈 포스터 이미지 관리와 로그인 여부에
-관계없이 노출되는 앱 시작 팝업 관리입니다.
+관계없이 노출되는 앱 시작 팝업 관리, 축제 플로팅 버튼 노출 설정과 변경 감사 이력입니다.
+
+축제 버튼 설정은 `GET /api/home`의 `festivalFloatingButtonVisible`과 관리자
+`GET/PATCH /api/admin/settings/festival-floating-button`으로 제공합니다.
+운영 배포 전 [증분 SQL](docs/festival-floating-button-migration-mysql.sql)을 적용합니다.
+[API와 프론트 연동 계약](docs/festival-floating-button-api.md)에서 기본값, 멱등성, 감사 이력,
+캐시 정책 및 관리자 UI/앱 연동 기준을 확인할 수 있습니다.
 
 ## 기술 스택
 

@@ -8,6 +8,9 @@
 - 비로그인 사용자는 서산 학생식당(`MAIN_STUDENT`) 기준 오늘 학식을 반환합니다.
 - 로그인 사용자는 DB에 저장된 `preferredRestaurantType` 기준 오늘 학식만 반환합니다.
 - 선택된 식당의 오늘 식단이 없으면 `todayCafeteriaMenus`는 빈 배열 `[]`입니다.
+- `festivalFloatingButtonVisible`은 축제 플로팅 버튼 노출 여부입니다. 항상 boolean을 반환하고,
+  설정이 없으면 `false`입니다. 관리자 PATCH 완료 후 다음 조회부터 변경값을 반환합니다.
+- 응답 헤더는 `Cache-Control: no-store`이며 서버 내부 설정 캐시는 사용하지 않습니다.
 
 ## 2. 요청
 
@@ -26,6 +29,7 @@ GET /api/home
 ```json
 {
   "loggedIn": true,
+  "festivalFloatingButtonVisible": false,
   "preferredRestaurantType": "TAEAN_STUDENT",
   "posterImageUrls": [
     "https://api.example.com/uploads/home-posters/poster.png"
@@ -86,6 +90,7 @@ GET /api/home
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `loggedIn` | Boolean | 로그인 여부 |
+| `festivalFloatingButtonVisible` | Boolean | 홈 축제 플로팅 버튼 노출 여부. 필수, null 불가, 기본 false. 로그인 여부와 무관하게 같은 값 |
 | `preferredRestaurantType` | String or null | 로그인 사용자의 저장된 선호 학생식당 (`MAIN_STUDENT` 또는 `TAEAN_STUDENT`) |
 | `posterImageUrls` | String[] or null | 기존 클라이언트 호환용 포스터 이미지 URL 목록 |
 | `posters` | Object[] or null | 포스터 상세 목록 |
@@ -129,6 +134,15 @@ GET /api/home
 - 포스터가 없으면 `posterImageUrls`, `posters`는 `null`
 - 오늘 시간표가 없으면 `todayCourses: []`
 - 인기 공지가 없는 분야는 `title: null`
+- 축제 버튼 설정 행이 없으면 `festivalFloatingButtonVisible: false`
+
+### 축제 플로팅 버튼 연동
+
+- `festivalFloatingButtonVisible === true`일 때만 버튼을 표시합니다.
+- 필드 누락, null, 잘못된 타입, 최초 조회/갱신 실패 시 버튼을 숨깁니다. 실패 시 과거 true를 재사용하지 않습니다.
+- 버튼 클릭 시 기존 `/festival` 화면 이동과 정적 이미지/문구/위치를 유지합니다.
+- 축제 페이지 접근 권한과 앱 시작 팝업 상태는 이 값의 영향을 받지 않습니다.
+- 관리자 API 및 타입 계약: [축제 플로팅 버튼 API](festival-floating-button-api.md).
 
 ## 7. 인증 및 오류
 
