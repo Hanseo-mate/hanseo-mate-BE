@@ -1,5 +1,6 @@
 package hsu.hanseomate.domain.home.service;
 
+import hsu.hanseomate.domain.appsetting.service.FestivalFloatingButtonService;
 import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
@@ -47,6 +48,7 @@ public class HomePageService {
             DateTimeFormatter.ofPattern("HH:mm");
 
     private final HomePosterService homePosterService;
+    private final FestivalFloatingButtonService festivalFloatingButtonService;
     private final DailyMenuRepository dailyMenuRepository;
     private final CourseScheduleRepository courseScheduleRepository;
     private final NoticeRepository noticeRepository;
@@ -80,7 +82,8 @@ public class HomePageService {
                 posters.isEmpty() ? null : posters,
                 todayCourses,
                 popularNotices(),
-                todayCafeteriaMenus(today, selectedRestaurantType)
+                todayCafeteriaMenus(today, selectedRestaurantType),
+                festivalFloatingButtonService.getSetting().visible()
         );
     }
 
