@@ -8,8 +8,8 @@ import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.Semester;
 import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseResponse;
 import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseGroup;
-import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseMember;
-import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseMemberRepository;
+import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseMembership;
+import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseMembershipRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,8 +17,8 @@ import org.junit.jupiter.api.Test;
 
 class EquivalentCourseQueryServiceTest {
 
-    private final EquivalentCourseMemberRepository memberRepository =
-            mock(EquivalentCourseMemberRepository.class);
+    private final EquivalentCourseMembershipRepository memberRepository =
+            mock(EquivalentCourseMembershipRepository.class);
     private final EquivalentCourseQueryService queryService =
             new EquivalentCourseQueryService(memberRepository);
 
@@ -28,9 +28,9 @@ class EquivalentCourseQueryServiceTest {
         Semester semester = mock(Semester.class);
         EquivalentCourseGroup group = mock(EquivalentCourseGroup.class);
         UUID groupId = UUID.randomUUID();
-        EquivalentCourseMember current = member("0000002", "둘째", group);
-        EquivalentCourseMember first = member("0000001", "첫째", group);
-        EquivalentCourseMember third = member("0000003", "셋째", group);
+        EquivalentCourseMembership current = member("0000002", "둘째", group);
+        EquivalentCourseMembership first = member("0000001", "첫째", group);
+        EquivalentCourseMembership third = member("0000003", "셋째", group);
         when(offering.getCourseCode()).thenReturn("0000002");
         when(offering.getSemester()).thenReturn(semester);
         when(semester.getAcademicYear()).thenReturn(2026);
@@ -61,12 +61,12 @@ class EquivalentCourseQueryServiceTest {
         assertThat(queryService.findEquivalentCourses(offering)).isEmpty();
     }
 
-    private EquivalentCourseMember member(
+    private EquivalentCourseMembership member(
             String code,
             String name,
             EquivalentCourseGroup group
     ) {
-        EquivalentCourseMember member = mock(EquivalentCourseMember.class);
+        EquivalentCourseMembership member = mock(EquivalentCourseMembership.class);
         when(member.getCourseCode()).thenReturn(code);
         when(member.getCourseName()).thenReturn(name);
         when(member.getGroup()).thenReturn(group);

@@ -1,7 +1,10 @@
 package hsu.hanseomate.domain.courseenrichment.equivalence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,8 +18,13 @@ import hsu.hanseomate.domain.course.entity.Semester;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
+import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseGroupData;
+import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseParseResult;
 import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseHistoryStatus;
+import hsu.hanseomate.domain.courseenrichment.equivalence.parser.EquivalentCourseWorkbookParser;
 import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseImportHistoryRepository;
+import hsu.hanseomate.domain.courseenrichment.equivalence.service.EquivalentCourseImportService;
+import hsu.hanseomate.domain.courseenrichment.equivalence.service.EquivalentCourseQueryService;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
 import hsu.hanseomate.domain.courseimport.repository.CourseImportHistoryRepository;
@@ -36,6 +44,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -76,6 +85,8 @@ class EquivalentCourseImportApiIntegrationTest {
     void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
+            jdbcTemplate.execute("DELETE FROM equivalent_course_memberships");
+            jdbcTemplate.execute("DELETE FROM equivalent_course_contents");
             jdbcTemplate.execute("DELETE FROM equivalent_course_members");
             jdbcTemplate.execute("DELETE FROM equivalent_course_groups");
             jdbcTemplate.execute("DELETE FROM equivalent_course_import_histories");
@@ -164,6 +175,8 @@ class EquivalentCourseImportApiIntegrationTest {
                 .andExpect(jsonPath("$.databaseChanged").value(true));
 
         assertThat(historyRepository.count()).isEqualTo(3);
+        assertThat(count("equivalent_course_contents")).isEqualTo(3);
+        assertThat(count("equivalent_course_members")).isZero();
         Map<EquivalentCourseHistoryStatus, Long> statusCounts = historyRepository.findAll()
                 .stream()
                 .collect(Collectors.groupingBy(
@@ -176,7 +189,7 @@ class EquivalentCourseImportApiIntegrationTest {
                 EquivalentCourseHistoryStatus.REVIEW_REQUIRED, 1L
         ));
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM equivalent_course_members",
+                "SELECT COUNT(*) FROM equivalent_course_memberships",
                 Integer.class
         )).isEqualTo(4);
         assertThat(jdbcTemplate.queryForObject(
@@ -245,6 +258,109 @@ class EquivalentCourseImportApiIntegrationTest {
                         "$.components.schemas.CourseOfferingDetailResponse.properties"
                                 + ".crossMajorRecognitions.items.type"
                 ).value("string"));
+    }
+
+    @Autowired
+    private EquivalentCourseQueryService
+            queryService;
+
+    @Test
+    void reusesContentAcrossYearsWhilePreservingNamesAndRemovedMembersInEarlierYear() throws Exception {
+        List<String[]> original = List.of(
+                row("1", "0000001", "기준과목"),
+                row("", "0000002", "기존이름"),
+                row("", "0000003", "제외과목"));
+        upload("2025-2 최초.xlsx", original);
+        upload("2026-2 최초.xlsx", original);
+        assertThat(count("equivalent_course_contents")).isEqualTo(3);
+        assertThat(count("equivalent_course_memberships")).isEqualTo(6);
+
+        upload("2026-2 수정.xlsx", List.of(
+                row("1", "0000001", "기준과목"),
+                row("", "0000002", "변경이름"),
+                row("", "0000004", "추가과목")));
+        assertThat(count("equivalent_course_contents")).isEqualTo(5);
+        assertThat(count("equivalent_course_memberships")).isEqualTo(9);
+        assertThat(count("equivalent_course_members")).isZero();
+        assertThat(queryService.findEquivalentCourses(queryOffering(2025, 2, "0000001")))
+                .extracting(response -> response.courseName())
+                .containsExactly("기존이름", "제외과목");
+        assertThat(queryService.findEquivalentCourses(queryOffering(2026, 2, "0000001")))
+                .extracting(response -> response.courseName())
+                .containsExactly("변경이름", "추가과목");
+        assertThat(queryService.findEquivalentCourses(queryOffering(2026, 2, "0000003"))).isEmpty();
+        assertThat(queryService.findEquivalentCourses(queryOffering(2026, 1, "0000001"))).isEmpty();
+
+        // A prior version can be reintroduced without inserting its content again.
+        upload("2026-2 복원.xlsx", original);
+        assertThat(count("equivalent_course_contents")).isEqualTo(5);
+        assertThat(queryService.findEquivalentCourses(queryOffering(2026, 2, "0000001")))
+                .extracting(response -> response.courseName())
+                .containsExactly("기존이름", "제외과목");
+    }
+
+    @Test
+    void regroupingReusesAllContentWithoutLeakingOldGroupMembers() throws Exception {
+        upload("2026-2 최초.xlsx", List.of(
+                row("1", "0000001", "가"), row("", "0000002", "나"),
+                row("2", "0000003", "다"), row("", "0000004", "라")));
+        upload("2026-2 재편.xlsx", List.of(
+                row("1", "0000001", "가"), row("", "0000003", "다"),
+                row("2", "0000002", "나"), row("", "0000004", "라")));
+        assertThat(count("equivalent_course_contents")).isEqualTo(4);
+        assertThat(queryService.findEquivalentCourses(queryOffering(2026, 2, "0000001")))
+                .extracting(response -> response.courseCode()).containsExactly("0000003");
+    }
+
+    private void upload(String name, List<String[]> rows) throws Exception {
+        mockMvc.perform(multipart(PATH).file(file(name, rows)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storageStatus").value("STORED"));
+    }
+
+    @Autowired
+    private EquivalentCourseImportService
+            importService;
+
+    @Autowired
+    private EquivalentCourseWorkbookParser
+            parser;
+
+    @Test
+    void persistenceFailureRollsBackContentLinksAndActiveHistoryTogether() throws Exception {
+        upload("2026-2 최초.xlsx", List.of(
+                row("1", "0000001", "기준"), row("", "0000002", "기존")));
+        var parsed = parser.parse(workbook(List.of(
+                row("1", "0000001", "기준"), row("", "0000003", "새과목"))), "2026-2 변경.xlsx");
+        var group = parsed.groups().get(0);
+        var brokenGroup = new EquivalentCourseGroupData(
+                group.sourceSerial(), group.groupOrder(), group.sourceSheet(),
+                group.sourceStartRow(), group.sourceEndRow(),
+                List.of(group.members().get(0), group.members().get(1), group.members().get(1)));
+        var broken = new EquivalentCourseParseResult(
+                parsed.schemaVersion(), parsed.parserVersion(), parsed.importId(), parsed.fileName(),
+                parsed.rawFileSha256(), parsed.canonicalHash(), parsed.academicYear(), parsed.semester(),
+                List.of(brokenGroup), List.of());
+
+        assertThatThrownBy(() -> importService.importSnapshot(broken))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(historyRepository.count()).isEqualTo(1);
+        assertThat(count("equivalent_course_contents")).isEqualTo(2);
+        assertThat(count("equivalent_course_memberships")).isEqualTo(2);
+        assertThat(queryService.findEquivalentCourses(queryOffering(2026, 2, "0000001")))
+                .extracting(response -> response.courseName()).containsExactly("기존");
+    }
+
+    private CourseOffering queryOffering(int year, int term, String code) {
+        CourseOffering offering = mock(CourseOffering.class);
+        when(offering.getSemester()).thenReturn(Semester.create(year, term));
+        when(offering.getCourseCode()).thenReturn(code);
+        return offering;
+    }
+
+    private int count(String table) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
     }
 
     private CourseOffering courseOffering(String code, String name) {

@@ -4,11 +4,11 @@ import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecogniti
 import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionParseResult;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.parser.CrossMajorRecognitionWorkbookParser;
 import hsu.hanseomate.domain.courseimport.parser.common.CourseWorkbookParseException;
+import hsu.hanseomate.domain.courseenrichment.support.ImportConcurrencyRetry;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,17 +41,9 @@ public class CrossMajorRecognitionImportFacade {
                 bytes,
                 file.getOriginalFilename()
         );
-        try {
-            return importService.importParsed(parsed);
-        } catch (DataIntegrityViolationException firstInsertRace) {
-            if (!isActiveScopeRace(firstInsertRace)) {
-                throw firstInsertRace;
-            }
-            // Two application instances may both observe an empty annual scope. The unique
-            // active-scope key chooses one winner; this fresh transaction then re-evaluates
-            // the loser as a duplicate or as the latest replacement.
-            return importService.importParsed(parsed);
-        }
+        return ImportConcurrencyRetry.execute(
+                "cross_major_rule_contents", "uk_cross_major_active_scope",
+                () -> importService.importParsed(parsed));
     }
 
     private void validate(MultipartFile file) {
@@ -112,23 +104,6 @@ public class CrossMajorRecognitionImportFacade {
                     "유효한 Office Open XML 엑셀 파일이 아닙니다."
             );
         }
-    }
-
-    private boolean isActiveScopeRace(Throwable exception) {
-        Throwable current = exception;
-        while (current != null) {
-            String message = current.getMessage();
-            if (message != null) {
-                String normalized = message.toLowerCase(Locale.ROOT);
-                if (normalized.contains("active_scope_key")
-                        || normalized.contains("activescopekey")
-                        || normalized.contains("uk_cross_major_active_scope")) {
-                    return true;
-                }
-            }
-            current = current.getCause();
-        }
-        return false;
     }
 
     private String extension(String fileName) {

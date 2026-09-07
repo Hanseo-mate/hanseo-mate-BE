@@ -3,8 +3,8 @@ package hsu.hanseomate.domain.courseenrichment.equivalence.service;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.Semester;
 import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseResponse;
-import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseMember;
-import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseMemberRepository;
+import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseMembership;
+import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseMembershipRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EquivalentCourseQueryService {
 
-    private final EquivalentCourseMemberRepository memberRepository;
+    private final EquivalentCourseMembershipRepository memberRepository;
 
     @Transactional(readOnly = true)
     public List<EquivalentCourseResponse> findEquivalentCourses(CourseOffering offering) {
@@ -25,7 +25,7 @@ public class EquivalentCourseQueryService {
 
         Semester semester = offering.getSemester();
         String activeScopeKey = semester.getAcademicYear() + ":" + semester.getSemester();
-        EquivalentCourseMember current = memberRepository
+        EquivalentCourseMembership current = memberRepository
                 .findActiveMember(activeScopeKey, offering.getCourseCode())
                 .orElse(null);
         if (current == null) {
