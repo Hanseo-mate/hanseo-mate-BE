@@ -48,9 +48,6 @@ public class CampusLectureBuildingDetail extends BaseTimeEntity {
     @Column(name = "has_elevator")
     private Boolean hasElevator;
 
-    @Column(name = "operating_hours", length = 255)
-    private String operatingHours;
-
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "campus_lecture_building_departments",
@@ -85,14 +82,12 @@ public class CampusLectureBuildingDetail extends BaseTimeEntity {
             String location,
             Integer floorCount,
             Boolean hasElevator,
-            String operatingHours,
             List<String> departments,
             List<String> majorFacilities
     ) {
         this.location = location;
         this.floorCount = floorCount;
         this.hasElevator = hasElevator;
-        this.operatingHours = operatingHours;
         this.departments.clear();
         this.departments.addAll(departments);
         this.majorFacilities.clear();

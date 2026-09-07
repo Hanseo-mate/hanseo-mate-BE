@@ -114,10 +114,9 @@ class CampusPlaceApiIntegrationTest {
                             location_description,
                             floor_count,
                             has_elevator,
-                            operating_hours,
                             created_at,
                             updated_at
-                        ) VALUES (2, '태안캠퍼스', 4, TRUE, '평일 09:00~22:00',
+                        ) VALUES (2, '태안캠퍼스', 4, TRUE,
                                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """
         );
@@ -263,8 +262,6 @@ class CampusPlaceApiIntegrationTest {
                         .value(4))
                 .andExpect(jsonPath("$.lectureBuildingDetails.hasElevator")
                         .value(true))
-                .andExpect(jsonPath("$.lectureBuildingDetails.operatingHours")
-                        .value("평일 09:00~22:00"))
                 .andExpect(jsonPath("$.lectureBuildingDetails.departments[0]")
                         .value("항공운항학과"))
                 .andExpect(jsonPath("$.lectureBuildingDetails.departments[1]")
@@ -366,7 +363,6 @@ class CampusPlaceApiIntegrationTest {
                                     "location": "태안캠퍼스 중앙",
                                     "floorCount": 5,
                                     "hasElevator": false,
-                                    "operatingHours": "평일 08:00~21:00",
                                     "departments": ["항공운항학과", "항공교통물류학과"],
                                     "majorFacilities": ["대형강의실", "행정실"]
                                   }
@@ -428,7 +424,6 @@ class CampusPlaceApiIntegrationTest {
                                     "location": "서산캠퍼스",
                                     "floorCount": 3,
                                     "hasElevator": true,
-                                    "operatingHours": "평일 09:00~18:00",
                                     "departments": ["컴퓨터공학과"],
                                     "majorFacilities": ["강의실"]
                                   }
@@ -493,7 +488,6 @@ class CampusPlaceApiIntegrationTest {
                     "location": "서산캠퍼스",
                     "floorCount": 1,
                     "hasElevator": false,
-                    "operatingHours": "09:00~18:00",
                     "departments": ["학과"],
                     "majorFacilities": ["시설"]
                   }
@@ -560,7 +554,6 @@ class CampusPlaceApiIntegrationTest {
                                     "location": "태안캠퍼스",
                                     "floorCount": 4,
                                     "hasElevator": true,
-                                    "operatingHours": "평일 09:00~22:00",
                                     "departments": ["항공운항학과"],
                                     "majorFacilities": ["강의실"]
                                   }

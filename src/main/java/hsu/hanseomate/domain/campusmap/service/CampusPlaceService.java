@@ -273,7 +273,6 @@ public class CampusPlaceService {
                 request.location().trim(),
                 request.floorCount(),
                 request.hasElevator(),
-                request.operatingHours().trim(),
                 departments,
                 majorFacilities
         );
@@ -361,7 +360,6 @@ public class CampusPlaceService {
                 detail.getLocation(),
                 detail.getFloorCount(),
                 detail.getHasElevator(),
-                detail.getOperatingHours(),
                 detail.getDepartments(),
                 detail.getMajorFacilities()
         );

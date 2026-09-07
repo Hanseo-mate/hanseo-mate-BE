@@ -243,7 +243,6 @@ GET /api/campus-map/places/{placeId}
     "location": "서산캠퍼스",
     "floorCount": 5,
     "hasElevator": true,
-    "operatingHours": "평일 09:00~22:00",
     "departments": ["컴퓨터공학과", "항공소프트웨어공학과"],
     "majorFacilities": ["전산실습실", "학과사무실"]
   }
@@ -312,7 +311,6 @@ Content-Type: application/json
     "location": "서산캠퍼스",
     "floorCount": 5,
     "hasElevator": true,
-    "operatingHours": "평일 09:00~22:00",
     "departments": ["컴퓨터공학과", "항공소프트웨어공학과"],
     "majorFacilities": ["전산실습실", "학과사무실"]
   }
