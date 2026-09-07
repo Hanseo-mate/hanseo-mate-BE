@@ -28,7 +28,6 @@ CREATE TABLE campus_lecture_building_details (
     location_description VARCHAR(255) NULL,
     floor_count INT NULL,
     has_elevator BIT(1) NULL,
-    operating_hours VARCHAR(255) NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (place_id),
@@ -78,9 +77,9 @@ SHOW CREATE TABLE campus_lecture_building_facilities;
 --
 -- INSERT INTO campus_lecture_building_details (
 --     place_id, location_description, floor_count, has_elevator,
---     operating_hours, created_at, updated_at
+--     created_at, updated_at
 -- ) VALUES (
---     83, '서산캠퍼스', 5, b'1', '평일 09:00~22:00',
+--     83, '서산캠퍼스', 5, b'1',
 --     CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
 -- );
 --

@@ -10,8 +10,6 @@ public record CampusLectureBuildingDetailResponse(
         Integer floorCount,
         @Schema(nullable = true)
         Boolean hasElevator,
-        @Schema(nullable = true)
-        String operatingHours,
         List<String> departments,
         List<String> majorFacilities
 ) {

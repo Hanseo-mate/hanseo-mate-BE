@@ -517,7 +517,6 @@ CREATE TABLE campus_lecture_building_details (
     location_description VARCHAR(255) NULL,
     floor_count INT NULL,
     has_elevator BIT(1) NULL,
-    operating_hours VARCHAR(255) NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (place_id),
