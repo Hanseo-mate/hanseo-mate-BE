@@ -19,10 +19,6 @@ public record CampusLectureBuildingDetailUpdateRequest(
         @NotNull(message = "엘리베이터 유무는 필수입니다.")
         Boolean hasElevator,
 
-        @NotBlank(message = "운영시간은 필수입니다.")
-        @Size(max = 255, message = "운영시간은 255자 이하여야 합니다.")
-        String operatingHours,
-
         @NotEmpty(message = "건물을 이용하는 학과를 한 개 이상 입력해야 합니다.")
         @Size(max = 50, message = "학과는 50개 이하여야 합니다.")
         List<
