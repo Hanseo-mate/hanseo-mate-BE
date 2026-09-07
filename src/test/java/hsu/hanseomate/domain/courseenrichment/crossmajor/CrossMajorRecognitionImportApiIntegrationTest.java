@@ -1,6 +1,9 @@
 package hsu.hanseomate.domain.courseenrichment.crossmajor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,12 +19,17 @@ import hsu.hanseomate.domain.course.repository.AcademicUnitRepository;
 import hsu.hanseomate.domain.course.repository.CourseOfferingRepository;
 import hsu.hanseomate.domain.course.repository.CourseRepository;
 import hsu.hanseomate.domain.course.repository.SemesterRepository;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionParseResult;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.parser.CrossMajorRecognitionWorkbookParser;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.service.CrossMajorRecognitionImportService;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.service.CrossMajorRecognitionQueryService;
 import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
 import hsu.hanseomate.domain.courseimport.entity.CourseImportHistory;
 import hsu.hanseomate.domain.courseimport.repository.CourseImportHistoryRepository;
 import hsu.hanseomate.support.AdminMockMvcConfiguration;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.util.List;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -31,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -75,6 +84,8 @@ class CrossMajorRecognitionImportApiIntegrationTest {
     void cleanDatabase() {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         try {
+            jdbcTemplate.execute("TRUNCATE TABLE cross_major_rule_memberships");
+            jdbcTemplate.execute("TRUNCATE TABLE cross_major_rule_contents");
             jdbcTemplate.execute("TRUNCATE TABLE cross_major_recognition_rules");
             jdbcTemplate.execute("TRUNCATE TABLE cross_major_recognition_import_histories");
             jdbcTemplate.execute("TRUNCATE TABLE course_offerings");
@@ -124,7 +135,7 @@ class CrossMajorRecognitionImportApiIntegrationTest {
                 .andExpect(jsonPath("$.uploadedSemester").value(2));
 
         assertThat(count("cross_major_recognition_import_histories")).isEqualTo(1);
-        assertThat(count("cross_major_recognition_rules")).isEqualTo(1);
+        assertThat(count("cross_major_rule_memberships")).isEqualTo(1);
     }
 
     @Test
@@ -148,7 +159,8 @@ class CrossMajorRecognitionImportApiIntegrationTest {
                 Integer.class
         )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT course_name_snapshot FROM cross_major_recognition_rules r "
+                "SELECT c.course_name_snapshot FROM cross_major_rule_memberships r "
+                        + "JOIN cross_major_rule_contents c ON c.rule_key=r.rule_key "
                         + "JOIN cross_major_recognition_import_histories h "
                         + "ON h.id=r.import_history_id WHERE h.status='ACTIVE'",
                 String.class
@@ -177,7 +189,7 @@ class CrossMajorRecognitionImportApiIntegrationTest {
                         + "WHERE status='REVIEW_REQUIRED'",
                 Integer.class
         )).isEqualTo(1);
-        assertThat(count("cross_major_recognition_rules")).isEqualTo(1);
+        assertThat(count("cross_major_rule_memberships")).isEqualTo(1);
     }
 
     @Test
@@ -236,6 +248,83 @@ class CrossMajorRecognitionImportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.crossMajorRecognitions.length()").value(1))
                 .andExpect(jsonPath("$.crossMajorRecognitions[0]").value("학생학과"));
+    }
+
+    @Autowired
+    private CrossMajorRecognitionQueryService
+            queryService;
+
+    @Test
+    void reusesRulesAcrossYearsAndOnlyAddsChangedRulesWhilePreservingAnnualLookup() throws Exception {
+        byte[] original = departmentWorkbook("가학과", "나학과");
+        importAsAdmin("2025학년도 1학기.xlsx", original);
+        importAsAdmin("2026학년도 1학기.xlsx", original);
+        assertThat(count("cross_major_rule_contents")).isEqualTo(2);
+        assertThat(count("cross_major_rule_memberships")).isEqualTo(4);
+
+        importAsAdmin("2026학년도 2학기 변경.xlsx", departmentWorkbook("가학과", "다학과"));
+        assertThat(count("cross_major_rule_contents")).isEqualTo(3);
+        assertThat(count("cross_major_rule_memberships")).isEqualTo(6);
+        assertThat(count("cross_major_recognition_rules")).isZero();
+        for (int semester = 1; semester <= 2; semester++) {
+            assertThat(queryService.findRecognitions(queryOffering(2025, semester)))
+                    .containsExactly("가학과", "나학과");
+            assertThat(queryService.findRecognitions(queryOffering(2026, semester)))
+                    .containsExactly("가학과", "다학과");
+        }
+        assertThat(queryService.findRecognitions(queryOffering(2024, 1))).isEmpty();
+
+        importAsAdmin("2026학년도 2학기 복원.xlsx", original);
+        assertThat(count("cross_major_rule_contents")).isEqualTo(3);
+        assertThat(queryService.findRecognitions(queryOffering(2026, 1)))
+                .containsExactly("가학과", "나학과");
+    }
+
+    private CourseOffering queryOffering(int year, int semester) {
+        CourseOffering offering = mock(CourseOffering.class);
+        when(offering.getSemester()).thenReturn(Semester.create(year, semester));
+        when(offering.getCourseName()).thenReturn("자료구조");
+        return offering;
+    }
+
+    @Autowired
+    private CrossMajorRecognitionImportService
+            importService;
+
+    @Autowired
+    private CrossMajorRecognitionWorkbookParser
+            parser;
+
+    @Test
+    void persistenceFailureRollsBackContentLinksAndAnnualReplacement() throws Exception {
+        importAsAdmin("2026학년도 1학기.xlsx", departmentWorkbook("기존학과"));
+        var parsed = parser.parse(departmentWorkbook("새학과"), "2026학년도 2학기.xlsx");
+        var broken = new CrossMajorRecognitionParseResult(
+                parsed.fileName(), parsed.rawFileSha256(), parsed.canonicalDataSha256(),
+                parsed.policyYear(), parsed.uploadedSemester(), parsed.sourceSheet(), 2,
+                List.of(parsed.rules().get(0), parsed.rules().get(0)), List.of());
+
+        assertThatThrownBy(() -> importService.importParsed(broken))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(count("cross_major_recognition_import_histories")).isEqualTo(1);
+        assertThat(count("cross_major_rule_contents")).isEqualTo(1);
+        assertThat(count("cross_major_rule_memberships")).isEqualTo(1);
+        assertThat(queryService.findRecognitions(queryOffering(2026, 1))).containsExactly("기존학과");
+    }
+
+    private byte[] departmentWorkbook(String... departments) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("타학과 전공인정 교과목 리스트");
+            writeHeaders(sheet.createRow(0));
+            for (int index = 0; index < departments.length; index++) {
+                writeRule(sheet.createRow(index + 1), "공과대학", departments[index], "학생전공",
+                        "공과대학", "개설학과", "개설전공", "0004436", "자료구조", 2020, 1);
+            }
+            workbook.write(output);
+            return output.toByteArray();
+        }
     }
 
     private void importAsAdmin(String name, byte[] content) throws Exception {

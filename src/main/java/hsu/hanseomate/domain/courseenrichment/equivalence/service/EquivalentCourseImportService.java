@@ -6,7 +6,11 @@ import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseMe
 import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseParseResult;
 import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseGroup;
 import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseImportHistory;
-import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseMember;
+import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseMembership;
+import hsu.hanseomate.domain.courseenrichment.equivalence.entity.EquivalentCourseContent;
+import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseContentRepository;
+import hsu.hanseomate.domain.courseenrichment.support.ContentReuseStore;
+import hsu.hanseomate.domain.courseenrichment.equivalence.support.EquivalentCourseHashing;
 import hsu.hanseomate.domain.courseenrichment.equivalence.repository.EquivalentCourseImportHistoryRepository;
 import hsu.hanseomate.domain.courseimport.dto.type.IssueSeverity;
 import hsu.hanseomate.domain.courseimport.dto.type.StorageStatus;
@@ -24,6 +28,8 @@ public class EquivalentCourseImportService {
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
     private final EquivalentCourseImportHistoryRepository importHistoryRepository;
+    private final EquivalentCourseContentRepository contentRepository;
+    private final ContentReuseStore contentReuseStore;
 
     @Transactional
     public EquivalentCourseImportResponse importSnapshot(EquivalentCourseParseResult result) {
@@ -86,7 +92,7 @@ public class EquivalentCourseImportService {
         );
         entityManager.persist(stored);
         persistSnapshot(result.groups(), stored);
-        entityManager.flush();
+        contentReuseStore.flush();
 
         return new EquivalentCourseImportResponse(
                 result.importId(),
@@ -128,6 +134,14 @@ public class EquivalentCourseImportService {
             List<EquivalentCourseGroupData> groups,
             EquivalentCourseImportHistory history
     ) {
+        var contents = contentReuseStore.resolve(
+                groups.stream().flatMap(group -> group.members().stream())
+                        .map(member -> EquivalentCourseContent.create(
+                                member.courseCode(), member.courseName()))
+                        .toList(),
+                EquivalentCourseContent::getContentKey,
+                contentRepository::findAllById
+        );
         for (EquivalentCourseGroupData groupData : groups) {
             EquivalentCourseGroup group = EquivalentCourseGroup.create(
                     history,
@@ -139,11 +153,11 @@ public class EquivalentCourseImportService {
             );
             entityManager.persist(group);
             for (EquivalentCourseMemberData memberData : groupData.members()) {
-                entityManager.persist(EquivalentCourseMember.create(
+                entityManager.persist(EquivalentCourseMembership.create(
                         history,
                         group,
-                        memberData.courseCode(),
-                        memberData.courseName(),
+                        contents.get(EquivalentCourseHashing.contentKey(
+                                memberData.courseCode(), memberData.courseName())),
                         memberData.sourceSheet(),
                         memberData.sourceRow(),
                         memberData.memberOrder()
