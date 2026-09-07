@@ -9,9 +9,8 @@ import static org.mockito.Mockito.when;
 import hsu.hanseomate.domain.course.entity.CourseOffering;
 import hsu.hanseomate.domain.course.entity.Semester;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionRuleData;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRecognitionImportHistory;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRecognitionRule;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRecognitionRuleRepository;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRuleContent;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRuleContentRepository;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.support.CrossMajorRecognitionNormalizer;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.type.CrossMajorRecognitionImportStatus;
 import java.nio.charset.StandardCharsets;
@@ -23,24 +22,19 @@ import org.junit.jupiter.api.Test;
 
 class CrossMajorRecognitionQueryServiceTest {
 
-    private CrossMajorRecognitionRuleRepository repository;
+    private CrossMajorRuleContentRepository repository;
     private CrossMajorRecognitionQueryService service;
-    private CrossMajorRecognitionImportHistory history;
 
     @BeforeEach
     void setUp() {
-        repository = mock(CrossMajorRecognitionRuleRepository.class);
+        repository = mock(CrossMajorRuleContentRepository.class);
         service = new CrossMajorRecognitionQueryService(repository);
-        history = CrossMajorRecognitionImportHistory.active(
-                2026, 1, "CROSS_MAJOR:2026", "rules.xlsx",
-                "a".repeat(64), "b".repeat(64), "rules", 1, 1, 0, "[]", "[]"
-        );
     }
 
     @Test
     void matchesNormalizedCourseNameAndEffectivePeriodThenSortsDistinct() {
         CourseOffering offering = offering(2026, 1, "자료 구조");
-        List<CrossMajorRecognitionRule> candidates = List.of(
+        List<CrossMajorRuleContent> candidates = List.of(
                 rule("학생대학", "나학과", "나전공", "다른학과", "다른전공",
                         "9999999", "자료구조", 2020, 1, 2),
                 rule("학생대학", "가학과", "가전공", "개설학과", "개설전공",
@@ -106,7 +100,7 @@ class CrossMajorRecognitionQueryServiceTest {
         return offering;
     }
 
-    private CrossMajorRecognitionRule rule(
+    private CrossMajorRuleContent rule(
             String studentCollege,
             String studentDepartment,
             String studentMajor,
@@ -139,7 +133,7 @@ class CrossMajorRecognitionQueryServiceTest {
                 "rules",
                 sourceRow
         );
-        return CrossMajorRecognitionRule.create(history, data);
+        return CrossMajorRuleContent.create(data);
     }
 
     private String hash(String value) {

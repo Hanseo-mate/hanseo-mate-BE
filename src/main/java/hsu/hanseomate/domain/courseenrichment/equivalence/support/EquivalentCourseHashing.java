@@ -21,6 +21,10 @@ public final class EquivalentCourseHashing {
         return sha256(fileBytes);
     }
 
+    public static String contentKey(String courseCode, String courseName) {
+        return sha256((courseCode + "\u001f" + courseName).getBytes(StandardCharsets.UTF_8));
+    }
+
     public static String canonicalHash(List<EquivalentCourseGroupData> groups) {
         List<String> canonicalGroups = groups.stream()
                 .map(group -> group.members().stream()

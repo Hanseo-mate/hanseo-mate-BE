@@ -15,6 +15,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/** Legacy backfill source. New imports use CrossMajorRuleMembership and immutable content. */
 @Getter
 @Entity
 @Table(

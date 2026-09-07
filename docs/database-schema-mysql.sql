@@ -1174,6 +1174,66 @@ CREATE TABLE cross_major_recognition_rules (
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE equivalent_course_contents (
+    content_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    course_code VARCHAR(7) NOT NULL,
+    course_name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (content_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE equivalent_course_memberships (
+    id BINARY(16) NOT NULL,
+    import_history_id BINARY(16) NOT NULL,
+    group_id BINARY(16) NOT NULL,
+    content_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    course_code VARCHAR(7) NOT NULL,
+    source_sheet VARCHAR(255) NOT NULL,
+    source_row INT NOT NULL,
+    member_order INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_equiv_membership_code UNIQUE (import_history_id, course_code),
+    INDEX ix_equiv_membership_group_order (group_id, member_order),
+    CONSTRAINT fk_equiv_membership_history FOREIGN KEY (import_history_id)
+        REFERENCES equivalent_course_import_histories (id) ON DELETE CASCADE,
+    CONSTRAINT fk_equiv_membership_group FOREIGN KEY (group_id)
+        REFERENCES equivalent_course_groups (id) ON DELETE CASCADE,
+    CONSTRAINT fk_equiv_membership_content FOREIGN KEY (content_key)
+        REFERENCES equivalent_course_contents (content_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cross_major_rule_contents (
+    rule_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    student_college_name VARCHAR(255) NOT NULL,
+    student_department_name VARCHAR(255) NOT NULL,
+    student_major_name VARCHAR(255) NOT NULL,
+    offering_college_name VARCHAR(255) NOT NULL,
+    offering_department_name VARCHAR(255) NOT NULL,
+    offering_major_name VARCHAR(255) NOT NULL,
+    offering_department_key VARCHAR(255) NOT NULL,
+    offering_major_key VARCHAR(255) NOT NULL,
+    course_code VARCHAR(7) NOT NULL,
+    course_name_snapshot VARCHAR(255) NOT NULL,
+    course_name_key VARCHAR(255) NOT NULL,
+    effective_year INT NOT NULL,
+    effective_semester INT NOT NULL,
+    PRIMARY KEY (rule_key),
+    INDEX ix_cross_major_content_name (course_name_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cross_major_rule_memberships (
+    id BINARY(16) NOT NULL,
+    import_history_id BINARY(16) NOT NULL,
+    rule_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    source_sheet VARCHAR(255) NOT NULL,
+    source_row INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_cross_major_membership_rule UNIQUE (import_history_id, rule_key),
+    CONSTRAINT fk_cross_major_membership_history FOREIGN KEY (import_history_id)
+        REFERENCES cross_major_recognition_import_histories (id) ON DELETE CASCADE,
+    CONSTRAINT fk_cross_major_membership_content FOREIGN KEY (rule_key)
+        REFERENCES cross_major_rule_contents (rule_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE clubs (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,

@@ -1,8 +1,8 @@
 package hsu.hanseomate.domain.courseenrichment.crossmajor.service;
 
 import hsu.hanseomate.domain.course.entity.CourseOffering;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRecognitionRule;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRecognitionRuleRepository;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRuleContent;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRuleContentRepository;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.support.CrossMajorRecognitionNormalizer;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.type.CrossMajorRecognitionImportStatus;
 import java.util.List;
@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CrossMajorRecognitionQueryService {
 
-    private final CrossMajorRecognitionRuleRepository ruleRepository;
+    private final CrossMajorRuleContentRepository ruleRepository;
 
     public List<String> findRecognitions(CourseOffering offering) {
         if (offering == null || offering.getSemester() == null) {
@@ -29,7 +29,7 @@ public class CrossMajorRecognitionQueryService {
         }
         int offeringYear = offering.getSemester().getAcademicYear();
         int offeringSemester = offering.getSemester().getSemester();
-        List<CrossMajorRecognitionRule> candidates = ruleRepository
+        List<CrossMajorRuleContent> candidates = ruleRepository
                 .findActiveCandidatesByCourseName(
                         offeringYear,
                         courseNameKey,
@@ -42,14 +42,14 @@ public class CrossMajorRecognitionQueryService {
         }
 
         Set<String> departmentNames = new TreeSet<>();
-        for (CrossMajorRecognitionRule rule : candidates) {
+        for (CrossMajorRuleContent rule : candidates) {
             departmentNames.add(rule.getStudentDepartmentName());
         }
         return List.copyOf(departmentNames);
     }
 
     private boolean effectiveAtOrBefore(
-            CrossMajorRecognitionRule rule,
+            CrossMajorRuleContent rule,
             int offeringYear,
             int offeringSemester
     ) {

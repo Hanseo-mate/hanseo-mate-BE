@@ -4,12 +4,10 @@ import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseIm
 import hsu.hanseomate.domain.courseenrichment.equivalence.dto.EquivalentCourseParseResult;
 import hsu.hanseomate.domain.courseenrichment.equivalence.parser.EquivalentCourseWorkbookParser;
 import hsu.hanseomate.domain.courseimport.parser.common.CourseWorkbookParseException;
+import hsu.hanseomate.domain.courseenrichment.support.ImportConcurrencyRetry;
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -49,16 +47,9 @@ public class EquivalentCourseImportFacade {
                 readBytes(file),
                 file.getOriginalFilename()
         );
-        try {
-            return importService.importSnapshot(parsed);
-        } catch (DataIntegrityViolationException firstInsertRace) {
-            if (!isActiveScopeRace(firstInsertRace)) {
-                throw firstInsertRace;
-            }
-            return importService.importSnapshot(parsed);
-        } catch (PessimisticLockingFailureException concurrentScopeUpdate) {
-            return importService.importSnapshot(parsed);
-        }
+        return ImportConcurrencyRetry.execute(
+                "equivalent_course_contents", "uk_equivalent_active_scope",
+                () -> importService.importSnapshot(parsed));
     }
 
     private byte[] readBytes(MultipartFile file) {
@@ -72,22 +63,5 @@ public class EquivalentCourseImportFacade {
                     exception
             );
         }
-    }
-
-    private boolean isActiveScopeRace(Throwable exception) {
-        Throwable current = exception;
-        while (current != null) {
-            String message = current.getMessage();
-            if (message != null) {
-                String normalized = message.toLowerCase(Locale.ROOT);
-                if (normalized.contains("active_scope_key")
-                        || normalized.contains("activescopekey")
-                        || normalized.contains("uk_equivalent_active_scope")) {
-                    return true;
-                }
-            }
-            current = current.getCause();
-        }
-        return false;
     }
 }

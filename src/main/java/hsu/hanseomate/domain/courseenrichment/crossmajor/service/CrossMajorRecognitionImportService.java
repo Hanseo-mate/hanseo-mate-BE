@@ -3,9 +3,11 @@ package hsu.hanseomate.domain.courseenrichment.crossmajor.service;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionImportResponse;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.dto.CrossMajorRecognitionParseResult;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRecognitionImportHistory;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRecognitionRule;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRuleContent;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.entity.CrossMajorRuleMembership;
+import hsu.hanseomate.domain.courseenrichment.support.ContentReuseStore;
 import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRecognitionImportHistoryRepository;
-import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRecognitionRuleRepository;
+import hsu.hanseomate.domain.courseenrichment.crossmajor.repository.CrossMajorRuleContentRepository;
 import hsu.hanseomate.domain.courseimport.dto.type.StorageStatus;
 import jakarta.persistence.EntityManager;
 import java.util.List;
@@ -21,8 +23,9 @@ public class CrossMajorRecognitionImportService {
     private static final String SCOPE_PREFIX = "CROSS_MAJOR:";
 
     private final CrossMajorRecognitionImportHistoryRepository historyRepository;
-    private final CrossMajorRecognitionRuleRepository ruleRepository;
+    private final CrossMajorRuleContentRepository ruleRepository;
     private final EntityManager entityManager;
+    private final ContentReuseStore contentReuseStore;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -96,10 +99,14 @@ public class CrossMajorRecognitionImportService {
                         rawPayloadJson
                 )
         );
-        ruleRepository.saveAll(parsed.rules().stream()
-                .map(rule -> CrossMajorRecognitionRule.create(active, rule))
-                .toList());
-        entityManager.flush();
+        var contents = contentReuseStore.resolve(
+                parsed.rules().stream().map(CrossMajorRuleContent::create).toList(),
+                CrossMajorRuleContent::getRuleKey,
+                ruleRepository::findAllById
+        );
+        parsed.rules().forEach(rule -> entityManager.persist(CrossMajorRuleMembership.create(
+                active, contents.get(rule.ruleKey()), rule)));
+        contentReuseStore.flush();
 
         return response(
                 active,

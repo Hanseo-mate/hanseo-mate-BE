@@ -14,22 +14,21 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** Legacy backfill source. New imports use EquivalentCourseMembership and immutable content. */
 @Getter
 @Entity
 @Table(
-        name = "equivalent_course_members",
+        name = "equivalent_course_memberships",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_equivalent_member_code",
+                name = "uk_equiv_membership_code",
                 columnNames = {"import_history_id", "course_code"}
         ),
         indexes = @Index(
-                name = "ix_equivalent_member_group_order",
+                name = "ix_equiv_membership_group_order",
                 columnList = "group_id,member_order"
         )
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class EquivalentCourseMember {
+public class EquivalentCourseMembership {
 
     @Id
     private UUID id;
@@ -45,8 +44,9 @@ public class EquivalentCourseMember {
     @Column(name = "course_code", nullable = false, length = 7)
     private String courseCode;
 
-    @Column(name = "course_name", nullable = false, length = 255)
-    private String courseName;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "content_key", nullable = false, updatable = false)
+    private EquivalentCourseContent content;
 
     @Column(name = "source_sheet", nullable = false, length = 255)
     private String sourceSheet;
@@ -57,11 +57,10 @@ public class EquivalentCourseMember {
     @Column(name = "member_order", nullable = false)
     private int memberOrder;
 
-    private EquivalentCourseMember(
+    private EquivalentCourseMembership(
             EquivalentCourseImportHistory importHistory,
             EquivalentCourseGroup group,
-            String courseCode,
-            String courseName,
+            EquivalentCourseContent content,
             String sourceSheet,
             int sourceRow,
             int memberOrder
@@ -69,30 +68,32 @@ public class EquivalentCourseMember {
         this.id = UUID.randomUUID();
         this.importHistory = importHistory;
         this.group = group;
-        this.courseCode = courseCode;
-        this.courseName = courseName;
+        this.courseCode = content.getCourseCode();
+        this.content = content;
         this.sourceSheet = sourceSheet;
         this.sourceRow = sourceRow;
         this.memberOrder = memberOrder;
     }
 
-    public static EquivalentCourseMember create(
+    public static EquivalentCourseMembership create(
             EquivalentCourseImportHistory importHistory,
             EquivalentCourseGroup group,
-            String courseCode,
-            String courseName,
+            EquivalentCourseContent content,
             String sourceSheet,
             int sourceRow,
             int memberOrder
     ) {
-        return new EquivalentCourseMember(
+        return new EquivalentCourseMembership(
                 importHistory,
                 group,
-                courseCode,
-                courseName,
+                content,
                 sourceSheet,
                 sourceRow,
                 memberOrder
         );
+    }
+
+    public String getCourseName() {
+        return content.getCourseName();
     }
 }

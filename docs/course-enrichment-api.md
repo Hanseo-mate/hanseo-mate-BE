@@ -165,16 +165,23 @@ GET /api/courses/{offeringId}
 
 ## 8. 운영 DB 적용
 
-운영 환경은 `spring.jpa.hibernate.ddl-auto=validate`이므로 배포 전에 다음 신규
-테이블을 생성해야 한다.
+내용 본문을 재사용하는 저장 구조로 전환한다. 프론트 요청·응답 및 학년도·학기별
+적용 기준은 변경하지 않는다. 같은 내용은 한 번 저장하고 각 업로드 이력에 연결한다.
+변경되거나 추가된 내용만 새로 저장하며, 새 파일에서 빠진 항목은 새 이력에 연결하지 않는다.
+이전 이력과 그 당시 내용은 계속 보존한다.
+
+운영 환경은 `spring.jpa.hibernate.ddl-auto=validate`이므로 코드 배포 전에
+`docs/course-enrichment-content-reuse-migration-mysql.sql`을 적용해야 한다.
+기존 이력·그룹·행 테이블을 삭제하지 않고 다음 테이블을 추가하고 데이터를 이관한다.
 
 ```text
-equivalent_course_import_histories
-equivalent_course_groups
-equivalent_course_members
-cross_major_recognition_import_histories
-cross_major_recognition_rules
+equivalent_course_contents
+equivalent_course_memberships
+cross_major_rule_contents
+cross_major_rule_memberships
 ```
 
-정확한 신규 설치 DDL은 `docs/database-schema-mysql.sql`을 참고한다. 기존 운영 DB에는
-전체 스키마 파일을 실행하지 말고 위 신규 테이블의 `CREATE TABLE` 문만 적용한다.
+properties 변경은 필요 없다. 기존 운영 DB에는 전체 스키마 파일을 실행하지 않는다.
+백업, 업로드 일시 중지, 이관 확인, 배포 순서와 롤백 제약은
+`docs/course-enrichment-content-reuse.md`를 참고한다.
+빈 DB 신규 설치 DDL은 `docs/database-schema-mysql.sql`에 포함되어 있다.
