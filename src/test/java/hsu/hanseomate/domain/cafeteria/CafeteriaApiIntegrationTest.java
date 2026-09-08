@@ -11,6 +11,7 @@ import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
 import hsu.hanseomate.domain.cafeteria.entity.MealTime;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import java.time.Clock;
@@ -82,9 +83,11 @@ class CafeteriaApiIntegrationTest {
         mockMvc.perform(get("/api/cafeteria/menus")
                         .param("menuDate", "2026-08-20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
+                .andExpect(jsonPath("$.preferredCampusCode")
                         .value(nullValue()))
                 .andExpect(jsonPath("$.restaurants.length()").value(2))
+                .andExpect(jsonPath("$.restaurants[0].campusCode")
+                        .value("SEOSAN"))
                 .andExpect(jsonPath("$.restaurants[0].restaurantType")
                         .value("MAIN_STUDENT"))
                 .andExpect(jsonPath("$.restaurants[0].dailyMenus.length()")
@@ -123,6 +126,8 @@ class CafeteriaApiIntegrationTest {
                         "$.restaurants[0].dailyMenus[0]"
                                 + ".mealSections[1].mealTime"
                 ).value("DINNER"))
+                .andExpect(jsonPath("$.restaurants[1].campusCode")
+                        .value("TAEAN"))
                 .andExpect(jsonPath("$.restaurants[1].restaurantType")
                         .value("TAEAN_STUDENT"))
                 .andExpect(jsonPath("$.restaurants[1].dailyMenus.length()")
@@ -134,14 +139,12 @@ class CafeteriaApiIntegrationTest {
     }
 
     @Test
-    void authenticatedUserReceivesPreferredRestaurantType() throws Exception {
+    void authenticatedUserReceivesPreferredCampusCode() throws Exception {
         UserAccount userAccount = UserAccount.create(
                 "cafeteria-user",
                 "encoded-password"
         );
-        userAccount.changePreferredRestaurantType(
-                RestaurantType.TAEAN_STUDENT
-        );
+        userAccount.changePreferredCampusCode(CampusCode.TAEAN);
         userAccountRepository.saveAndFlush(userAccount);
 
         mockMvc.perform(get("/api/cafeteria/menus")
@@ -150,11 +153,15 @@ class CafeteriaApiIntegrationTest {
                                 .subject(userAccount.getId().toString())
                                 .claim("role", "USER"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("TAEAN"))
                 .andExpect(jsonPath("$.restaurants.length()").value(2))
+                .andExpect(jsonPath("$.restaurants[0].campusCode")
+                        .value("SEOSAN"))
                 .andExpect(jsonPath("$.restaurants[0].restaurantType")
                         .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.restaurants[1].campusCode")
+                        .value("TAEAN"))
                 .andExpect(jsonPath("$.restaurants[1].restaurantType")
                         .value("TAEAN_STUDENT"));
     }
@@ -220,7 +227,7 @@ class CafeteriaApiIntegrationTest {
         mockMvc.perform(get("/api/cafeteria/menus")
                         .param("menuDate", "2000-01-01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
+                .andExpect(jsonPath("$.preferredCampusCode")
                         .value(nullValue()))
                 .andExpect(jsonPath("$.restaurants.length()").value(2))
                 .andExpect(jsonPath("$.restaurants[0].restaurantType")
@@ -269,7 +276,7 @@ class CafeteriaApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.CafeteriaMenusResponse.properties"
-                                + ".preferredRestaurantType"
+                                + ".preferredCampusCode"
                 ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.CafeteriaMenusResponse.properties"
@@ -278,6 +285,10 @@ class CafeteriaApiIntegrationTest {
                         "#/components/schemas/"
                                 + "CafeteriaRestaurantMenusResponse"
                 ))
+                .andExpect(jsonPath(
+                        "$.components.schemas.CafeteriaRestaurantMenusResponse"
+                                + ".properties.campusCode"
+                ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.CafeteriaRestaurantMenusResponse"
                                 + ".properties.dailyMenus.items['$ref']"

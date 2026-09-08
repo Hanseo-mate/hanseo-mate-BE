@@ -70,7 +70,7 @@ class CampusPlaceApiIntegrationTest {
         cleanCampusPlaceTables();
         deletePreferenceUser();
         deleteUploadedImages();
-        insertPreferenceUser("TAEAN_STUDENT");
+        insertPreferenceUser("TAEAN");
         insertPlace(
                 1L,
                 "SEOSAN",
@@ -191,7 +191,7 @@ class CampusPlaceApiIntegrationTest {
         jdbcTemplate.update(
                 """
                         UPDATE user_accounts
-                        SET preferred_restaurant_type = 'MAIN_STUDENT'
+                        SET preferred_campus_code = 'SEOSAN'
                         WHERE id = ?
                         """,
                 PREFERENCE_USER_ID
@@ -793,7 +793,7 @@ class CampusPlaceApiIntegrationTest {
         );
     }
 
-    private void insertPreferenceUser(String preferredRestaurantType) {
+    private void insertPreferenceUser(String preferredCampusCode) {
         jdbcTemplate.update(
                 """
                         INSERT INTO user_accounts (
@@ -801,14 +801,14 @@ class CampusPlaceApiIntegrationTest {
                             login_id,
                             password_hash,
                             role,
-                            preferred_restaurant_type,
+                            preferred_campus_code,
                             created_at,
                             updated_at
                         ) VALUES (?, 'campus-map-preference-user', 'unused',
                                   'USER', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 PREFERENCE_USER_ID,
-                preferredRestaurantType
+                preferredCampusCode
         );
     }
 

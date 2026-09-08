@@ -39,7 +39,7 @@ public class CampusPlaceController {
 
     @Operation(
             summary = "캠퍼스 장소 목록 조회",
-            description = "campusCode가 없으면 로그인 사용자의 선호 학생식당을 캠퍼스로 변환해 필터링합니다. "
+            description = "campusCode가 없으면 로그인 사용자의 선호 캠퍼스로 필터링합니다. "
                     + "비로그인은 전체 캠퍼스를 조회하며, 미분류 장소의 category는 null입니다."
     )
     @ApiResponse(responseCode = "200", description = "조회 성공")

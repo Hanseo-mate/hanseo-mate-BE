@@ -6,7 +6,7 @@
 조회합니다.
 
 - 비로그인 사용자는 서산 학생식당(`MAIN_STUDENT`) 기준 오늘 학식을 반환합니다.
-- 로그인 사용자는 DB에 저장된 `preferredRestaurantType` 기준 오늘 학식만 반환합니다.
+- 로그인 사용자는 DB에 저장된 `preferredCampusCode` 기준 오늘 학식만 반환합니다.
 - 선택된 식당의 오늘 식단이 없으면 `todayCafeteriaMenus`는 빈 배열 `[]`입니다.
 - `festivalFloatingButtonVisible`은 축제 플로팅 버튼 노출 여부입니다. 항상 boolean을 반환하고,
   설정이 없으면 `false`입니다. 관리자 PATCH 완료 후 다음 조회부터 변경값을 반환합니다.
@@ -20,7 +20,7 @@ GET /api/home
 
 - Query Parameter와 요청 Body는 없습니다.
 - JWT 없이 호출할 수 있습니다.
-- 유효한 Bearer JWT를 보내면 로그인 사용자의 오늘 시간표와 선호 식당 정보를
+- 유효한 Bearer JWT를 보내면 로그인 사용자의 오늘 시간표와 선호 캠퍼스 정보를
   함께 반환합니다.
 - 날짜 기준은 `Asia/Seoul`입니다.
 
@@ -30,7 +30,7 @@ GET /api/home
 {
   "loggedIn": true,
   "festivalFloatingButtonVisible": false,
-  "preferredRestaurantType": "TAEAN_STUDENT",
+  "preferredCampusCode": "TAEAN",
   "posterImageUrls": [
     "https://api.example.com/uploads/home-posters/poster.png"
   ],
@@ -91,7 +91,7 @@ GET /api/home
 |---|---|---|
 | `loggedIn` | Boolean | 로그인 여부 |
 | `festivalFloatingButtonVisible` | Boolean | 홈 축제 플로팅 버튼 노출 여부. 필수, null 불가, 기본 false. 로그인 여부와 무관하게 같은 값 |
-| `preferredRestaurantType` | String or null | 로그인 사용자의 저장된 선호 학생식당 (`MAIN_STUDENT` 또는 `TAEAN_STUDENT`) |
+| `preferredCampusCode` | String or null | 로그인 사용자의 저장된 선호 캠퍼스 (`SEOSAN` 또는 `TAEAN`) |
 | `posterImageUrls` | String[] or null | 기존 클라이언트 호환용 포스터 이미지 URL 목록 |
 | `posters` | Object[] or null | 포스터 상세 목록 |
 | `todayCourses` | Object[] | 로그인 사용자의 오늘 시간표 |
@@ -101,7 +101,7 @@ GET /api/home
 ## 5. 오늘 학식 규칙
 
 - 비로그인 사용자는 항상 `MAIN_STUDENT` 식단만 조회합니다.
-- 로그인 사용자는 `preferredRestaurantType`에 저장된 학생식당만 조회합니다.
+- 로그인 사용자는 `preferredCampusCode`에 대응하는 학생식당만 조회합니다. `SEOSAN`은 `MAIN_STUDENT`, `TAEAN`은 `TAEAN_STUDENT`입니다.
 - `todayCafeteriaMenus`에는 최대 1개의 식당만 포함됩니다.
 - 교직원식당(`MAIN_STAFF`, `TAEAN_STAFF`)은 메인 응답에서 제외합니다.
 - 식단이 없으면 `todayCafeteriaMenus: []`를 반환합니다.
@@ -129,8 +129,8 @@ GET /api/home
 ## 6. 빈 데이터 처리
 
 - 비로그인이고 오늘 서산 학생식당 식단이 없으면 `todayCafeteriaMenus: []`
-- 로그인했고 선호 식당의 오늘 식단이 없으면 `todayCafeteriaMenus: []`
-- 로그인하지 않으면 `preferredRestaurantType`은 `null`
+- 로그인했고 선호 캠퍼스의 오늘 식단이 없으면 `todayCafeteriaMenus: []`
+- 로그인하지 않으면 `preferredCampusCode`는 `null`
 - 포스터가 없으면 `posterImageUrls`, `posters`는 `null`
 - 오늘 시간표가 없으면 `todayCourses: []`
 - 인기 공지가 없는 분야는 `title: null`

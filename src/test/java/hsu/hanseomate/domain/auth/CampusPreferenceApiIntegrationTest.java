@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import java.nio.charset.StandardCharsets;
@@ -31,13 +31,13 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class CafeteriaPreferenceApiIntegrationTest {
+class CampusPreferenceApiIntegrationTest {
 
     private static final String SIGNUP_PATH = "/api/auth/signup";
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String MY_PAGE_PATH = "/api/auth/me";
     private static final String PREFERENCE_PATH =
-            "/api/auth/me/cafeteria-preference";
+            "/api/auth/me/campus-preference";
 
     @Autowired
     private MockMvc mockMvc;
@@ -62,24 +62,24 @@ class CafeteriaPreferenceApiIntegrationTest {
     }
 
     @Test
-    void signupLoginAndMyPageExposeMainStudentAsDefault() throws Exception {
+    void signupLoginAndMyPageExposeSeosanAsDefault() throws Exception {
         MvcResult signupResult = signup("preference-default")
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"))
                 .andReturn();
         JsonNode signupBody = responseBody(signupResult);
 
         UserAccount saved = userAccountRepository.findById(
                 signupBody.path("userId").asLong()
         ).orElseThrow();
-        assertThat(saved.getPreferredRestaurantType())
-                .isEqualTo(RestaurantType.MAIN_STUDENT);
+        assertThat(saved.getPreferredCampusCode())
+                .isEqualTo(CampusCode.SEOSAN);
 
         login("preference-default")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"));
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"));
 
         mockMvc.perform(get(MY_PAGE_PATH)
                         .header(
@@ -87,8 +87,8 @@ class CafeteriaPreferenceApiIntegrationTest {
                                 bearer(signupBody.path("accessToken").stringValue())
                         ))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"));
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"));
     }
 
     @Test
@@ -104,28 +104,52 @@ class CafeteriaPreferenceApiIntegrationTest {
         mockMvc.perform(put(PREFERENCE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(preferenceBody("TAEAN_STUDENT")))
+                        .content(preferenceBody("TAEAN")))
                 .andExpect(status().isNoContent());
 
         assertThat(userAccountRepository.findById(userId)
                 .orElseThrow()
-                .getPreferredRestaurantType())
-                .isEqualTo(RestaurantType.TAEAN_STUDENT);
+                .getPreferredCampusCode())
+                .isEqualTo(CampusCode.TAEAN);
 
         mockMvc.perform(get(MY_PAGE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("TAEAN_STUDENT"));
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("TAEAN"));
+
+        mockMvc.perform(get("/api/cafeteria/menus")
+                        .queryParam("menuDate", "2000-01-01")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("TAEAN"))
+                .andExpect(jsonPath("$.restaurants.length()").value(2));
+
+        mockMvc.perform(get("/api/campus-map/places")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").value("TAEAN"));
+
+        mockMvc.perform(get("/api/campus-map/places")
+                        .queryParam("campusCode", "SEOSAN")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedCampusCode").value("SEOSAN"));
+
+        mockMvc.perform(get("/api/home")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.preferredCampusCode").value("TAEAN"));
 
         login("preference-update")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("TAEAN_STUDENT"));
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("TAEAN"));
     }
 
     @Test
-    void rejectsStaffMissingAndUnknownRestaurantTypes() throws Exception {
+    void rejectsLegacyMissingAndUnknownCampusCodes() throws Exception {
         JsonNode signupBody = responseBody(
                 signup("preference-validation")
                         .andExpect(status().isCreated())
@@ -135,13 +159,9 @@ class CafeteriaPreferenceApiIntegrationTest {
 
         mockMvc.perform(put(PREFERENCE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
-                        .contentType(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
                         .content(preferenceBody("MAIN_STAFF")))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        "preferredRestaurantType은 MAIN_STUDENT 또는 "
-                                + "TAEAN_STUDENT만 사용할 수 있습니다."
-                ));
+                .andExpect(status().isBadRequest());
 
         mockMvc.perform(put(PREFERENCE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
@@ -157,15 +177,15 @@ class CafeteriaPreferenceApiIntegrationTest {
 
         assertThat(userAccountRepository.findById(
                 signupBody.path("userId").asLong()
-        ).orElseThrow().getPreferredRestaurantType())
-                .isEqualTo(RestaurantType.MAIN_STUDENT);
+        ).orElseThrow().getPreferredCampusCode())
+                .isEqualTo(CampusCode.SEOSAN);
     }
 
     @Test
     void requiresValidBearerToken() throws Exception {
         mockMvc.perform(put(PREFERENCE_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(preferenceBody("TAEAN_STUDENT")))
+                        .content(preferenceBody("TAEAN")))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(put(PREFERENCE_PATH)
@@ -174,7 +194,7 @@ class CafeteriaPreferenceApiIntegrationTest {
                                 "Bearer invalid-token"
                         )
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(preferenceBody("TAEAN_STUDENT")))
+                        .content(preferenceBody("TAEAN")))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -184,24 +204,24 @@ class CafeteriaPreferenceApiIntegrationTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
-                        "$.paths['/api/auth/me/cafeteria-preference'].put"
+                        "$.paths['/api/auth/me/campus-preference'].put"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.paths['/api/auth/me/cafeteria-preference'].put"
+                        "$.paths['/api/auth/me/campus-preference'].put"
                                 + ".responses['204']"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.components.schemas.CafeteriaPreferenceUpdateRequest"
-                                + ".properties.preferredRestaurantType.enum"
-                ).value(contains("MAIN_STUDENT", "TAEAN_STUDENT")))
+                        "$.components.schemas.CampusPreferenceUpdateRequest"
+                                + ".properties.preferredCampusCode.enum"
+                ).value(contains("SEOSAN", "TAEAN")))
                 .andExpect(jsonPath(
                         "$.components.schemas.MyPageResponse.properties"
-                                + ".preferredRestaurantType.enum"
-                ).value(contains("MAIN_STUDENT", "TAEAN_STUDENT")))
+                                + ".preferredCampusCode.enum"
+                ).value(contains("SEOSAN", "TAEAN")))
                 .andExpect(jsonPath(
                         "$.components.schemas.AuthResponse.properties"
-                                + ".preferredRestaurantType.enum"
-                ).value(contains("MAIN_STUDENT", "TAEAN_STUDENT")));
+                                + ".preferredCampusCode.enum"
+                ).value(contains("SEOSAN", "TAEAN")));
     }
 
     private org.springframework.test.web.servlet.ResultActions signup(
@@ -229,10 +249,10 @@ class CafeteriaPreferenceApiIntegrationTest {
         ));
     }
 
-    private String preferenceBody(String preferredRestaurantType) {
+    private String preferenceBody(String preferredCampusCode) {
         return objectMapper.writeValueAsString(Map.of(
-                "preferredRestaurantType",
-                preferredRestaurantType
+                "preferredCampusCode",
+                preferredCampusCode
         ));
     }
 

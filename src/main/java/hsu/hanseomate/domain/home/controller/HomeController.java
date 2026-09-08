@@ -33,7 +33,7 @@ public class HomeController {
 
     @Operation(
             summary = "메인 페이지 통합 조회",
-            description = "로그인은 선택 사항입니다. 비로그인 사용자는 서산 학생식당, 로그인 사용자는 저장된 선호 식당 기준 오늘 학식을 함께 반환합니다. "
+            description = "로그인은 선택 사항입니다. 비로그인 사용자는 서산 학생식당, 로그인 사용자는 저장된 선호 캠퍼스 기준 오늘 학식을 함께 반환합니다. "
                     + "축제 플로팅 버튼 노출 설정을 항상 boolean으로 반환하며 응답은 캐시하지 않습니다."
     )
     @ApiResponses({

@@ -110,12 +110,12 @@ class HomeApiIntegrationTest {
                             login_id,
                             password_hash,
                             role,
-                            preferred_restaurant_type,
+                            preferred_campus_code,
                             created_at,
                             updated_at
                         ) VALUES
-                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            (?, ?, ?, 'USER', 'SEOSAN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, ?, ?, 'USER', 'SEOSAN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 CURRENT_USER_ID,
                 "home-test-user",
@@ -169,7 +169,7 @@ class HomeApiIntegrationTest {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(false))
-                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
+                .andExpect(jsonPath("$.preferredCampusCode").value(nullValue()))
                 .andExpect(jsonPath("$.posterImageUrls.length()").value(2))
                 .andExpect(jsonPath("$.posterImageUrls[0]")
                         .value("https://cdn.test/poster-1.png"))
@@ -225,7 +225,7 @@ class HomeApiIntegrationTest {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(false))
-                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
+                .andExpect(jsonPath("$.preferredCampusCode").value(nullValue()))
                 .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(1))
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
                         .value("MAIN_STUDENT"))
@@ -255,7 +255,7 @@ class HomeApiIntegrationTest {
     @Test
     void returnsOnlyPreferredRestaurantMenuForLoggedInUser() throws Exception {
         LocalDate today = LocalDate.of(2026, 5, 7);
-        setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
+        setPreferredCampusCode(CURRENT_USER_ID, "TAEAN");
 
         saveDailyMenu("MAIN_STUDENT", today,
                 new SectionFixture(MealTime.LUNCH, "코너", 5000,
@@ -272,8 +272,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("TAEAN"))
                 .andExpect(jsonPath("$.todayCafeteriaMenus.length()").value(1))
                 .andExpect(jsonPath("$.todayCafeteriaMenus[0].restaurantType")
                         .value("TAEAN_STUDENT"))
@@ -285,7 +285,7 @@ class HomeApiIntegrationTest {
     @Test
     void returnsEmptyMenusWhenPreferredRestaurantHasNoTodayMenu() throws Exception {
         LocalDate today = LocalDate.of(2026, 5, 7);
-        setPreferredRestaurantType(CURRENT_USER_ID, "TAEAN_STUDENT");
+        setPreferredCampusCode(CURRENT_USER_ID, "TAEAN");
 
         saveDailyMenu("MAIN_STUDENT", today,
                 new SectionFixture(MealTime.LUNCH, "코너", 5000,
@@ -298,8 +298,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("TAEAN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("TAEAN"))
                 .andExpect(jsonPath("$.todayCafeteriaMenus").isEmpty());
     }
 
@@ -333,8 +333,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"))
                 .andExpect(jsonPath("$.todayCourses.length()").value(1))
                 .andExpect(jsonPath("$.todayCourses[0].startTime").value("12:00"))
                 .andExpect(jsonPath("$.todayCourses[0].endTime").value("13:00"))
@@ -391,8 +391,8 @@ class HomeApiIntegrationTest {
                         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loggedIn").value(true))
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"))
                 .andExpect(jsonPath("$.todayCourses").isEmpty());
     }
 
@@ -401,7 +401,7 @@ class HomeApiIntegrationTest {
             throws Exception {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preferredRestaurantType").value(nullValue()))
+                .andExpect(jsonPath("$.preferredCampusCode").value(nullValue()))
                 .andExpect(jsonPath("$.posterImageUrls").value(nullValue()))
                 .andExpect(jsonPath("$.posters").value(nullValue()))
                 .andExpect(jsonPath("$.todayCourses").isEmpty())
@@ -488,7 +488,7 @@ class HomeApiIntegrationTest {
                 ).value(hasItem("null")))
                 .andExpect(jsonPath(
                         "$.components.schemas.HomePageResponse.properties"
-                                + ".preferredRestaurantType"
+                                + ".preferredCampusCode"
                 ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.HomePageResponse.properties"
@@ -604,14 +604,14 @@ class HomeApiIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(actual).isEqualTo(expected);
     }
 
-    private void setPreferredRestaurantType(Long userId, String restaurantType) {
+    private void setPreferredCampusCode(Long userId, String campusCode) {
         jdbcTemplate.update(
                 """
                         UPDATE user_accounts
-                        SET preferred_restaurant_type = ?
+                        SET preferred_campus_code = ?
                         WHERE id = ?
                         """,
-                restaurantType,
+                campusCode,
                 userId
         );
     }

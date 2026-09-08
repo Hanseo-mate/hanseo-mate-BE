@@ -141,7 +141,7 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 
 로그인 사용자 마이페이지 조회와 회원탈퇴 계약은 [마이페이지 API 명세서](docs/my-page-api.md)에서 확인할 수 있습니다.
 기존 운영 DB의 회원탈퇴 연쇄 삭제 FK는 [회원탈퇴 증분 DDL](docs/account-withdrawal-migration-mysql.sql)을 코드 배포 전에 적용합니다.
-선호 학생식당 기능을 기존 운영 DB에 배포할 때는 [선호 식당 증분 DDL](docs/user-cafeteria-preference-migration-mysql.sql)을 코드보다 먼저 적용합니다.
+공통 선호 캠퍼스 기능을 기존 운영 DB에 배포할 때는 [선호 캠퍼스 증분 DDL](docs/user-preferred-campus-migration-mysql.sql)을 코드보다 먼저 적용합니다.
 
 메인 페이지와 서산·태안 학생식당 조회 계약은 각각
 [메인 페이지 API 명세서](docs/home-api.md)와 [학식 API 명세서](docs/cafeteria-api.md)에서 확인할 수 있습니다.
@@ -197,8 +197,8 @@ navigation 기반 테이블에 이미지 클릭 링크 컬럼이 없다면
 
 | Method | Endpoint | 설명 |
 |---|---|---|
-| `GET` | `/api/auth/me` | 로그인 사용자의 계정 정보, 선호 학생식당, 작성한 후기 및 좋아요한 동아리 조회 |
-| `PUT` | `/api/auth/me/cafeteria-preference` | 로그인 사용자의 서산·태안 선호 학생식당 변경 |
+| `GET` | `/api/auth/me` | 로그인 사용자의 계정 정보, 선호 캠퍼스, 작성한 후기 및 좋아요한 동아리 조회 |
+| `PUT` | `/api/auth/me/campus-preference` | 로그인 사용자의 서산·태안 선호 캠퍼스 변경 |
 | `DELETE` | `/api/auth/me` | 비밀번호 확인 후 계정과 회원 관련 데이터 영구 삭제 |
 | `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
 | `GET` | `/api/admin/calendars` | 관리자용 학생회 일정 전체 조회 |
@@ -259,7 +259,7 @@ navigation 기반 테이블에 이미지 클릭 링크 컬럼이 없다면
 | `PATCH` | `/api/admin/popups/{popupId}/enabled` | 관리자 전용 팝업 활성 상태 변경 |
 | `DELETE` | `/api/admin/popups/{popupId}` | 관리자 전용 팝업과 관리 이미지 삭제 |
 | `GET` | `/api/home` | 포스터·오늘 시간표·인기 공지·사용자 설정 기준 오늘 학식 통합 조회 |
-| `GET` | `/api/cafeteria/menus` | 서산·태안 학생식당 식단과 로그인 사용자의 선호 식당 통합 조회 |
+| `GET` | `/api/cafeteria/menus` | 서산·태안 학생식당 식단과 로그인 사용자의 선호 캠퍼스 통합 조회 |
 | `GET` | `/api/notices/categories/admin` | 학생회 공지 목록 조회 |
 | `GET` | `/api/notices/categories/admin/{noticeId}` | 학생회 공지 상세 조회 |
 | `POST` | `/api/admin/notices` | 학생회공지 등록 |

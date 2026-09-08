@@ -56,7 +56,7 @@ HTTP/1.1 201 Created
   "userId": 1,
   "loginId": "user01",
   "role": "USER",
-  "preferredRestaurantType": "MAIN_STUDENT",
+  "preferredCampusCode": "SEOSAN",
   "createdAt": "2026-09-01T12:00:00",
   "updatedAt": "2026-09-01T12:00:00"
 }

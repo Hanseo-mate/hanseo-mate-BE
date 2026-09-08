@@ -1,7 +1,7 @@
 package hsu.hanseomate.domain.auth.controller;
 
 import hsu.hanseomate.domain.auth.dto.AuthResponse;
-import hsu.hanseomate.domain.auth.dto.CafeteriaPreferenceUpdateRequest;
+import hsu.hanseomate.domain.auth.dto.CampusPreferenceUpdateRequest;
 import hsu.hanseomate.domain.auth.dto.LoginRequest;
 import hsu.hanseomate.domain.auth.dto.MyPageResponse;
 import hsu.hanseomate.domain.auth.dto.RefreshTokenRequest;
@@ -122,14 +122,15 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "선호 학생식당 설정",
-            description = "로그인 사용자의 선호 학생식당을 서산 또는 태안 학생식당으로 설정합니다."
+            summary = "선호 캠퍼스 설정",
+            description = "로그인 사용자의 선호 캠퍼스를 서산 또는 태안으로 설정합니다. "
+                    + "설정값은 학식과 캠퍼스맵의 기본 캠퍼스로 함께 사용됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "설정 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "누락되었거나 지원하지 않는 식당 값",
+                    description = "누락되었거나 지원하지 않는 캠퍼스 값",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -138,12 +139,12 @@ public class AuthController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    @PutMapping("/me/cafeteria-preference")
-    public ResponseEntity<Void> updateCafeteriaPreference(
+    @PutMapping("/me/campus-preference")
+    public ResponseEntity<Void> updateCampusPreference(
             Authentication authentication,
-            @Valid @RequestBody CafeteriaPreferenceUpdateRequest request
+            @Valid @RequestBody CampusPreferenceUpdateRequest request
     ) {
-        authService.updateCafeteriaPreference(
+        authService.updateCampusPreference(
                 currentUserId(authentication),
                 request
         );
