@@ -254,10 +254,6 @@ public class CampusPlaceService {
             CampusPlace place,
             CampusLectureBuildingDetailUpdateRequest request
     ) {
-        List<String> departments = normalizeUniqueNames(
-                request.departments(),
-                "학과"
-        );
         List<String> majorFacilities = normalizeUniqueNames(
                 request.majorFacilities(),
                 "주요시설"
@@ -269,11 +265,10 @@ public class CampusPlaceService {
         if (isNew) {
             detail = CampusLectureBuildingDetail.create(place);
         }
-        detail.update(
+        detail.updateManagedDetails(
                 request.location().trim(),
                 request.floorCount(),
                 request.hasElevator(),
-                departments,
                 majorFacilities
         );
         if (isNew) {

@@ -363,7 +363,6 @@ class CampusPlaceApiIntegrationTest {
                                     "location": "태안캠퍼스 중앙",
                                     "floorCount": 5,
                                     "hasElevator": false,
-                                    "departments": ["항공운항학과", "항공교통물류학과"],
                                     "majorFacilities": ["대형강의실", "행정실"]
                                   }
                                 }
@@ -387,7 +386,7 @@ class CampusPlaceApiIntegrationTest {
                         .value(false))
                 .andExpect(jsonPath(
                         "$.lectureBuildingDetails.departments[1]"
-                ).value("항공교통물류학과"))
+                ).value("헬리콥터조종학과"))
                 .andExpect(jsonPath(
                         "$.lectureBuildingDetails.majorFacilities[1]"
                 ).value("행정실"));
@@ -424,7 +423,6 @@ class CampusPlaceApiIntegrationTest {
                                     "location": "서산캠퍼스",
                                     "floorCount": 3,
                                     "hasElevator": true,
-                                    "departments": ["컴퓨터공학과"],
                                     "majorFacilities": ["강의실"]
                                   }
                                 }
@@ -433,7 +431,9 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.category").value("LECTURE_BUILDING"))
                 .andExpect(jsonPath("$.lectureBuildingDetails.floorCount")
-                        .value(3));
+                        .value(3))
+                .andExpect(jsonPath("$.lectureBuildingDetails.departments")
+                        .isEmpty());
 
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM campus_lecture_building_details WHERE place_id = 3",
@@ -488,7 +488,6 @@ class CampusPlaceApiIntegrationTest {
                     "location": "서산캠퍼스",
                     "floorCount": 1,
                     "hasElevator": false,
-                    "departments": ["학과"],
                     "majorFacilities": ["시설"]
                   }
                 }
@@ -554,7 +553,6 @@ class CampusPlaceApiIntegrationTest {
                                     "location": "태안캠퍼스",
                                     "floorCount": 4,
                                     "hasElevator": true,
-                                    "departments": ["항공운항학과"],
                                     "majorFacilities": ["강의실"]
                                   }
                                 }

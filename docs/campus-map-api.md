@@ -311,7 +311,6 @@ Content-Type: application/json
     "location": "서산캠퍼스",
     "floorCount": 5,
     "hasElevator": true,
-    "departments": ["컴퓨터공학과", "항공소프트웨어공학과"],
     "majorFacilities": ["전산실습실", "학과사무실"]
   }
 }
@@ -319,6 +318,11 @@ Content-Type: application/json
 
 음식점, 카페, 편의시설은 `lectureBuildingDetails`를 보내지 않습니다.
 `oneLineDescription`과 `imageUrl`은 선택값이므로 아래처럼 생략할 수 있습니다.
+
+`departments`는 관리자 입력값이 아닙니다. 전공 시간표 엑셀을 성공적으로
+업로드할 때 강의실 건물을 기준으로 자동 집계하며, 한 학과의 서로 다른 강좌가
+같은 건물에 3개 이상 있을 때만 상세 조회 응답에 포함됩니다. 다음 전공 시간표
+업로드가 성공하면 기존 건물별 학과 목록은 새 파일의 집계 결과로 전체 교체됩니다.
 
 ```json
 {
@@ -344,7 +348,9 @@ Content-Type: application/json
 - 같은 캠퍼스 안에서 내부 키가 같은 장소를 등록하거나 수정할 수 없습니다.
 - `LECTURE_BUILDING`은 `lectureBuildingDetails`가 필수입니다.
 - 교내시설 이외의 카테고리는 `lectureBuildingDetails`를 보낼 수 없습니다.
-- 학과와 주요시설은 각각 한 개 이상이며, 같은 배열 안에서 이름이 중복될 수 없습니다.
+- 주요시설은 한 개 이상이며, 같은 배열 안에서 이름이 중복될 수 없습니다.
+- 응답의 학과 목록은 읽기 전용입니다. 관리자 장소 등록·수정 요청에는
+  `departments`를 보내지 않습니다.
 - 교내시설에서 다른 카테고리로 변경하면 기존 교내시설 상세정보는 삭제됩니다.
 - 관리자 JWT가 없으면 `401`, 일반 사용자 JWT이면 `403`, 수정·삭제할 장소가 없으면 `404`입니다.
 
