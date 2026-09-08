@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.home.service;
 
 import hsu.hanseomate.domain.appsetting.service.FestivalFloatingButtonService;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
 import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.cafeteria.repository.DailyMenuRepository;
@@ -68,16 +69,16 @@ public class HomePageService {
         List<HomeTodayCourseResponse> todayCourses = currentUserId
                 .map(ownerId -> todayCourses(ownerId, today))
                 .orElseGet(List::of);
-        RestaurantType preferredRestaurantType = currentUserId
-                .map(this::preferredRestaurantType)
+        CampusCode preferredCampusCode = currentUserId
+                .map(this::preferredCampusCode)
                 .orElse(null);
         Optional<RestaurantType> selectedRestaurantType = currentUserId.isPresent()
-                ? Optional.ofNullable(preferredRestaurantType)
+                ? Optional.of(studentRestaurantType(preferredCampusCode))
                 : Optional.of(RestaurantType.MAIN_STUDENT);
 
         return new HomePageResponse(
                 currentUserId.isPresent(),
-                preferredRestaurantType,
+                preferredCampusCode,
                 posterImageUrls.isEmpty() ? null : posterImageUrls,
                 posters.isEmpty() ? null : posters,
                 todayCourses,
@@ -110,12 +111,19 @@ public class HomePageService {
                 .toList();
     }
 
-    private RestaurantType preferredRestaurantType(Long userId) {
+    private CampusCode preferredCampusCode(Long userId) {
         UserAccount userAccount = userAccountRepository.findById(userId)
                 .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
                         "로그인이 필요합니다."
                 ));
-        return userAccount.getPreferredRestaurantType();
+        return userAccount.getPreferredCampusCode();
+    }
+
+    private RestaurantType studentRestaurantType(CampusCode campusCode) {
+        return switch (campusCode) {
+            case SEOSAN -> RestaurantType.MAIN_STUDENT;
+            case TAEAN -> RestaurantType.TAEAN_STUDENT;
+        };
     }
 
     private List<HomeCafeteriaMenuResponse> todayCafeteriaMenus(

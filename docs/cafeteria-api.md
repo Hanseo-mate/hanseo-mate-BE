@@ -22,8 +22,8 @@ GET /api/cafeteria/menus
 
 인증은 선택 사항입니다.
 
-- JWT 없음: `preferredRestaurantType` 은 `null`
-- 유효한 JWT 있음: 로그인 사용자의 선호 식당 반환
+- JWT 없음: `preferredCampusCode`는 `null`
+- 유효한 JWT 있음: 로그인 사용자의 선호 캠퍼스 반환
 - 잘못되었거나 만료된 JWT: `401 Unauthorized`
 
 ### Query Parameter
@@ -59,9 +59,10 @@ Authorization: Bearer {accessToken}
 
 ```json
 {
-  "preferredRestaurantType": "MAIN_STUDENT",
+  "preferredCampusCode": "SEOSAN",
   "restaurants": [
     {
+      "campusCode": "SEOSAN",
       "restaurantType": "MAIN_STUDENT",
       "dailyMenus": [
         {
@@ -91,6 +92,7 @@ Authorization: Bearer {accessToken}
       ]
     },
     {
+      "campusCode": "TAEAN",
       "restaurantType": "TAEAN_STUDENT",
       "dailyMenus": []
     }
@@ -102,13 +104,14 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `preferredRestaurantType` | String \| null | 로그인 사용자의 선호 식당; 비로그인은 `null` |
+| `preferredCampusCode` | String \| null | 로그인 사용자의 선호 캠퍼스(`SEOSAN` 또는 `TAEAN`); 비로그인은 `null` |
 | `restaurants` | Object[] | 서산·태안 학생식당 버킷 두 개 |
 
 ### 식당 버킷
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
+| `campusCode` | String | `SEOSAN` 또는 `TAEAN` |
 | `restaurantType` | String | `MAIN_STUDENT` 또는 `TAEAN_STUDENT` |
 | `dailyMenus` | Object[] | 조건에 맞는 날짜별 식단; 없으면 `[]` |
 
@@ -143,13 +146,15 @@ Authorization: Bearer {accessToken}
 
 ```json
 {
-  "preferredRestaurantType": null,
+  "preferredCampusCode": null,
   "restaurants": [
     {
+      "campusCode": "SEOSAN",
       "restaurantType": "MAIN_STUDENT",
       "dailyMenus": []
     },
     {
+      "campusCode": "TAEAN",
       "restaurantType": "TAEAN_STUDENT",
       "dailyMenus": []
     }
@@ -163,9 +168,9 @@ Authorization: Bearer {accessToken}
 
 ## 6. 프론트엔드 처리
 
-1. `preferredRestaurantType` 이 있으면 해당 버킷을 처음 표시합니다.
+1. 로그인 상태에서는 `preferredCampusCode`와 같은 `campusCode` 버킷을 처음 표시합니다.
 2. `null` 이면 앱의 기본값 또는 로컬 선택값을 사용합니다.
-3. 선택한 `restaurantType` 과 같은 `restaurants` 항목을 찾습니다.
+3. 상세 화면에서 캠퍼스를 전환할 때는 선택한 값과 같은 `campusCode`의 `restaurants` 항목을 찾습니다. 이 전환만으로 저장된 선호 캠퍼스는 변경되지 않습니다.
 4. 월~금 화면은 `menuDate` 또는 `dayOfWeek` 로 매칭합니다.
 5. 응답 인덱스를 요일로 간주하지 않습니다. 저장되지 않은 날짜는 빠집니다.
 6. 점심·저녁은 배열 위치가 아니라 `mealTime` 으로 구분합니다.
@@ -185,7 +190,7 @@ Authorization: Bearer {accessToken}
 - 식단 테이블 구조 변경(3-tier → 2-tier): `docs/cafeteria-menu-restructure-migration-mysql.sql` 를 앱 배포 전 1회 적용
 - 기존 식단 데이터는 마이그레이션에서 전량 삭제되며, Spring Boot 가 크롤러 결과로 다시 채움
 - DB 쓰기 소유권이 Python 크롤러에서 Spring Boot 로 이동(비교 후 변경 시에만 delete+insert)
-- `user_accounts.preferred_restaurant_type` 증분 DDL은 앱 배포 전 적용
+- `docs/user-preferred-campus-migration-mysql.sql`을 앱 배포 전에 적용
 - 서버 properties 추가 없음
 
 ## 9. CORS

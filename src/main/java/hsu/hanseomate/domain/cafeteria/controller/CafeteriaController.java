@@ -42,7 +42,7 @@ public class CafeteriaController {
     @Operation(
             summary = "서산·태안 학생식당 통합 조회",
             description = "두 학생식당 버킷을 항상 반환합니다. "
-                    + "로그인하면 preferredRestaurantType이, "
+                    + "로그인하면 preferredCampusCode가, "
                     + "비로그인이면 null이 반환됩니다."
     )
     @ApiResponses({

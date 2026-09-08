@@ -114,12 +114,12 @@ class CampusMapApiIntegrationTest {
                             login_id,
                             password_hash,
                             role,
-                            preferred_restaurant_type,
+                            preferred_campus_code,
                             created_at,
                             updated_at
                         ) VALUES
-                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                            (?, ?, ?, 'USER', 'MAIN_STUDENT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            (?, ?, ?, 'USER', 'SEOSAN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, ?, ?, 'USER', 'SEOSAN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 CURRENT_USER_ID,
                 "campus-map-current-user",
