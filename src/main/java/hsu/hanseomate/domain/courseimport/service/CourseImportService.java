@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.courseimport.service;
 
 import tools.jackson.databind.ObjectMapper;
+import hsu.hanseomate.domain.campusmap.service.CampusBuildingDepartmentSnapshotService;
 import hsu.hanseomate.domain.course.entity.AcademicUnit;
 import hsu.hanseomate.domain.course.entity.Classroom;
 import hsu.hanseomate.domain.course.entity.Course;
@@ -81,6 +82,7 @@ public class CourseImportService {
     private final SemesterAcademicUnitRepository semesterAcademicUnitRepository;
     private final SemesterGeneralCategoryNodeRepository semesterGeneralCategoryNodeRepository;
     private final CourseImportHistoryRepository courseImportHistoryRepository;
+    private final CampusBuildingDepartmentSnapshotService buildingDepartmentSnapshotService;
 
     @Transactional
     public CourseImportResponse importCourses(TimetableParseResultRequest request) {
@@ -186,6 +188,9 @@ public class CourseImportService {
         replaceCourseDetails(courses, classrooms);
         replaceSourceCells(offerings);
         persistImportIssues(request.issues(), history);
+        if (request.curriculumType() == CurriculumType.MAJOR) {
+            buildingDepartmentSnapshotService.replaceWith(lectures);
+        }
 
         entityManager.flush();
         return new CourseImportResponse(

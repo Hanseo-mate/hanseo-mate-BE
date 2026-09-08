@@ -104,6 +104,12 @@ class CourseImportApiIntegrationTest {
             truncate("courses");
             truncate("academic_units");
             truncate("semesters");
+            truncate("campus_lecture_building_departments");
+            truncate("campus_lecture_building_facilities");
+            truncate("campus_lecture_building_details");
+            truncate("campus_places");
+            truncate("campus_building_aliases");
+            truncate("campus_buildings");
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
         }
@@ -171,6 +177,50 @@ class CourseImportApiIntegrationTest {
         assertThat(rawUnknownCell.path("headerName").asString()).isEqualTo("새로 생긴 열");
         assertThat(rawUnknownCell.path("canonicalField").isNull()).isTrue();
         assertThat(rawUnknownCell.path("value").isNull()).isTrue();
+    }
+
+    @Test
+    void successfulMajorImportReplacesQualifiedBuildingDepartments()
+            throws Exception {
+        insertCampusDepartmentSnapshotFixtures();
+
+        String firstSemester = departmentSnapshotPayload(
+                "major-building-departments-2026-1",
+                "c".repeat(64),
+                1,
+                List.of(
+                        "항공소프트웨어공학과",
+                        "항공소프트웨어공학과",
+                        "항공소프트웨어공학과",
+                        "항공운항학과",
+                        "항공운항학과"
+                )
+        );
+        assertThat(performImport(firstSemester).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+
+        assertThat(buildingDepartments(101L))
+                .containsExactly("항공소프트웨어공학과");
+        assertThat(buildingDepartments(102L)).isEmpty();
+
+        String secondSemester = departmentSnapshotPayload(
+                "major-building-departments-2026-2",
+                "d".repeat(64),
+                2,
+                List.of(
+                        "항공소프트웨어공학과",
+                        "항공소프트웨어공학과",
+                        "항공운항학과",
+                        "항공운항학과",
+                        "항공운항학과"
+                )
+        );
+        assertThat(performImport(secondSemester).storageStatus())
+                .isEqualTo(StorageStatus.STORED);
+
+        assertThat(buildingDepartments(101L))
+                .containsExactly("항공운항학과");
+        assertThat(buildingDepartments(102L)).isEmpty();
     }
 
     @Test
@@ -1415,6 +1465,132 @@ class CourseImportApiIntegrationTest {
                 .replace("\"importId\": \"major-2026-1-a\"", "\"importId\": \"" + importId + "\"")
                 .replace("\"semester\": 1", "\"semester\": 2")
                 .replace("2026학년도 1학기", "2026학년도 2학기");
+    }
+
+    private String departmentSnapshotPayload(
+            String importId,
+            String fileSha256,
+            int semester,
+            List<String> departments
+    ) throws Exception {
+        ObjectNode payload = (ObjectNode) objectMapper.readTree(
+                fixture("major-ready-2026-1-a.json")
+        );
+        payload.put("importId", importId);
+        payload.put("fileName", importId + ".xlsx");
+        payload.put("fileSha256", fileSha256);
+        payload.put("semester", semester);
+        payload.put("displayName", "2026학년도 " + semester + "학기 전공");
+
+        ArrayNode lectures = (ArrayNode) payload.path("lectures");
+        ObjectNode template = ((ObjectNode) lectures.get(0)).deepCopy();
+        lectures.removeAll();
+        for (int index = 0; index < departments.size(); index++) {
+            ObjectNode lecture = template.deepCopy();
+            String department = departments.get(index);
+            String courseCode = "99000" + index;
+            lecture.put("sourceRow", index + 2);
+            lecture.put("courseCode", courseCode);
+            lecture.put("courseName", "건물 집계 강좌 " + index);
+            lecture.put("sectionNo", "01");
+            ObjectNode academicUnit = (ObjectNode) lecture.path("academicUnit");
+            academicUnit.put("originalName", department);
+            academicUnit.put("departmentName", department);
+            ArrayNode eligibleDepartments =
+                    (ArrayNode) lecture.path("eligibleDepartmentNames");
+            eligibleDepartments.removeAll();
+            eligibleDepartments.add(department);
+
+            ArrayNode schedules = (ArrayNode) lecture.path("schedules");
+            ObjectNode schedule = (ObjectNode) schedules.get(0);
+            ObjectNode classroom = (ObjectNode) schedule.path("classroom");
+            classroom.put("campusCode", "SEOSAN");
+            classroom.put("buildingName", "건축토목공학관");
+            classroom.put("roomNumber", "101");
+            classroom.put("originalValue", "건축토목공학관 101호");
+            lecture.put("classroomText", "건축토목공학관 101호");
+
+            if (index == 0) {
+                ObjectNode duplicateBuildingSchedule = schedule.deepCopy();
+                duplicateBuildingSchedule.put("dayOfWeek", "TUESDAY");
+                schedules.add(duplicateBuildingSchedule);
+            }
+            ((ObjectNode) lecture.path("sourceCells").get(0))
+                    .put("value", courseCode);
+            ((ObjectNode) lecture.path("sourceCells").get(1))
+                    .put("value", "건물 집계 강좌 " + index);
+            lectures.add(lecture);
+        }
+
+        ObjectNode statistics = (ObjectNode) payload.path("statistics");
+        statistics.put("totalRowCount", departments.size());
+        statistics.put("parsedLectureCount", departments.size());
+        statistics.put("scheduleCount", departments.size() + 1);
+        return objectMapper.writeValueAsString(payload);
+    }
+
+    private void insertCampusDepartmentSnapshotFixtures() {
+        jdbcTemplate.update("""
+                INSERT INTO campus_buildings (
+                    id, campus_code, canonical_name, canonical_name_key,
+                    latitude, longitude, created_at, updated_at
+                ) VALUES (
+                    201, 'SEOSAN', '건축토목공학관', '건축토목공학관',
+                    36.691361000, 126.583607000,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO campus_building_aliases (
+                    id, building_id, campus_code, alias_name, alias_key,
+                    created_at, updated_at
+                ) VALUES (
+                    301, 201, 'SEOSAN', '건축관', '건축관',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO campus_places (
+                    id, campus_code, place_name, place_name_key, category,
+                    latitude, longitude, created_at, updated_at
+                ) VALUES
+                    (101, 'SEOSAN', '건축관', '건축관', 'LECTURE_BUILDING',
+                     36.691361000, 126.583607000,
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                    (102, 'SEOSAN', '미등록관', '미등록관', 'LECTURE_BUILDING',
+                     36.690000000, 126.580000000,
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO campus_lecture_building_details (
+                    place_id, location_description, floor_count, has_elevator,
+                    created_at, updated_at
+                ) VALUES
+                    (101, '서산캠퍼스', 4, TRUE,
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                    (102, '서산캠퍼스', 2, FALSE,
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO campus_lecture_building_departments (
+                    place_id, sort_order, department_name
+                ) VALUES
+                    (101, 0, '기존 수동 학과'),
+                    (102, 0, '삭제 대상 학과')
+                """);
+    }
+
+    private List<String> buildingDepartments(long placeId) {
+        return jdbcTemplate.queryForList(
+                """
+                SELECT department_name
+                FROM campus_lecture_building_departments
+                WHERE place_id = ?
+                ORDER BY sort_order
+                """,
+                String.class,
+                placeId
+        );
     }
 
     private void replaceFirstLectureDetails(

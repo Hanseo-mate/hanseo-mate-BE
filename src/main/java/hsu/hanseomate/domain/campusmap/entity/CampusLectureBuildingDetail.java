@@ -78,19 +78,21 @@ public class CampusLectureBuildingDetail extends BaseTimeEntity {
         return detail;
     }
 
-    public void update(
+    public void updateManagedDetails(
             String location,
             Integer floorCount,
             Boolean hasElevator,
-            List<String> departments,
             List<String> majorFacilities
     ) {
         this.location = location;
         this.floorCount = floorCount;
         this.hasElevator = hasElevator;
-        this.departments.clear();
-        this.departments.addAll(departments);
         this.majorFacilities.clear();
         this.majorFacilities.addAll(majorFacilities);
+    }
+
+    public void replaceDepartments(List<String> departments) {
+        this.departments.clear();
+        this.departments.addAll(departments);
     }
 }
