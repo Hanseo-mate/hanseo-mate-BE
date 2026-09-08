@@ -179,7 +179,7 @@ class CorsIntegrationTest {
     @Test
     void cafeteriaPreferencePreflightAllowsPutContentTypeAndAuthorization()
             throws Exception {
-        mockMvc.perform(options("/api/auth/me/cafeteria-preference")
+        mockMvc.perform(options("/api/auth/me/campus-preference")
                         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
                         .header(
                                 HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,

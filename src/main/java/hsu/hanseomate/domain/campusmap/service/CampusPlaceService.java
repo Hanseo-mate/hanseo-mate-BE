@@ -13,7 +13,6 @@ import hsu.hanseomate.domain.campusmap.repository.CampusPlaceRepository;
 import hsu.hanseomate.domain.campusmap.support.CampusLocationNormalizer;
 import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.campusmap.type.CampusPlaceCategory;
-import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import hsu.hanseomate.global.exception.BadRequestException;
@@ -321,20 +320,12 @@ public class CampusPlaceService {
     }
 
     private CampusCode preferredCampusCode(Long userId) {
-        RestaurantType preferredRestaurantType = userAccountRepository
-                .findById(userId)
-                .map(UserAccount::getPreferredRestaurantType)
+        return userAccountRepository.findById(userId)
+                .map(UserAccount::getPreferredCampusCode)
                 .orElseThrow(() ->
                         new AuthenticationCredentialsNotFoundException(
                                 "로그인이 필요합니다."
                         ));
-        return switch (preferredRestaurantType) {
-            case MAIN_STUDENT -> CampusCode.SEOSAN;
-            case TAEAN_STUDENT -> CampusCode.TAEAN;
-            default -> throw new IllegalStateException(
-                    "지원하지 않는 선호 학생식당입니다."
-            );
-        };
     }
 
     private CampusLectureBuildingDetailResponse lectureBuildingDetails(

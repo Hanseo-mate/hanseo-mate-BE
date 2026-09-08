@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.auth.repository.RefreshTokenRepository;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
@@ -89,8 +89,8 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("$.userId").isNumber())
                 .andExpect(jsonPath("$.loginId").value("newuser"))
                 .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andExpect(jsonPath("$.password").doesNotExist())
@@ -99,8 +99,8 @@ class AuthApiIntegrationTest {
 
         UserAccount saved = userAccountRepository.findByLoginId("newuser").orElseThrow();
         assertThat(saved.getRole()).isEqualTo(UserRole.USER);
-        assertThat(saved.getPreferredRestaurantType())
-                .isEqualTo(RestaurantType.MAIN_STUDENT);
+        assertThat(saved.getPreferredCampusCode())
+                .isEqualTo(CampusCode.SEOSAN);
         assertThat(saved.getPasswordHash()).isNotEqualTo("plain-password");
         assertThat(passwordEncoder.matches("plain-password", saved.getPasswordHash())).isTrue();
 
@@ -161,8 +161,8 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("$.userId").value(userId))
                 .andExpect(jsonPath("$.loginId").value("login-user"))
                 .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.preferredRestaurantType")
-                        .value("MAIN_STUDENT"))
+                .andExpect(jsonPath("$.preferredCampusCode")
+                        .value("SEOSAN"))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andExpect(jsonPath("$.password").doesNotExist())

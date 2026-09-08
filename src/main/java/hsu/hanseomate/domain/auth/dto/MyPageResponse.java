@@ -1,6 +1,6 @@
 package hsu.hanseomate.domain.auth.dto;
 
-import hsu.hanseomate.domain.cafeteria.entity.RestaurantType;
+import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.club.entity.ClubLike;
 import hsu.hanseomate.domain.club.entity.ClubReview;
 import hsu.hanseomate.domain.user.entity.UserAccount;
@@ -13,8 +13,8 @@ public record MyPageResponse(
         Long userId,
         String loginId,
         UserRole role,
-        @Schema(allowableValues = {"MAIN_STUDENT", "TAEAN_STUDENT"})
-        RestaurantType preferredRestaurantType,
+        @Schema(allowableValues = {"SEOSAN", "TAEAN"})
+        CampusCode preferredCampusCode,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<MyClubReviewResponse> clubReviews,
@@ -35,7 +35,7 @@ public record MyPageResponse(
                 userAccount.getId(),
                 userAccount.getLoginId(),
                 userAccount.getRole(),
-                userAccount.getPreferredRestaurantType(),
+                userAccount.getPreferredCampusCode(),
                 userAccount.getCreatedAt(),
                 userAccount.getUpdatedAt(),
                 clubReviews.stream().map(MyClubReviewResponse::from).toList(),

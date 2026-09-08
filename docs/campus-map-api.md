@@ -176,8 +176,8 @@ const markersByDay = Object.fromEntries(
 `campusCode`와 `category`는 선택값이며, 카테고리를 아직 수동 분류하지 않은 장소도
 `category: null`로 반환됩니다.
 
-- 유효한 JWT가 있고 `campusCode`가 없으면 사용자의 선호 학생식당을 캠퍼스로 변환해
-  해당 캠퍼스 장소만 반환합니다.
+- 유효한 JWT가 있고 `campusCode`가 없으면 사용자의 `preferredCampusCode`에 해당하는
+  캠퍼스 장소만 반환합니다.
 - `MAIN_STUDENT`는 `SEOSAN`, `TAEAN_STUDENT`는 `TAEAN`으로 변환합니다.
 - `campusCode`를 직접 보내면 로그인 사용자의 선호값보다 요청값이 우선합니다.
 - 비로그인 상태에서 `campusCode`가 없으면 기존과 같이 모든 캠퍼스 장소를 반환합니다.
