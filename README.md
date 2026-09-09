@@ -187,6 +187,11 @@ mysql --default-character-set=utf8mb4 -u 사용자명 -p hanseo_mate --execute="
 navigation 기반 테이블에 이미지 클릭 링크 컬럼이 없다면
 [팝업 이미지 링크 증분 DDL](docs/app-popup-link-url-migration-mysql.sql)을 적용합니다.
 
+플랫폼별 앱 강제·선택 업데이트, 관리자 초안·게시·예약·롤백 계약은
+[앱 업데이트 정책 API 명세서](docs/app-update-policy-api.md)에서 확인할 수 있습니다.
+코드 배포 전에 [앱 업데이트 정책 증분 DDL](docs/app-update-policy-migration-mysql.sql)을 적용하고,
+iOS 정책을 운영할 때는 실제 `APP_UPDATES_IOS_APP_STORE_ID`를 설정합니다.
+
 학생회 캘린더 조회와 관리 계약은 [학생회 캘린더 API 명세서](docs/calendar-api.md)에서 확인할 수 있습니다.
 
 로그인 사용자 개인 일정 계약은 [개인 일정 API 명세서](docs/personal-calendar-api.md)에서 확인할 수 있습니다.
