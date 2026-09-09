@@ -39,6 +39,12 @@ public class CorsConfig {
         adminConfiguration.setAllowCredentials(false);
         adminConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
+        CorsConfiguration appUpdateConfiguration = new CorsConfiguration(adminConfiguration);
+        appUpdateConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, HttpHeaders.ACCEPT,
+                "Idempotency-Key", "X-Request-ID"));
+        appUpdateConfiguration.setExposedHeaders(List.of(HttpHeaders.LOCATION, "X-Request-ID"));
+
         CorsConfiguration loginConfiguration = new CorsConfiguration();
         loginConfiguration.setAllowedOrigins(corsProperties.allowedOrigins());
         loginConfiguration.setAllowedMethods(List.of(
@@ -119,6 +125,8 @@ public class CorsConfig {
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/admin/app-update-policies", appUpdateConfiguration);
+        source.registerCorsConfiguration("/api/admin/app-update-policies/**", appUpdateConfiguration);
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
         source.registerCorsConfiguration(
                 "/api/v1/timetables/major",
@@ -156,6 +164,7 @@ public class CorsConfig {
                 publicReadConfiguration
         );
         source.registerCorsConfiguration("/api/home", publicReadConfiguration);
+        source.registerCorsConfiguration("/api/app-updates/check", publicReadConfiguration);
         source.registerCorsConfiguration(
                 "/api/bus-schedules",
                 publicReadConfiguration
