@@ -207,6 +207,7 @@ iOS 정책을 운영할 때는 실제 `APP_UPDATES_IOS_APP_STORE_ID`를 설정�
 | `DELETE` | `/api/auth/me` | 비밀번호 확인 후 계정과 회원 관련 데이터 영구 삭제 |
 | `GET` | `/api/calendars` | 로그인 없이 학생회 일정 전체 조회 |
 | `GET` | `/api/admin/calendars` | 관리자용 학생회 일정 전체 조회 |
+| `GET` | `/api/admin/calendars/all` | 관리자용 전체 공개 일정 조회(학교 공식 + 학생회, 개인 제외) |
 | `POST` | `/api/admin/calendars` | 학생회 일정 등록 |
 | `PUT` | `/api/admin/calendars/{calendarId}` | 학생회 일정 전체 수정 |
 | `DELETE` | `/api/admin/calendars/{calendarId}` | 학생회 일정 삭제 |

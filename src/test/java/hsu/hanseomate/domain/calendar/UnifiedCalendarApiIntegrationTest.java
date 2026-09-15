@@ -25,6 +25,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -37,6 +38,7 @@ import tools.jackson.databind.ObjectMapper;
 class UnifiedCalendarApiIntegrationTest {
 
     private static final String PATH = "/api/calendars/all";
+    private static final String ADMIN_PATH = "/api/admin/calendars/all";
 
     @Autowired
     private MockMvc mockMvc;
@@ -116,6 +118,33 @@ class UnifiedCalendarApiIntegrationTest {
     }
 
     @Test
+    void adminReceivesEveryPublicEventButNoPersonalEvent() throws Exception {
+        saveStudentCouncilEvent("2026-08-10", "Student council event");
+        saveSchoolEvent("2026-08-10", "School event");
+        UserAccount user = createUser();
+        savePersonalEvent(user, "2026-08-09", "Personal event");
+
+        mockMvc.perform(get(ADMIN_PATH).with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].calendarType").value("SCHOOL"))
+                .andExpect(jsonPath("$[0].title").value("School event"))
+                .andExpect(jsonPath("$[1].calendarType").value("STUDENT_COUNCIL"))
+                .andExpect(jsonPath("$[1].title").value("Student council event"))
+                .andExpect(jsonPath("$[?(@.calendarType == 'PERSONAL')]").isEmpty());
+    }
+
+    @Test
+    void adminPublicCalendarRequiresAdminRole() throws Exception {
+        mockMvc.perform(get(ADMIN_PATH).with(anonymous()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get(ADMIN_PATH).with(userRoleJwt()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(ADMIN_PATH).with(adminJwt()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void invalidOrNonNumericTokenIsUnauthorized() throws Exception {
         mockMvc.perform(get(PATH).header(
                         HttpHeaders.AUTHORIZATION,
@@ -135,6 +164,9 @@ class UnifiedCalendarApiIntegrationTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/calendars/all'].get").exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/admin/calendars/all'].get"
+                ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.UnifiedCalendarEventResponse.properties.calendarType"
                 ).exists());
@@ -204,6 +236,18 @@ class UnifiedCalendarApiIntegrationTest {
         return jwt().jwt(token -> token
                 .subject(Long.toString(userId))
                 .claim("role", "USER"));
+    }
+
+    private RequestPostProcessor adminJwt() {
+        return jwt()
+                .jwt(token -> token.subject("1").claim("role", "ADMIN"))
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    private RequestPostProcessor userRoleJwt() {
+        return jwt()
+                .jwt(token -> token.subject("1").claim("role", "USER"))
+                .authorities(new SimpleGrantedAuthority("ROLE_USER"));
     }
 
     private record AuthSession(long userId, String accessToken) {
