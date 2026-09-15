@@ -31,6 +31,15 @@ public class UnifiedCalendarService {
     private final PersonalCalendarEventService personalCalendarEventService;
 
     public List<UnifiedCalendarEventResponse> getEvents(Optional<Long> currentUserId) {
+        List<UnifiedCalendarEventResponse> events = new ArrayList<>(getPublicEvents());
+        currentUserId.ifPresent(userId -> personalCalendarEventService.getEvents(userId)
+                .stream()
+                .map(this::personalEvent)
+                .forEach(events::add));
+        return sorted(events);
+    }
+
+    public List<UnifiedCalendarEventResponse> getPublicEvents() {
         List<UnifiedCalendarEventResponse> events = new ArrayList<>();
         schoolCalendarEventService.getEvents().stream()
                 .map(this::schoolEvent)
@@ -38,10 +47,12 @@ public class UnifiedCalendarService {
         calendarEventService.getEvents().stream()
                 .map(this::studentCouncilEvent)
                 .forEach(events::add);
-        currentUserId.ifPresent(userId -> personalCalendarEventService.getEvents(userId)
-                .stream()
-                .map(this::personalEvent)
-                .forEach(events::add));
+        return sorted(events);
+    }
+
+    private List<UnifiedCalendarEventResponse> sorted(
+            List<UnifiedCalendarEventResponse> events
+    ) {
         return events.stream().sorted(EVENT_ORDER).toList();
     }
 
