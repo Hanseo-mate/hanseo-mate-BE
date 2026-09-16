@@ -306,7 +306,7 @@ Content-Type: application/json
 ```json
 {
   "courseName": "개인 프로젝트",
-  "credit": 2.5,
+  "credit": 2,
   "dayOfWeek": "WEDNESDAY",
   "startTime": "13:00",
   "endTime": "14:30"
@@ -316,7 +316,7 @@ Content-Type: application/json
 | 필드 | 필수 | 규칙 |
 |---|---|---|
 | `courseName` | Y | 앞뒤 공백 제거 후 1~255자 |
-| `credit` | Y | 0 초과 20 이하, 소수 셋째 자리까지 |
+| `credit` | Y | 0 이상의 정수, 사업적 최댓값 없음 |
 | `dayOfWeek` | Y | `MONDAY`~`SUNDAY` |
 | `startTime` | Y | `HH:mm` |
 | `endTime` | Y | `HH:mm`, `startTime`보다 늦어야 함 |
@@ -335,7 +335,7 @@ HTTP/1.1 201 Created
   "courseCode": null,
   "courseName": "개인 프로젝트",
   "sectionNo": null,
-  "credit": 2.5,
+  "credit": 2,
   "cyber": false,
   "generalCategory": null,
   "eligibleDepartmentNames": [],

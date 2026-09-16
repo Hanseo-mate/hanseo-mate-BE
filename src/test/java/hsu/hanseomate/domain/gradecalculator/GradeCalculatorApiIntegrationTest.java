@@ -302,7 +302,7 @@ class GradeCalculatorApiIntegrationTest {
                         .content("""
                                 {
                                   "courseName": "개인 프로젝트",
-                                  "credit": 2.5,
+                                  "credit": 2,
                                   "dayOfWeek": "THURSDAY",
                                   "startTime": "15:00",
                                   "endTime": "16:30"
@@ -324,19 +324,19 @@ class GradeCalculatorApiIntegrationTest {
                 .andExpect(jsonPath("$.courses[0].courseId").value(nullValue()))
                 .andExpect(jsonPath("$.courses[0].courseName")
                         .value("개인 프로젝트"))
-                .andExpect(jsonPath("$.courses[0].credit").value(2.5))
+                .andExpect(jsonPath("$.courses[0].credit").value(2.0))
                 .andExpect(jsonPath("$.courses[0].curriculumType")
                         .value(nullValue()))
                 .andExpect(jsonPath("$.courses[0].expectedGrade")
                         .value(nullValue()))
-                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.0))
                 .andExpect(jsonPath("$.termSummary.ungradedCourseCount").value(1));
 
         updateGrade(accessToken, timetableCourseId, "\"A+\"")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
-                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.5))
-                .andExpect(jsonPath("$.termSummary.gpaCredits").value(2.5))
+                .andExpect(jsonPath("$.termSummary.totalCredits").value(2.0))
+                .andExpect(jsonPath("$.termSummary.gpaCredits").value(2.0))
                 .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50));
 
         performAuthenticated(accessToken, post(
@@ -351,7 +351,7 @@ class GradeCalculatorApiIntegrationTest {
                 .andExpect(jsonPath("$.courses[0].courseId").value(nullValue()))
                 .andExpect(jsonPath("$.courses[0].courseName")
                         .value("개인 프로젝트"))
-                .andExpect(jsonPath("$.courses[0].credit").value(2.5))
+                .andExpect(jsonPath("$.courses[0].credit").value(2.0))
                 .andExpect(jsonPath("$.courses[0].expectedGrade").value("A+"))
                 .andExpect(jsonPath("$.termSummary.averageGpa").value(4.50));
     }

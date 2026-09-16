@@ -230,7 +230,7 @@ class TimetableApiIntegrationTest {
         MvcResult result = addCustomCourseRequest(
                 timetableId,
                 "  개인 프로젝트  ",
-                2.5,
+                2,
                 "WEDNESDAY",
                 "13:00",
                 "14:30"
@@ -241,7 +241,7 @@ class TimetableApiIntegrationTest {
                 .andExpect(jsonPath("$.courseId").value(nullValue()))
                 .andExpect(jsonPath("$.courseCode").value(nullValue()))
                 .andExpect(jsonPath("$.courseName").value("개인 프로젝트"))
-                .andExpect(jsonPath("$.credit").value(2.5))
+                .andExpect(jsonPath("$.credit").value(2))
                 .andExpect(jsonPath("$.cyber").value(false))
                 .andExpect(jsonPath("$.meetings.length()").value(1))
                 .andExpect(jsonPath("$.meetings[0].dayOfWeek").value("WEDNESDAY"))
@@ -257,7 +257,7 @@ class TimetableApiIntegrationTest {
         assertThat(saved.getTimetable().getId()).isEqualTo(timetableId);
         assertThat(saved.getCourseOffering()).isNull();
         assertThat(saved.getCustomCourseName()).isEqualTo("개인 프로젝트");
-        assertThat(saved.getCustomCredit()).isEqualByComparingTo(new BigDecimal("2.5"));
+        assertThat(saved.getCustomCredit()).isEqualByComparingTo(new BigDecimal("2"));
         assertThat(saved.getCustomDayOfWeek()).isEqualTo(DayOfWeek.WEDNESDAY);
         assertThat(saved.getCustomStartTime()).isEqualTo(LocalTime.of(13, 0));
         assertThat(saved.getCustomEndTime()).isEqualTo(LocalTime.of(14, 30));
@@ -273,7 +273,7 @@ class TimetableApiIntegrationTest {
                 .andExpect(jsonPath("$.courses[0].courseName").value("개인 프로젝트"))
                 .andExpect(jsonPath("$.cyberCourses").isEmpty())
                 .andExpect(jsonPath("$.gradeSummary.termSummary.totalCredits")
-                        .value(2.5))
+                        .value(2))
                 .andExpect(jsonPath("$.gradeSummary.termSummary.ungradedCourseCount")
                         .value(1));
 
@@ -283,6 +283,70 @@ class TimetableApiIntegrationTest {
                 ))
                 .andExpect(status().isNoContent());
         assertThat(timetableCourseRepository.existsById(timetableCourseId)).isFalse();
+    }
+
+    @Test
+    void customCourseAcceptsZeroAndHasNoBusinessMaximumCredit() throws Exception {
+        long timetableId = createTimetable(2026, 1);
+
+        addCustomCourseRequest(
+                timetableId,
+                "0학점 일정",
+                0,
+                "MONDAY",
+                "09:00",
+                "10:00"
+        )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.credit").value(0));
+
+        BigDecimal largeCredit = new BigDecimal("1000000000000000000000000000000");
+        MvcResult result = addCustomCourseRequest(
+                timetableId,
+                "대형 학점 일정",
+                largeCredit,
+                "TUESDAY",
+                "09:00",
+                "10:00"
+        )
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long timetableCourseId = responseBody(result).path("timetableCourseId").asLong();
+        TimetableCourse saved = timetableCourseRepository.findById(timetableCourseId)
+                .orElseThrow();
+        assertThat(saved.getCustomCredit()).isEqualByComparingTo(largeCredit);
+    }
+
+    @Test
+    void customCourseRejectsFractionalCredit() throws Exception {
+        long timetableId = createTimetable(2026, 1);
+
+        addCustomCourseRequest(
+                timetableId,
+                "소수 학점 일정",
+                2.5,
+                "MONDAY",
+                "09:00",
+                "10:00"
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("credit: 학점은 정수로 입력해야 합니다."));
+
+        addCustomCourseRequest(
+                timetableId,
+                "소수점 표기 일정",
+                2.0,
+                "TUESDAY",
+                "09:00",
+                "10:00"
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("credit: 학점은 정수로 입력해야 합니다."));
+
+        assertThat(timetableCourseRepository.count()).isZero();
     }
 
     @Test
