@@ -360,7 +360,7 @@ class CampusPlaceApiIntegrationTest {
                                   "oneLineDescription": "태안캠퍼스의 중심 강의 건물",
                                   "imageUrl": "https://images.example/taean-main.jpg",
                                   "lectureBuildingDetails": {
-                                    "location": "태안캠퍼스 중앙",
+                                    "location": "  태안캠퍼스 중앙  ",
                                     "floorCount": 5,
                                     "hasElevator": false,
                                     "majorFacilities": ["대형강의실", "행정실"]
@@ -371,6 +371,7 @@ class CampusPlaceApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.placeId").value(2))
                 .andExpect(jsonPath("$.placeName").value("태안본관 별관"))
+                .andExpect(jsonPath("$.address").value("태안캠퍼스 중앙"))
                 .andExpect(jsonPath("$.category").value("LECTURE_BUILDING"))
                 .andExpect(jsonPath("$.oneLineDescription")
                         .value("태안캠퍼스의 중심 강의 건물"))
@@ -558,10 +559,49 @@ class CampusPlaceApiIntegrationTest {
                                 }
                                 """)
                         .with(adminJwt()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        "교내시설 카테고리에는 address를 입력할 수 없습니다."
-                ));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.address").value("태안캠퍼스"));
+    }
+
+    @Test
+    void copiesLectureLocationToAddressOnCreateAndReturnsItInList() throws Exception {
+        MvcResult result = mockMvc.perform(post(ADMIN_PLACES_ENDPOINT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "campusCode": "SEOSAN",
+                                  "placeName": "새 교내시설",
+                                  "latitude": 36.690800000,
+                                  "longitude": 126.580800000,
+                                  "category": "LECTURE_BUILDING",
+                                  "lectureBuildingDetails": {
+                                    "location": "  서산캠퍼스 정문 옆  ",
+                                    "floorCount": 3,
+                                    "hasElevator": true,
+                                    "majorFacilities": ["강의실"]
+                                  }
+                                }
+                                """)
+                        .with(adminJwt()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.address").value("서산캠퍼스 정문 옆"))
+                .andExpect(jsonPath("$.lectureBuildingDetails.location")
+                        .value("서산캠퍼스 정문 옆"))
+                .andReturn();
+
+        Number placeId = JsonPath.read(result.getResponse().getContentAsString(), "$.placeId");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT address FROM campus_places WHERE id = ?",
+                String.class,
+                placeId.longValue()
+        )).isEqualTo("서산캠퍼스 정문 옆");
+
+        mockMvc.perform(get(PLACES_ENDPOINT)
+                        .param("campusCode", "SEOSAN")
+                        .param("category", "LECTURE_BUILDING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.places[?(@.placeId == " + placeId.longValue()
+                        + ")].address").value(org.hamcrest.Matchers.contains("서산캠퍼스 정문 옆")));
     }
 
     @Test

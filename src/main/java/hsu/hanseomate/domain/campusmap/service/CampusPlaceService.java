@@ -77,7 +77,7 @@ public class CampusPlaceService {
                 request.category(),
                 request.lectureBuildingDetails()
         );
-        String address = address(request.category(), request.address());
+        String address = address(request);
 
         CampusPlace place = CampusPlace.create(
                 request.campusCode(),
@@ -112,7 +112,7 @@ public class CampusPlaceService {
                 request.category(),
                 request.lectureBuildingDetails()
         );
-        String address = address(request.category(), request.address());
+        String address = address(request);
 
         place.update(
                 request.campusCode(),
@@ -207,18 +207,11 @@ public class CampusPlaceService {
         return placeNameKey;
     }
 
-    private String address(
-            CampusPlaceCategory category,
-            String address
-    ) {
-        if (category == CampusPlaceCategory.LECTURE_BUILDING) {
-            if (address != null) {
-                throw new BadRequestException(
-                        "교내시설 카테고리에는 address를 입력할 수 없습니다."
-                );
-            }
-            return null;
+    private String address(CampusPlaceInformationUpdateRequest request) {
+        if (request.category() == CampusPlaceCategory.LECTURE_BUILDING) {
+            return request.lectureBuildingDetails().location().trim();
         }
+        String address = request.address();
         if (address == null || address.isBlank()) {
             throw new BadRequestException(
                     "교내시설 이외의 카테고리는 address가 필요합니다."
