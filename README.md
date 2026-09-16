@@ -4,7 +4,7 @@
 
 **시간표부터 공지·일정·학식까지, 한서대학교 학생을 위한 통합 캠퍼스 서비스**
 
-  <img src="assets/images/home/header/hanseo-mate-3d.svg" width="420" alt="한서메이트 로고" />
+<img width="753" height="113" alt="Image" src="https://github.com/user-attachments/assets/b096bcae-38a2-4b8a-85e9-672b78ab4782" />
 
 Java 17 · Spring Boot 4.1.0 · Spring Security · JPA · MySQL
 
