@@ -27,7 +27,7 @@ Java 17 · Spring Boot 4.1.0 · Spring Security · JPA · MySQL
 
 서비스 화면
 
-(~~사진 넣을곳)
+<img width="1754" height="2480" alt="Image" src="https://github.com/user-attachments/assets/a9f73021-1dd7-4302-bd37-951a1943f418" />
 
 ### 빠르게 살펴보기
 
