@@ -915,7 +915,7 @@ CREATE TABLE timetable_courses (
     course_offering_id BINARY(16) NULL,
     expected_grade VARCHAR(20) NULL,
     custom_course_name VARCHAR(255) NULL,
-    custom_credit DECIMAL(8,3) NULL,
+    custom_credit DECIMAL(65,3) NULL,
     custom_day_of_week VARCHAR(20) NULL,
     custom_start_time TIME NULL,
     custom_end_time TIME NULL,
@@ -931,7 +931,7 @@ CREATE TABLE timetable_courses (
     ),
     CONSTRAINT ck_timetable_course_custom_credit CHECK (
         custom_credit IS NULL
-        OR (custom_credit >= 0.001 AND custom_credit <= 20.000)
+        OR custom_credit >= 0
     ),
     CONSTRAINT ck_timetable_course_custom_day CHECK (
         custom_day_of_week IS NULL
