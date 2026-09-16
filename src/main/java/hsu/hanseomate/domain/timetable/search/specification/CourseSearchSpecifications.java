@@ -1,0 +1,396 @@
+package hsu.hanseomate.domain.timetable.search.specification;
+
+import hsu.hanseomate.domain.course.entity.Classroom;
+import hsu.hanseomate.domain.course.entity.Course;
+import hsu.hanseomate.domain.course.entity.CourseOffering;
+import hsu.hanseomate.domain.course.entity.CourseSchedule;
+import hsu.hanseomate.domain.course.entity.OfferingGeneralEducation;
+import hsu.hanseomate.domain.courseimport.dto.type.CurriculumType;
+import hsu.hanseomate.domain.courseimport.dto.type.DeliveryProvider;
+import hsu.hanseomate.domain.courseimport.dto.type.GeneralArea;
+import hsu.hanseomate.domain.courseimport.dto.type.GeneralClassification;
+import hsu.hanseomate.domain.timetable.search.dto.CourseSearchCondition;
+import hsu.hanseomate.domain.timetable.search.type.CourseCreditFilter;
+import hsu.hanseomate.domain.timetable.search.type.CourseGradeFilter;
+import hsu.hanseomate.domain.timetable.search.type.GeneralCategoryFilter;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import org.springframework.data.jpa.domain.Specification;
+
+public final class CourseSearchSpecifications {
+
+    private static final List<Integer> STANDARD_GRADES = List.of(1, 2, 3, 4);
+    private static final char LIKE_ESCAPE = '\\';
+
+    private CourseSearchSpecifications() {
+    }
+
+    public static Specification<CourseOffering> from(CourseSearchCondition condition) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            Join<CourseOffering, Course> course = root.join("course");
+
+            predicates.add(criteriaBuilder.isTrue(root.get("active")));
+
+            if (condition.academicYear() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("semester").get("academicYear"),
+                        condition.academicYear()
+                ));
+            }
+            if (condition.semester() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("semester").get("semester"),
+                        condition.semester()
+                ));
+            }
+            if (condition.curriculumType() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        course.get("curriculumType"),
+                        condition.curriculumType()
+                ));
+            }
+
+            addCurriculumSelectionPredicate(condition, course, criteriaBuilder, predicates);
+            addKeywordPredicate(condition, course, query, criteriaBuilder, predicates);
+            addGradePredicate(condition.grades(), course, criteriaBuilder, predicates);
+            addCreditPredicate(condition.credits(), course, criteriaBuilder, predicates);
+            addTimeRangePredicate(condition, course, query, criteriaBuilder, predicates);
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    private static void addCurriculumSelectionPredicate(
+            CourseSearchCondition condition,
+            Join<CourseOffering, Course> course,
+            CriteriaBuilder criteriaBuilder,
+            List<Predicate> predicates
+    ) {
+        boolean hasAcademicUnits = !condition.academicUnits().isEmpty();
+        boolean hasGeneralCategories = !condition.generalCategories().isEmpty();
+        if (!hasAcademicUnits && !hasGeneralCategories) {
+            return;
+        }
+
+        Predicate majorSelection = null;
+        if (hasAcademicUnits) {
+            Join<Course, ?> academicUnit = course.join("academicUnit", JoinType.LEFT);
+            Predicate matchesAcademicUnit = criteriaBuilder.or(
+                    criteriaBuilder.lower(academicUnit.get("originalName"))
+                            .in(condition.academicUnits()),
+                    criteriaBuilder.lower(academicUnit.get("departmentName"))
+                            .in(condition.academicUnits()),
+                    criteriaBuilder.lower(academicUnit.get("majorName"))
+                            .in(condition.academicUnits())
+            );
+            majorSelection = criteriaBuilder.and(
+                    criteriaBuilder.equal(course.get("curriculumType"), CurriculumType.MAJOR),
+                    matchesAcademicUnit
+            );
+        }
+
+        Predicate generalSelection = null;
+        if (hasGeneralCategories) {
+            Join<Course, OfferingGeneralEducation> generalEducation =
+                    course.join("generalEducation", JoinType.LEFT);
+            generalSelection = criteriaBuilder.and(
+                    criteriaBuilder.equal(
+                            course.get("curriculumType"),
+                            CurriculumType.GENERAL_EDUCATION
+                    ),
+                    generalCategoryPredicate(
+                            condition.generalCategories(),
+                            generalEducation,
+                            criteriaBuilder
+                    )
+            );
+        }
+
+        if (majorSelection != null && generalSelection != null) {
+            predicates.add(criteriaBuilder.or(majorSelection, generalSelection));
+        } else {
+            predicates.add(majorSelection != null ? majorSelection : generalSelection);
+        }
+    }
+
+    private static Predicate generalCategoryPredicate(
+            Set<GeneralCategoryFilter> categories,
+            Join<Course, OfferingGeneralEducation> generalEducation,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        Path<GeneralClassification> classification = generalEducation.get("classification");
+        Path<GeneralArea> area = generalEducation.get("area");
+        Path<DeliveryProvider> provider = generalEducation.get("deliveryProvider");
+        Predicate nonRequired = criteriaBuilder.notEqual(
+                classification,
+                GeneralClassification.REQUIRED
+        );
+        Predicate nonRemoteProvider = criteriaBuilder.or(
+                criteriaBuilder.isNull(provider),
+                provider.in(DeliveryProvider.ON_CAMPUS, DeliveryProvider.OTHER)
+        );
+
+        List<Predicate> categoryPredicates = categories.stream()
+                .map(category -> switch (category) {
+                    case REQUIRED -> criteriaBuilder.equal(
+                            classification,
+                            GeneralClassification.REQUIRED
+                    );
+                    case AREA_1 -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.equal(area, GeneralArea.EXPLORATION)
+                    );
+                    case AREA_2 -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.equal(area, GeneralArea.COEXISTENCE)
+                    );
+                    case AREA_3 -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.equal(area, GeneralArea.INITIATIVE)
+                    );
+                    case E_CLASS -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.E_CLASS)
+                    );
+                    case HSU_CYBER -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.HSU_CYBER)
+                    );
+                    case OCU -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.OCU)
+                    );
+                    case CHUNGNAM_ELEARNING -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.CHUNGNAM_ELEARNING)
+                    );
+                    case SDU -> criteriaBuilder.and(
+                            nonRequired,
+                            criteriaBuilder.equal(provider, DeliveryProvider.SDU)
+                    );
+                    case OTHER -> criteriaBuilder.and(
+                            nonRequired,
+                            nonRemoteProvider,
+                            criteriaBuilder.or(
+                                    criteriaBuilder.isNull(area),
+                                    criteriaBuilder.equal(area, GeneralArea.OTHER)
+                            )
+                    );
+                })
+                .toList();
+        return criteriaBuilder.or(categoryPredicates.toArray(Predicate[]::new));
+    }
+
+    private static void addKeywordPredicate(
+            CourseSearchCondition condition,
+            Join<CourseOffering, Course> course,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder,
+            List<Predicate> predicates
+    ) {
+        if (condition.keyword() == null) {
+            return;
+        }
+
+        Predicate keywordPredicate = switch (condition.searchField()) {
+            case COURSE_NAME -> contains(
+                    course.get("courseName"),
+                    condition.keyword(),
+                    criteriaBuilder
+            );
+            case INSTRUCTOR_NAME -> contains(
+                    course.get("instructorName"),
+                    condition.keyword(),
+                    criteriaBuilder
+            );
+            case COURSE_CODE -> contains(
+                    course.get("courseCode"),
+                    condition.keyword(),
+                    criteriaBuilder
+            );
+            case LOCATION -> locationContains(
+                    course,
+                    query,
+                    criteriaBuilder,
+                    condition.keyword()
+            );
+        };
+        predicates.add(keywordPredicate);
+    }
+
+    private static Predicate locationContains(
+            Join<CourseOffering, Course> course,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder,
+            String keyword
+    ) {
+        Subquery<UUID> locationQuery = query.subquery(UUID.class);
+        Root<CourseSchedule> schedule = locationQuery.from(CourseSchedule.class);
+        Join<CourseSchedule, Classroom> classroom = schedule.join("classroom", JoinType.LEFT);
+        Predicate structuredLocation = criteriaBuilder.or(
+                contains(classroom.get("campusCode"), keyword, criteriaBuilder),
+                contains(classroom.get("buildingName"), keyword, criteriaBuilder),
+                contains(classroom.get("roomNumber"), keyword, criteriaBuilder),
+                contains(classroom.get("originalValue"), keyword, criteriaBuilder)
+        );
+        locationQuery.select(schedule.get("id"))
+                .where(
+                        criteriaBuilder.equal(schedule.get("course"), course),
+                        structuredLocation
+                );
+
+        return criteriaBuilder.or(
+                contains(course.get("classroomText"), keyword, criteriaBuilder),
+                criteriaBuilder.exists(locationQuery)
+        );
+    }
+
+    private static Predicate contains(
+            Expression<String> expression,
+            String escapedKeyword,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.like(
+                criteriaBuilder.lower(expression),
+                "%" + escapedKeyword + "%",
+                LIKE_ESCAPE
+        );
+    }
+
+    private static void addGradePredicate(
+            Set<CourseGradeFilter> grades,
+            Join<CourseOffering, Course> course,
+            CriteriaBuilder criteriaBuilder,
+            List<Predicate> predicates
+    ) {
+        if (grades.isEmpty()) {
+            return;
+        }
+
+        List<Integer> selectedGrades = grades.stream()
+                .map(CourseGradeFilter::getGrade)
+                .filter(grade -> grade != null)
+                .toList();
+        List<Predicate> gradePredicates = new ArrayList<>();
+
+        if (!selectedGrades.isEmpty()) {
+            gradePredicates.add(criteriaBuilder.or(
+                    criteriaBuilder.isTrue(course.get("commonGrade")),
+                    course.get("targetGrade").in(selectedGrades)
+            ));
+        }
+        if (grades.contains(CourseGradeFilter.OTHER)) {
+            gradePredicates.add(criteriaBuilder.and(
+                    criteriaBuilder.isFalse(course.get("commonGrade")),
+                    criteriaBuilder.or(
+                            criteriaBuilder.isNull(course.get("targetGrade")),
+                            criteriaBuilder.not(course.get("targetGrade").in(STANDARD_GRADES))
+                    )
+            ));
+        }
+        predicates.add(criteriaBuilder.or(gradePredicates.toArray(Predicate[]::new)));
+    }
+
+    private static void addCreditPredicate(
+            Set<CourseCreditFilter> credits,
+            Join<CourseOffering, Course> course,
+            CriteriaBuilder criteriaBuilder,
+            List<Predicate> predicates
+    ) {
+        if (credits.isEmpty()) {
+            return;
+        }
+
+        List<Predicate> creditPredicates = credits.stream()
+                .map(credit -> switch (credit) {
+                    case CREDIT_1 -> criteriaBuilder.equal(
+                            course.get("credit"),
+                            BigDecimal.ONE
+                    );
+                    case CREDIT_2 -> criteriaBuilder.equal(
+                            course.get("credit"),
+                            BigDecimal.valueOf(2)
+                    );
+                    case CREDIT_3 -> criteriaBuilder.equal(
+                            course.get("credit"),
+                            BigDecimal.valueOf(3)
+                    );
+                    case CREDIT_4_OR_MORE -> criteriaBuilder.greaterThanOrEqualTo(
+                            course.get("credit"),
+                            BigDecimal.valueOf(4)
+                    );
+                })
+                .toList();
+        predicates.add(criteriaBuilder.or(creditPredicates.toArray(Predicate[]::new)));
+    }
+
+    private static void addTimeRangePredicate(
+            CourseSearchCondition condition,
+            Join<CourseOffering, Course> course,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder,
+            List<Predicate> predicates
+    ) {
+        if (condition.startPeriod() == null) {
+            return;
+        }
+
+        Subquery<UUID> anyScheduleQuery = query.subquery(UUID.class);
+        Root<CourseSchedule> anySchedule = anyScheduleQuery.from(CourseSchedule.class);
+        anyScheduleQuery.select(anySchedule.get("id"))
+                .where(criteriaBuilder.equal(anySchedule.get("course"), course));
+        predicates.add(criteriaBuilder.exists(anyScheduleQuery));
+
+        List<Integer> outsidePeriods = new ArrayList<>();
+        for (int period = hsu.hanseomate.domain.course.support.CoursePeriodPolicy.MIN_PERIOD;
+                period < condition.startPeriod();
+                period++) {
+            outsidePeriods.add(period);
+        }
+        for (int period = condition.endPeriod() + 1;
+                period <= hsu.hanseomate.domain.course.support.CoursePeriodPolicy.MAX_PERIOD;
+                period++) {
+            outsidePeriods.add(period);
+        }
+        if (outsidePeriods.isEmpty()) {
+            return;
+        }
+
+        Subquery<UUID> outsideScheduleQuery = query.subquery(UUID.class);
+        Root<CourseSchedule> outsideSchedule = outsideScheduleQuery.from(CourseSchedule.class);
+        Expression<String> delimitedPeriods = criteriaBuilder.concat(
+                criteriaBuilder.concat(",", outsideSchedule.get("periodsValue")),
+                ","
+        );
+        Predicate outsideSelectedRange = criteriaBuilder.or(
+                outsidePeriods.stream()
+                        .map(period -> criteriaBuilder.like(
+                                delimitedPeriods,
+                                "%," + period + ",%"
+                        ))
+                        .toArray(Predicate[]::new)
+        );
+        outsideScheduleQuery.select(outsideSchedule.get("id"))
+                .where(
+                        criteriaBuilder.equal(outsideSchedule.get("course"), course),
+                        outsideSelectedRange
+                );
+        predicates.add(criteriaBuilder.not(criteriaBuilder.exists(outsideScheduleQuery)));
+    }
+}

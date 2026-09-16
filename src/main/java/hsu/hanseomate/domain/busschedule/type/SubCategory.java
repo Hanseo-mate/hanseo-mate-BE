@@ -1,0 +1,14 @@
+package hsu.hanseomate.domain.busschedule.type;
+
+public enum SubCategory {
+    TAEAN_TO_AIRFIELD,
+    AIRFIELD_TO_TAEAN,
+    HANSEO_TO_SEOSAN,
+    COMMUTE_TO_SCHOOL,
+    COMMUTE_FROM_SCHOOL,
+    NEARBY_TO_SCHOOL,
+    NEARBY_FROM_SCHOOL,
+    CAMPUS_SHUTTLE,
+    SEOSAN_CIRCULAR,
+    NAEPO_SAPGYO_CIRCULAR
+}

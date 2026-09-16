@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "1.2",
+  "importId": "major-2025-2",
+  "fileName": "major-2025-2.xlsx",
+  "fileSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "curriculumType": "MAJOR",
+  "parserVersion": "test-parser-1.2",
+  "academicYear": 2025,
+  "semester": 2,
+  "displayName": "2025학년도 2학기 전공",
+  "status": "READY",
+  "confidence": 1.0,
+  "statistics": {
+    "sheetCount": 1,
+    "totalRowCount": 1,
+    "parsedLectureCount": 1,
+    "failedRowCount": 0,
+    "warningCount": 0,
+    "errorCount": 0,
+    "academicUnitCount": 1,
+    "generalCategoryCount": 0,
+    "generalCategoryNodeCount": 0,
+    "scheduleCount": 1,
+    "periodCount": 1,
+    "missingScheduleCount": 0,
+    "missingClassroomCount": 0
+  },
+  "academicUnits": [
+    {
+      "originalName": "항공소프트웨어공학과",
+      "departmentName": "항공소프트웨어공학과",
+      "majorName": null
+    }
+  ],
+  "generalCategories": [],
+  "generalCategoryNodes": [],
+  "lectures": [
+    {
+      "sourceSheet": "전공",
+      "sourceRow": 3,
+      "curriculumType": "MAJOR",
+      "academicUnit": {
+        "originalName": "항공소프트웨어공학과",
+        "departmentName": "항공소프트웨어공학과",
+        "majorName": null
+      },
+      "generalEducation": null,
+      "courseCode": "000999",
+      "courseName": "이전학기강좌",
+      "sectionNo": "01",
+      "credit": 2.0,
+      "classHours": 1.0,
+      "instructorName": "이전교수",
+      "targetGrade": 1,
+      "commonGrade": false,
+      "allowedGrades": [1],
+      "eligibleDepartmentNames": ["항공소프트웨어공학과"],
+      "teamTeaching": null,
+      "note": null,
+      "eligibilityNote": null,
+      "scheduleText": "금1",
+      "classroomText": "본관 201호",
+      "schedules": [
+        {
+          "dayOfWeek": "FRIDAY",
+          "periods": [1],
+          "classroom": {
+            "campusCode": "TAEAN",
+            "buildingName": "본관",
+            "roomNumber": "201",
+            "originalValue": "본관 201호"
+          }
+        }
+      ],
+      "sourceCells": [
+        {"columnIndex": 1, "headerName": "학수번호", "canonicalField": "courseCode", "value": "000999"},
+        {"columnIndex": 2, "headerName": "교과목명", "canonicalField": "courseName", "value": "이전학기강좌"},
+        {"columnIndex": 3, "headerName": "분반", "canonicalField": "sectionNo", "value": "01"}
+      ]
+    }
+  ],
+  "issues": []
+}

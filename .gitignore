@@ -1,6 +1,8 @@
 HELP.md
 .gradle
 build/
+/uploads/
+/private-uploads/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -36,6 +38,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### Codex ###
+.codex/
+
 ### Local secrets ###
 .env
 .env.*
@@ -43,6 +48,7 @@ out/
 **/application-secret.properties
 **/application-secret.yml
 **/application-secret.yaml
+**/application-prod.properties
 *.pem
 *.key
 *.p12
