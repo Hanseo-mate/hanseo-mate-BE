@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import hsu.hanseomate.domain.essentiallink.entity.EssentialLink;
 import hsu.hanseomate.domain.essentiallink.repository.EssentialLinkRepository;
@@ -21,6 +23,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -109,6 +112,31 @@ class EssentialLinkApiIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].name").value("OCU"))
                 .andExpect(jsonPath("$[0].category").value("REMOTE_CLASS"));
+    }
+
+    @Test
+    void adminReturnsLinksFilteredByNormalizedCategory() throws Exception {
+        saveLink("OCU", "https://cons.ocu.ac.kr", "REMOTE_CLASS");
+        saveLink("도서관", "https://library.hanseo.ac.kr", "CAMPUS");
+
+        mockMvc.perform(get("/api/admin/links")
+                        .param("category", " remote_class "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("OCU"))
+                .andExpect(jsonPath("$[0].category").value("REMOTE_CLASS"));
+    }
+
+    @Test
+    void protectsAdminLinkListWithAdminRole() throws Exception {
+        mockMvc.perform(get("/api/admin/links").with(anonymous()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/admin/links")
+                        .with(jwt().authorities(
+                                new SimpleGrantedAuthority("ROLE_USER")
+                        )))
+                .andExpect(status().isForbidden());
     }
 
     @Test
