@@ -99,7 +99,7 @@ GET /api/v1/notifications?installationId={installationId}&page={page}&size={size
     "body": "해당 공지가 조회수 100회를 돌파하며 화제가 되고 있어요!",
     "payloadData": "{\"version\":1,\"type\":\"notice\",\"route\":\"/notices\",\"entityId\":\"42\"}",
     "isRead": false,
-    "createdAt": "2026-08-19T14:30:00"
+    "createdAt": "2026-08-19T14:30:00+09:00"
   },
   {
     "id": 14,
@@ -107,7 +107,7 @@ GET /api/v1/notifications?installationId={installationId}&page={page}&size={size
     "body": "총학생회에서 새로운 공지를 등록했습니다.",
     "payloadData": "{\"version\":1,\"type\":\"notice\",\"route\":\"/notices\",\"entityId\":\"88\"}",
     "isRead": true,
-    "createdAt": "2026-08-18T09:00:00"
+    "createdAt": "2026-08-18T09:00:00+09:00"
   }
 ]
 ```
@@ -121,7 +121,16 @@ GET /api/v1/notifications?installationId={installationId}&page={page}&size={size
 | `body` | String | 알림 본문 |
 | `payloadData` | String | 딥링크용 JSON 문자열 (앱에서 파싱하여 라우팅에 사용) |
 | `isRead` | Boolean | 해당 `installationId`의 읽음 여부 (`true` = 읽음, 회색 처리) |
-| `createdAt` | String (ISO 8601) | 알림 생성 시각 |
+| `createdAt` | String (ISO 8601) | 한국 시간대 오프셋 `+09:00`을 포함한 알림 생성 시각 |
+
+`createdAt`은 서버에서 알림을 생성한 시각이며 단말에 실제로 도착한 시각은 아닙니다.
+알림 생성 시각은 서버 JVM의 기본 시간대와 관계없이 `Asia/Seoul` 기준으로 저장하고,
+응답에는 한국 시간대 오프셋 `+09:00`을 포함합니다.
+예를 들어 `2026-09-16T15:00:00+09:00`은 UTC `2026-09-16T06:00:00Z`와 같은 시점입니다.
+
+프론트는 응답 문자열을 시간대가 포함된 날짜로 그대로 파싱하고 현재 시각과 비교하여
+“몇 분 전” 등을 계산합니다. 문자열에 `Z`를 덧붙이거나 별도로 9시간을 더하지 않습니다.
+소수 초가 포함될 수 있으므로 고정 길이 문자열로 처리하지 않습니다.
 
 ---
 

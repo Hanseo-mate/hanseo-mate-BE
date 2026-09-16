@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.Objects;
+import java.time.ZoneId;
 
 @Slf4j
 @Service
@@ -26,6 +27,7 @@ import java.util.Objects;
 public class NotificationInboxService {
 
     private static final int MAX_NOTIFICATIONS = 20;
+    private static final ZoneId NOTIFICATION_TIME_ZONE = ZoneId.of("Asia/Seoul");
 
     private final NotificationRepository notificationRepository;
     private final NotificationReadRepository notificationReadRepository;
@@ -60,7 +62,7 @@ public class NotificationInboxService {
                         n.getBody(),
                         n.getPayloadData(),
                         readIds.contains(n.getId()),
-                        n.getCreatedAt()
+                        n.getCreatedAt().atZone(NOTIFICATION_TIME_ZONE).toOffsetDateTime()
                 ))
                 .toList();
     }
