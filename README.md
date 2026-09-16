@@ -31,7 +31,7 @@ Java 17 · Spring Boot 4.1.0 · Spring Security · JPA · MySQL
 
 ### 빠르게 살펴보기
 
-[주요 기능](#주요-기능) · [기술 스택](#기술-스택) · [핵심 설계와 문제 해결](#핵심-설계와-문제-해결) · [프로젝트 구조](#프로젝트-구조) · [테스트와 검증](#테스트와-검증) · [로컬 실행](#로컬-실행) · [API 문서](#api-문서) · [향후 계획](#향후-계획)
+[주요 기능](#주요-기능) · [기술 스택](#기술-스택) · [핵심 설계와 문제 해결](#핵심-설계와-문제-해결) · [프로젝트 구조](#프로젝트-구조) · [아키텍처와 데이터 관리](#아키텍처와-데이터-관리) · [테스트와 검증](#테스트와-검증) · [로컬 실행](#로컬-실행) · [API 문서](#api-문서) · [향후 계획](#향후-계획)
 
 ## 주요 기능
 
@@ -192,9 +192,115 @@ src/test/                                # 단위·통합 테스트
 docs/                                    # API 명세·증분 SQL
 ```
 
-아키텍처·데이터 관계 이미지
+## 아키텍처와 데이터 관리
 
-(~~사진 넣을곳)
+현재 저장소의 코드로 확인한 **논리 구조**입니다. 서버 배치·네트워크 구성은 제외하고, 애플리케이션의 역할과 데이터 연결에 집중했습니다.
+
+### 1. 전체 연결 구조
+
+기능별 패키지로 나눈 **단일 Spring Boot 애플리케이션**이 REST API와 예약 작업을 함께 처리합니다. 크롤러와 Expo는 HTTP로 호출하는 외부 시스템입니다.
+
+```mermaid
+flowchart LR
+    client["사용자 앱 · 관리자 화면"]
+    backend["HanseoMate Backend · Spring Boot"]
+    database[("MySQL")]
+    files["로컬 파일 저장소"]
+    crawler["외부 크롤러 API"]
+    expo["Expo Push API"]
+
+    client -->|"REST API 요청"| backend
+    backend -->|"JPA · QueryDSL"| database
+    backend -->|"파일 저장 · 조회"| files
+    backend -.->|"공지 · 학식 수집 요청"| crawler
+    backend -.->|"푸시 전송 · 결과 확인"| expo
+```
+
+실선은 요청·데이터 접근 경로, 점선은 외부 HTTP 연동입니다. 화살표는 호출 방향이며, 응답 경로는 생략했습니다.
+
+| 구성 | 코드에서 담당하는 역할 |
+|---|---|
+| API 처리 | `SecurityFilterChain → Controller → Service → Repository` 순으로 접근 정책, 요청 검증, 업무 규칙, 데이터 조회·저장을 처리 |
+| MySQL | 사용자·강좌·콘텐츠 등 서비스 데이터와 알림 전송 대기 작업을 저장. Outbox도 같은 DB의 테이블이며 별도 메시지 서버가 아님 |
+| 파일 저장소 | DB에는 파일 URL·메타데이터를, 파일 저장소에는 실제 내용을 저장. 공개 이미지는 `/uploads/**`, 일반 첨부파일은 다운로드 API로 제공 |
+| 크롤러 연동 | 공지는 외부 크롤러에 수집 실행을 요청. 학식은 파싱 결과를 응답으로 받아 백엔드에서 검증·저장 |
+| 알림 작업 | 애플리케이션 내부 Worker가 DB의 대기 작업을 읽어 Expo에 전송하고, 별도 Worker가 전송 결과를 확인 |
+
+공개 API·로그인 필수 API·관리자 API는 접근 정책이 다릅니다. 개인 데이터의 소유권은 서비스에서도 확인합니다. 크롤러 내부의 수집·저장 구조는 이 저장소의 범위가 아니므로 표시하지 않았습니다.
+
+[보안 설정](src/main/java/hsu/hanseomate/global/security/SecurityConfig.java) · [공지 수집 요청](src/main/java/hsu/hanseomate/domain/notices/service/CrawlOperationService.java) · [학식 동기화](src/main/java/hsu/hanseomate/domain/cafeteria/sync/CafeteriaSyncOrchestrator.java) · [공개 이미지 제공](src/main/java/hsu/hanseomate/global/config/StaticResourceConfig.java)
+
+### 2. 핵심 데이터 관계 — 강좌·시간표·성적
+
+전체 테이블을 나열하는 대신 **학교에서 제공한 강좌와 사용자가 관리하는 시간표·성적의 연결**을 발췌했습니다. 아래 필드는 JPA Entity 기준의 주요 키와 값입니다.
+
+```mermaid
+erDiagram
+    direction TB
+
+    userAccount["UserAccount · 사용자"] {
+        Long id PK
+        String loginId UK
+    }
+    timetable["Timetable · 개인 시간표"] {
+        Long id PK
+        Long ownerId FK
+        int academicYear
+        int semester
+    }
+    timetableCourse["TimetableCourse · 시간표 과목"] {
+        Long id PK
+        Long timetableId FK
+        UUID courseOfferingId FK "직접 입력 과목은 NULL"
+        String customCourseName
+        BigDecimal customCredit
+        ExpectedGrade expectedGrade
+    }
+    courseOffering["CourseOffering · 학기별 개설 연결"] {
+        UUID id PK
+        UUID semesterId FK
+        UUID courseId FK
+        boolean active
+    }
+    course["Course · 원본 강좌 상세"] {
+        UUID id PK
+        String masterKey UK
+        String courseCode
+        String sectionNo
+        BigDecimal credit
+    }
+    semester["Semester · 학기"] {
+        UUID id PK
+        int academicYear
+        int semester
+    }
+
+    userAccount ||..o{ timetable : "소유"
+    timetable ||..o{ timetableCourse : "포함"
+    courseOffering |o..o{ timetableCourse : "등록 강좌만 연결"
+    course ||..o{ courseOffering : "강좌 상세 연결"
+    semester ||..o{ courseOffering : "개설 학기 연결"
+```
+
+`||`는 반드시 1개, `o|`·`|o`는 0개 또는 1개, `o{`는 0개 이상을 뜻합니다. 관계선은 별도 기본키를 가진 Entity 사이의 참조 관계입니다.
+
+- **원본과 개인 데이터 분리:** 강좌 상세는 `Course`, 사용자별 과목명·학점 수정값과 예상 성적은 `TimetableCourse`에 저장합니다. 개인 수정으로 원본 강좌가 바뀌지 않습니다.
+- **학기 구분:** `Course`도 학년도·학기·교육과정 유형·과목코드·분반으로 구분합니다. `CourseOffering`은 해당 강좌와 학기, 등록 이력을 연결하며 API의 `offeringId`가 됩니다.
+- **직접 입력 과목:** `courseOffering` 없이 시간표에 연결하며, 과목명·학점·요일·시작 및 종료 시각을 자체 저장합니다. 도식에서는 시간 필드를 생략했습니다.
+- **중복 제어:** 사용자·학기별 시간표, 학기·강좌별 개설 정보, 시간표 내 같은 등록 강좌는 복합 유일 제약으로 중복을 제한합니다. `Timetable`의 학기는 연도·학기 값이며 `Semester`에 대한 직접 외래키는 아닙니다.
+
+[강좌 Entity](src/main/java/hsu/hanseomate/domain/course/entity/Course.java) · [개설 정보 Entity](src/main/java/hsu/hanseomate/domain/course/entity/CourseOffering.java) · [시간표 Entity](src/main/java/hsu/hanseomate/domain/timetable/composition/entity/Timetable.java) · [시간표 과목 Entity](src/main/java/hsu/hanseomate/domain/timetable/composition/entity/TimetableCourse.java)
+
+### 3. 데이터별 관리 경계
+
+| 데이터 | 저장·처리 방식 | 유지보수 시 지켜야 할 기준 |
+|---|---|---|
+| 강좌·개인 시간표 | 원본 강좌와 사용자별 수정값을 분리하고, 같은 학기 재등록 시 기존 ID를 재사용 | 강좌 일괄 삭제로 재등록하지 않고 시간표·성적 참조를 보존 |
+| 학교·학생회·개인 일정 | 종류별 테이블에 저장한 뒤 `UnifiedCalendarService`에서 통합 응답 생성 | 관리자 전체 조회는 공개 일정만 포함. 개인 일정은 본인 조회에만 포함하고, 응답 식별에는 `calendarType + id` 사용 |
+| 알림함·푸시 작업 | `NotificationService`가 알림함과 Outbox를 같은 트랜잭션으로 저장하고, Worker가 외부 전송 처리 | DB 저장·Expo 접수·후속 전송 결과를 구분. `SENT`만으로 기기 수신을 보장하지 않음 |
+| 이미지·첨부파일 | DB의 메타데이터와 파일 저장소의 실제 파일을 연결 | DB 커밋 후 이전 파일 정리, 롤백 시 신규 파일 정리. 공개 이미지와 첨부파일 저장 경로 분리 |
+
+[일정 통합 서비스](src/main/java/hsu/hanseomate/domain/calendar/service/UnifiedCalendarService.java) · [알림 저장 서비스](src/main/java/hsu/hanseomate/domain/push/service/NotificationService.java) · [트랜잭션 이벤트 처리](src/main/java/hsu/hanseomate/domain/push/listener/NotificationEventListener.java)
 
 ## 테스트와 검증
 
