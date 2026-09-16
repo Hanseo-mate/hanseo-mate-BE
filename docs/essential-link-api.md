@@ -18,9 +18,9 @@
 | 요청 형식 | `application/json` |
 | 응답 형식 | `application/json` |
 | 문자 인코딩 | UTF-8 |
-| 인증 | 현재 미적용 |
+| 인증 | 관리자 API는 `ROLE_ADMIN` JWT 필요 |
 
-> 현재 `/api/admin/**`에도 인증이 적용되어 있지 않습니다. 정식 공개 전에 관리자 인증과 권한 검사가 필요합니다.
+> 사용자 조회 API는 공개되어 있으며 `/api/admin/**`는 관리자 권한이 필요합니다.
 
 ## 3. 전체 API 목록
 
@@ -29,11 +29,12 @@
 | 사용자 | `GET` | `/api/links` | 전체 링크 목록 조회 |
 | 사용자 | `GET` | `/api/links?category={category}` | 카테고리별 링크 목록 조회 |
 | 사용자 | `GET` | `/api/links/{linkId}` | 링크 상세 조회 |
+| 관리자 | `GET` | `/api/admin/links` | 관리자 링크 목록 조회 |
 | 관리자 | `POST` | `/api/admin/links` | 링크 등록 |
 | 관리자 | `PUT` | `/api/admin/links/{linkId}` | 링크 전체 수정 |
 | 관리자 | `DELETE` | `/api/admin/links/{linkId}` | 링크 삭제 |
 
-관리자 페이지의 목록 및 상세 조회는 사용자 조회 API를 동일하게 사용합니다.
+관리자 페이지의 목록 조회는 관리자 API를 사용하고, 상세 조회는 사용자 조회 API를 사용합니다.
 
 ## 4. 데이터 모델
 
@@ -190,7 +191,24 @@ HTTP/1.1 200 OK
 
 ## 6. 관리자 API
 
-### 6.1 링크 등록
+### 6.1 링크 목록 조회
+
+```http
+GET /api/admin/links
+Authorization: Bearer {adminAccessToken}
+```
+
+등록된 모든 링크를 ID 오름차순으로 조회합니다. `category` 쿼리 파라미터를 전달하면 앞뒤 공백 제거와 영문 대문자 변환 후 해당 카테고리만 조회합니다. 응답 구조는 사용자 목록 조회와 같습니다.
+
+#### 오류 응답
+
+| 상태 코드 | 발생 조건 |
+|---|---|
+| `400 Bad Request` | 카테고리가 공백이거나 정규화 후 50자를 초과한 경우 |
+| `401 Unauthorized` | 유효한 인증 정보가 없는 경우 |
+| `403 Forbidden` | 관리자 권한이 없는 경우 |
+
+### 6.2 링크 등록
 
 ```http
 POST /api/admin/links
@@ -235,7 +253,7 @@ Content-Type: application/json
 | `400 Bad Request` | URL이 올바른 `http` 또는 `https` 주소가 아닌 경우 |
 | `400 Bad Request` | JSON 형식이 올바르지 않은 경우 |
 
-### 6.2 링크 전체 수정
+### 6.3 링크 전체 수정
 
 ```http
 PUT /api/admin/links/{linkId}
@@ -279,7 +297,7 @@ Content-Type: application/json
 | `400 Bad Request` | ID 또는 요청 본문이 올바르지 않은 경우 |
 | `404 Not Found` | 수정할 링크가 존재하지 않는 경우 |
 
-### 6.3 링크 삭제
+### 6.4 링크 삭제
 
 ```http
 DELETE /api/admin/links/{linkId}
