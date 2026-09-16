@@ -40,6 +40,7 @@ public record CampusPlaceInformationUpdateRequest(
         @Size(max = 255, message = "한 줄 소개는 255자 이하여야 합니다.")
         String oneLineDescription,
 
+        @Schema(nullable = true, description = "교내시설은 입력값 대신 lectureBuildingDetails.location을 주소로 저장")
         @Size(max = 255, message = "주소는 255자 이하여야 합니다.")
         String address,
 
