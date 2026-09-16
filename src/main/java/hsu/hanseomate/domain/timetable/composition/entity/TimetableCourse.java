@@ -69,7 +69,7 @@ public class TimetableCourse {
     @Column(name = "custom_course_name", length = 255)
     private String customCourseName;
 
-    @Column(name = "custom_credit", precision = 8, scale = 3)
+    @Column(name = "custom_credit", precision = 65, scale = 3)
     private BigDecimal customCredit;
 
     @Enumerated(EnumType.STRING)
