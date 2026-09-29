@@ -2,6 +2,8 @@ package hsu.hanseomate.domain.home;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
+import static hsu.hanseomate.support.AdminJwtRequestPostProcessor.adminJwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -129,6 +131,29 @@ class HomeApiIntegrationTest {
     @AfterEach
     void cleanDatabaseAfterTest() {
         cleanDatabase();
+    }
+
+    @Test
+    void configuredMessageIsReturnedToAnonymousAndLoggedInUsers() throws Exception {
+        mockMvc.perform(put("/api/admin/home-message").with(adminJwt())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"반가워요!\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("반가워요!"));
+        mockMvc.perform(get("/api/home")
+                        .header(HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validAccessToken(CURRENT_USER_ID.toString())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("반가워요!"));
+    }
+
+    @Test
+    void unsetMessageIsAnEmptyString() throws Exception {
+        mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(""));
     }
 
     @Test
@@ -677,6 +702,7 @@ class HomeApiIntegrationTest {
             truncate("notices");
             truncate("student_council_notices");
             truncate("home_posters");
+            truncate("home_messages");
             truncate("timetable_courses");
             truncate("timetables");
             truncate("refresh_tokens");

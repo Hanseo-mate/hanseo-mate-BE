@@ -6,6 +6,8 @@ import java.util.List;
 
 public record HomePageResponse(
         boolean loggedIn,
+        @Schema(description = "관리자가 설정한 공통 메인 메시지. 미설정 시 빈 문자열", maxLength = 500)
+        String message,
         @Schema(nullable = true, allowableValues = {"SEOSAN", "TAEAN"})
         CampusCode preferredCampusCode,
         @Schema(nullable = true)
