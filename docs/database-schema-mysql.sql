@@ -1285,6 +1285,12 @@ CREATE TABLE club_reviews (
         FOREIGN KEY (reviewer_id) REFERENCES user_accounts (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE home_messages (
+    id BIGINT NOT NULL,
+    message VARCHAR(500) NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE club_review_selections (
     club_review_id BIGINT NOT NULL,
     review_option VARCHAR(50) NOT NULL,

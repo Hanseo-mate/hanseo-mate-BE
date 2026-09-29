@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(
         name = "메인 페이지",
-        description = "포스터, 오늘 시간표, 분야별 인기 공지, 선택된 오늘 학식을 통합 조회합니다."
+        description = "관리자 설정 메시지, 포스터, 오늘 시간표, 분야별 인기 공지, 선택된 오늘 학식을 통합 조회합니다."
 )
 @RestController
 @RequiredArgsConstructor
