@@ -133,7 +133,7 @@ public class ClubController {
 
     @Operation(
             summary = "활동 후기 통계 조회",
-            description = "26개 키워드별 전체 선택표 대비 비율만 반환합니다."
+            description = "25개 키워드별 전체 선택표 대비 비율만 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
