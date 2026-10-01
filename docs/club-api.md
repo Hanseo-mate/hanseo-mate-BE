@@ -168,7 +168,7 @@ GET /api/clubs/reviews/{clubId}
 }
 ```
 
-`options`에는 25개 enum 항목이 항상 전부 반환된다.
+`options`에는 26개 enum 항목이 항상 전부 반환된다.
 
 ```text
 percentage = 해당 태그 선택 수 ÷ 전체 태그 선택 수 × 100
@@ -499,6 +499,7 @@ FRIENDLY_MEMBERS
 EASY_TO_JOIN_ALONE
 SOCIABLE_MEMBERS
 LARGE_SCALE
+STRONG_SENIORITY
 BUSY_SCHEDULE
 FLEXIBLE_ATTENDANCE
 HAS_FEE
@@ -508,12 +509,6 @@ MINIMUM_PERIOD
 HAS_CLUB_ROOM
 INTERVIEW_IMPORTANT
 ```
-
-활동 후기 선택 항목은 25개다. 기존 DB의 `STRONG_SENIORITY` 선택 데이터는
-`docs/club-review-strong-seniority-removal-mysql.sql`로 정리한다.
-후기 쓰기를 중단한 상태에서 SQL을 먼저 실행하고 변경된 서버를 배포해야 한다.
-다른 선택 항목은 보존하며, 제거한 항목만 선택했던 후기는 함께 삭제하여
-후기 작성 수와 내 후기 목록에 빈 후기가 남지 않게 한다.
 
 ---
 

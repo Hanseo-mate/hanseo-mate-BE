@@ -2,7 +2,7 @@
 
 ## 1. 기능 개요
 
-메인 페이지에 필요한 관리자 설정 메시지, 포스터, 오늘 시간표, 인기 공지, 오늘 학식을 한 번에
+메인 페이지에 필요한 포스터, 오늘 시간표, 인기 공지, 오늘 학식을 한 번에
 조회합니다.
 
 - 비로그인 사용자는 서산 학생식당(`MAIN_STUDENT`) 기준 오늘 학식을 반환합니다.
@@ -11,7 +11,6 @@
 - `festivalFloatingButtonVisible`은 축제 플로팅 버튼 노출 여부입니다. 항상 boolean을 반환하고,
   설정이 없으면 `false`입니다. 관리자 PATCH 완료 후 다음 조회부터 변경값을 반환합니다.
 - 응답 헤더는 `Cache-Control: no-store`이며 서버 내부 설정 캐시는 사용하지 않습니다.
-- 메시지 설정 방법은 [관리자 메인 메시지 API](home-message-api.md)를 참고하세요.
 
 ## 2. 요청
 
@@ -32,7 +31,6 @@ GET /api/home
   "loggedIn": true,
   "festivalFloatingButtonVisible": false,
   "preferredCampusCode": "TAEAN",
-  "message": "오늘도 한서메이트와 함께 좋은 하루 보내세요!",
   "posterImageUrls": [
     "https://api.example.com/uploads/home-posters/poster.png"
   ],
@@ -94,7 +92,6 @@ GET /api/home
 | `loggedIn` | Boolean | 로그인 여부 |
 | `festivalFloatingButtonVisible` | Boolean | 홈 축제 플로팅 버튼 노출 여부. 필수, null 불가, 기본 false. 로그인 여부와 무관하게 같은 값 |
 | `preferredCampusCode` | String or null | 로그인 사용자의 저장된 선호 캠퍼스 (`SEOSAN` 또는 `TAEAN`) |
-| `message` | String | 관리자가 설정한 공통 문구. 로그인 여부와 무관하게 반환하며 미설정·해제 시 빈 문자열 |
 | `posterImageUrls` | String[] or null | 기존 클라이언트 호환용 포스터 이미지 URL 목록 |
 | `posters` | Object[] or null | 포스터 상세 목록 |
 | `todayCourses` | Object[] | 로그인 사용자의 오늘 시간표 |

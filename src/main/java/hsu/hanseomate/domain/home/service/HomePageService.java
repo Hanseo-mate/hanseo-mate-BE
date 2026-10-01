@@ -50,7 +50,6 @@ public class HomePageService {
 
     private final HomePosterService homePosterService;
     private final FestivalFloatingButtonService festivalFloatingButtonService;
-    private final HomeMessageService homeMessageService;
     private final DailyMenuRepository dailyMenuRepository;
     private final CourseScheduleRepository courseScheduleRepository;
     private final NoticeRepository noticeRepository;
@@ -79,7 +78,6 @@ public class HomePageService {
 
         return new HomePageResponse(
                 currentUserId.isPresent(),
-                homeMessageService.getMessage(),
                 preferredCampusCode,
                 posterImageUrls.isEmpty() ? null : posterImageUrls,
                 posters.isEmpty() ? null : posters,

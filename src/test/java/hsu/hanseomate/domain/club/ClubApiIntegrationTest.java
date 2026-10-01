@@ -91,6 +91,7 @@ class ClubApiIntegrationTest {
             "EASY_TO_JOIN_ALONE",
             "SOCIABLE_MEMBERS",
             "LARGE_SCALE",
+            "STRONG_SENIORITY",
             "BUSY_SCHEDULE",
             "FLEXIBLE_ATTENDANCE",
             "HAS_FEE",
@@ -689,7 +690,7 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.clubId").doesNotExist())
                 .andExpect(jsonPath("$.reviewerCount").doesNotExist())
                 .andExpect(jsonPath("$.selectedReviewTags").doesNotExist())
-                .andExpect(jsonPath("$.options.length()").value(25))
+                .andExpect(jsonPath("$.options.length()").value(26))
                 .andExpect(jsonPath("$.options[0]", aMapWithSize(2)))
                 .andExpect(jsonPath("$.options[0].reviewTag").value("BUILD_RESUME"))
                 .andExpect(jsonPath("$.options[0].percentage").value(50.0))
@@ -697,9 +698,8 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.options[0].selected").doesNotExist())
                 .andExpect(jsonPath("$.options[0].label").doesNotExist())
                 .andExpect(jsonPath("$.options[0].emoji").doesNotExist())
-                .andExpect(jsonPath("$.options[24].reviewTag").value("INTERVIEW_IMPORTANT"))
-                .andExpect(jsonPath("$.options[24].percentage").value(0.0))
-                .andExpect(jsonPath("$.options[?(@.reviewTag == 'STRONG_SENIORITY')]").isEmpty());
+                .andExpect(jsonPath("$.options[25].reviewTag").value("INTERVIEW_IMPORTANT"))
+                .andExpect(jsonPath("$.options[25].percentage").value(0.0));
         expectReviewerCount(clubId, 1);
     }
 
@@ -714,7 +714,7 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", aMapWithSize(1)))
                 .andExpect(jsonPath("$.reviewerCount").doesNotExist())
-                .andExpect(jsonPath("$.options.length()").value(25))
+                .andExpect(jsonPath("$.options.length()").value(26))
                 .andExpect(jsonPath(
                         "$.options[?(@.reviewTag == 'BUILD_RESUME')].percentage"
                 ).value(hasItem(50.0)))
@@ -731,89 +731,6 @@ class ClubApiIntegrationTest {
     }
 
     @Test
-    void removesLegacySenioritySelectionsAndOnlyReviewsLeftEmptyByRemoval() throws Exception {
-        long clubId = createClub("후기 항목 정리 동아리", "ACADEMIC");
-        long mixedReviewerId = createReviewUser();
-        long removedReviewerId = createReviewUser();
-        long unchangedReviewerId = createReviewUser();
-        putReviewAsUser(clubId, mixedReviewerId, List.of("BUILD_RESUME"));
-        putReviewAsUser(clubId, removedReviewerId, List.of("BUILD_RESUME"));
-        putReviewAsUser(clubId, unchangedReviewerId, List.of("ENJOY_HOBBY"));
-        // Hibernate's fresh H2 schema excludes the retired value; simulate the legacy VARCHAR schema.
-        List<Map<String, Object>> checks = jdbcTemplate.queryForList("""
-                SELECT tc.constraint_name, cc.check_clause
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.check_constraints cc
-                  ON tc.constraint_name = cc.constraint_name
-                 AND tc.constraint_schema = cc.constraint_schema
-                WHERE tc.table_name = 'club_review_selections' AND tc.constraint_type = 'CHECK'
-                """);
-        for (Map<String, Object> check : checks) {
-            jdbcTemplate.execute("ALTER TABLE club_review_selections DROP CONSTRAINT \""
-                    + check.get("constraint_name") + "\"");
-        }
-        long mixedReviewId = jdbcTemplate.queryForObject(
-                "SELECT id FROM club_reviews WHERE reviewer_id = ?", Long.class, mixedReviewerId);
-        long removedReviewId = jdbcTemplate.queryForObject(
-                "SELECT id FROM club_reviews WHERE reviewer_id = ?", Long.class, removedReviewerId);
-        jdbcTemplate.update(
-                "INSERT INTO club_review_selections (club_review_id, review_option) VALUES (?, ?)",
-                mixedReviewId, "STRONG_SENIORITY");
-        jdbcTemplate.update(
-                "UPDATE club_review_selections SET review_option = ? WHERE club_review_id = ?",
-                "STRONG_SENIORITY", removedReviewId);
-
-        // H2 uses JDBC transaction boundaries instead of MySQL START TRANSACTION.
-        String migration = Files.readString(Path.of(
-                "docs", "club-review-strong-seniority-removal-mysql.sql"))
-                .replace("START TRANSACTION;", "")
-                .replace("COMMIT;", "")
-                .replace("DROP TEMPORARY TABLE", "DROP TABLE");
-        for (int run = 0; run < 2; run++) {
-            try (java.sql.Connection connection = jdbcTemplate.getDataSource().getConnection()) {
-                connection.setAutoCommit(false);
-                org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(
-                        connection,
-                        new org.springframework.core.io.ByteArrayResource(
-                                migration.getBytes(StandardCharsets.UTF_8)));
-                connection.commit();
-            }
-        }
-        for (Map<String, Object> check : checks) {
-            jdbcTemplate.execute("ALTER TABLE club_review_selections ADD CONSTRAINT \""
-                    + check.get("constraint_name") + "\" CHECK (" + check.get("check_clause") + ")");
-        }
-
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM club_review_selections WHERE review_option = 'STRONG_SENIORITY'",
-                Long.class)).isZero();
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM club_reviews WHERE id = ?", Long.class, mixedReviewId)).isOne();
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM club_reviews WHERE id = ?", Long.class, removedReviewId)).isZero();
-        expectReviewerCount(clubId, 2);
-        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId).with(userJwt(mixedReviewerId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewTags.length()").value(1))
-                .andExpect(jsonPath("$.reviewTags[0]").value("BUILD_RESUME"));
-        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId).with(userJwt(removedReviewerId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasReview").value(false));
-        mockMvc.perform(get("/api/clubs/reviews/{clubId}/me", clubId).with(userJwt(unchangedReviewerId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewTags[0]").value("ENJOY_HOBBY"));
-        mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.options.length()").value(25))
-                .andExpect(jsonPath("$.options[?(@.reviewTag == 'STRONG_SENIORITY')]").isEmpty())
-                .andExpect(jsonPath("$.options[?(@.reviewTag == 'BUILD_RESUME')].percentage")
-                        .value(hasItem(50.0)));
-        mockMvc.perform(get("/api/clubs"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].topReviewTags.length()").value(2));
-    }
-
-    @Test
     void rejectsInvalidReviewSelectionsButAcceptsEmptySelection() throws Exception {
         long clubId = createClub("후기 검증 동아리", "ACADEMIC");
         long reviewerId = createReviewUser();
@@ -825,7 +742,6 @@ class ClubApiIntegrationTest {
                 List.of("BUILD_RESUME", "BUILD_RESUME")
         );
         expectInvalidReview(clubId, reviewerId, List.of("UNKNOWN_REVIEW_TAG"));
-        expectInvalidReview(clubId, reviewerId, List.of("STRONG_SENIORITY"));
 
         mockMvc.perform(put("/api/clubs/reviews/{clubId}", clubId)
                         .with(userJwt(reviewerId))
@@ -916,7 +832,7 @@ class ClubApiIntegrationTest {
         mockMvc.perform(get("/api/clubs/reviews/{clubId}", clubId)
                         .with(anonymous()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.options.length()").value(25));
+                .andExpect(jsonPath("$.options.length()").value(26));
     }
 
     @Test
