@@ -66,8 +66,8 @@ for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-se
     fi
 done
 
-mysql_client=(mysql --no-defaults --login-path="$DB_LOGIN_PATH" --default-character-set=utf8mb4 --batch --skip-column-names --database="$DB_NAME")
-mysql_dump=(mysqldump --no-defaults --login-path="$DB_LOGIN_PATH" --default-character-set=utf8mb4 --single-transaction --quick --no-tablespaces --routines --triggers --events)
+mysql_client=(mysql --no-defaults --login-path="$DB_LOGIN_PATH" --protocol=TCP --host=127.0.0.1 --port=3306 --default-character-set=utf8mb4 --batch --skip-column-names --database="$DB_NAME")
+mysql_dump=(mysqldump --no-defaults --login-path="$DB_LOGIN_PATH" --protocol=TCP --host=127.0.0.1 --port=3306 --default-character-set=utf8mb4 --single-transaction --quick --no-tablespaces --routines --triggers --events)
 
 selected_db="$("${mysql_client[@]}" --execute='SELECT DATABASE()')"
 if [ "$selected_db" != "$DB_NAME" ]; then
