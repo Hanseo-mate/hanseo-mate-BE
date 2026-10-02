@@ -13,7 +13,7 @@ git reset --hard origin/main
 bash setup-deploy.sh
 ```
 
-`setup-deploy.sh`는 MySQL 계정과 비밀번호를 화면에서 입력받아 `hsmate` 사용자의 `hsm-deploy` 로그인 경로에 저장하고, 앱의 JDBC 설정과 동일하게 `127.0.0.1:3306` TCP 연결로 DB 접속을 확인합니다. 비밀번호는 리눅스/sudo 비밀번호가 아니라 `/etc/hanseo-mate/backend/application-prod.properties`의 DB 비밀번호입니다. 이 계정에는 `hanseo_mate` DB의 백업과 두 증분 SQL 실행에 필요한 권한이 있어야 합니다. 스크립트가 기존 `/usr/local/bin/hsm-deploy`를 `.before-db-migration`으로 보존한 뒤 새 진입점을 설치하고, `hsmate`만 접근할 수 있는 DB 백업 디렉터리를 준비합니다. 비밀번호는 Git 저장소와 배포 스크립트에 기록하지 않습니다.
+`setup-deploy.sh`는 `/etc/hanseo-mate/backend/application-prod.properties`와 systemd 서비스 환경에서 앱의 DB 접속 정보를 읽어 연결과 백업 권한을 확인합니다. 비밀번호를 다시 입력할 필요가 없습니다. 자격 증명은 실행 중에만 권한 600인 임시 파일에 기록되고 종료 때 삭제되며 Git에는 저장되지 않습니다. 연결 확인 후 운영 DB인지 `yes`로 확인합니다. 스크립트가 기존 `/usr/local/bin/hsm-deploy`를 `.before-db-migration`으로 보존한 뒤 새 진입점을 설치하고, `hsmate`만 접근할 수 있는 DB 백업 디렉터리를 준비합니다.
 
 설정이 성공한 다음 배포는 아래 한 명령으로 실행합니다.
 

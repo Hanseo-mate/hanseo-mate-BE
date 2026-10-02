@@ -9,8 +9,10 @@ CONFIG="/etc/hanseo-mate/backend/application-prod.properties"
 SERVICE="hanseo-mate"
 HEALTH="http://127.0.0.1:8080/actuator/health"
 DB_NAME="hanseo_mate"
-DB_LOGIN_PATH="hsm-deploy"
 DB_BACKUP_DIR="/opt/hanseo-mate/backend/db-backups"
+MYSQL_CREDENTIALS="$(mktemp /tmp/hsm-mysql-client.XXXXXX)"
+trap 'rm -f "$MYSQL_CREDENTIALS"' EXIT
+chmod 600 "$MYSQL_CREDENTIALS"
 
 export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
 export PATH="$JAVA_HOME/bin:$PATH"
@@ -57,6 +59,8 @@ for program in mysql mysqldump curl; do
     }
 done
 
+java "$REPO/scripts/write-mysql-client-config.java" "$CONFIG" "$MYSQL_CREDENTIALS"
+
 cd "$REPO"
 
 for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql; do
@@ -66,8 +70,8 @@ for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-se
     fi
 done
 
-mysql_client=(mysql --no-defaults --login-path="$DB_LOGIN_PATH" --protocol=TCP --host=127.0.0.1 --port=3306 --default-character-set=utf8mb4 --batch --skip-column-names --database="$DB_NAME")
-mysql_dump=(mysqldump --no-defaults --login-path="$DB_LOGIN_PATH" --protocol=TCP --host=127.0.0.1 --port=3306 --default-character-set=utf8mb4 --single-transaction --quick --no-tablespaces --routines --triggers --events)
+mysql_client=(mysql --defaults-file="$MYSQL_CREDENTIALS" --no-login-paths --default-character-set=utf8mb4 --batch --skip-column-names --database="$DB_NAME")
+mysql_dump=(mysqldump --defaults-file="$MYSQL_CREDENTIALS" --no-login-paths --default-character-set=utf8mb4 --single-transaction --quick --no-tablespaces --routines --triggers --events)
 
 selected_db="$("${mysql_client[@]}" --execute='SELECT DATABASE()')"
 if [ "$selected_db" != "$DB_NAME" ]; then
