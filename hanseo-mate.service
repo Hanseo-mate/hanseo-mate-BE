@@ -1,0 +1,18 @@
+[Unit]
+Description=Hanseo Mate Spring Boot Backend
+After=network-online.target mysql.service
+Wants=network-online.target
+Requires=mysql.service
+
+[Service]
+Type=simple
+User=hsmate
+Group=hsmate
+WorkingDirectory=/opt/hanseo-mate/backend
+ExecStart=/usr/bin/java -jar /opt/hanseo-mate/backend/app.jar --spring.profiles.active=prod --spring.config.additional-location=file:/etc/hanseo-mate/backend/
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target
