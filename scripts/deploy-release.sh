@@ -63,7 +63,7 @@ java "$REPO/scripts/write-mysql-client-config.java" "$CONFIG" "$MYSQL_CREDENTIAL
 
 cd "$REPO"
 
-for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql; do
+for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql; do
     if [ ! -f "$sql_file" ]; then
         echo "Required SQL file is missing: $sql_file" >&2
         exit 1
@@ -114,7 +114,16 @@ echo "5. Create home_messages table"
 echo "6. Remove retired club review option"
 "${mysql_client[@]}" < docs/club-review-strong-seniority-removal-mysql.sql
 
-echo "7. Verify database migration"
+echo "7. Remove essential link category"
+"${mysql_client[@]}" < docs/essential-link-category-removal-mysql.sql
+
+echo "8. Verify database migration"
+"${mysql_client[@]}" --execute='SELECT id, name, url, created_at, updated_at FROM essential_links LIMIT 1' >/dev/null
+category_columns="$("${mysql_client[@]}" --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'essential_links' AND column_name = 'category'")"
+if [ "$category_columns" != "0" ]; then
+    echo "essential_links.category still exists" >&2
+    recover 1
+fi
 "${mysql_client[@]}" --execute='SELECT COUNT(*) FROM home_messages' >/dev/null
 remaining="$("${mysql_client[@]}" --execute="SELECT COUNT(*) FROM club_review_selections WHERE review_option = 'STRONG_SENIORITY'")"
 if [ "$remaining" != "0" ]; then
@@ -122,12 +131,12 @@ if [ "$remaining" != "0" ]; then
     recover 1
 fi
 
-echo "8. Install new JAR and start service"
+echo "9. Install new JAR and start service"
 jar_replaced=1
 cp "$JAR" "$APP"
 sudo systemctl start "$SERVICE"
 
-echo "9. Check health"
+echo "10. Check health"
 for i in $(seq 1 30); do
     if curl -fsS "$HEALTH" >/dev/null 2>&1; then
         trap - ERR INT TERM

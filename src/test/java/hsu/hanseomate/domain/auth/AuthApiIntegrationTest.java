@@ -303,8 +303,7 @@ class AuthApiIntegrationTest {
     void adminApiRequiresAdminRoleFromNewlyIssuedToken() throws Exception {
         String adminLinkRequest = objectMapper.writeValueAsString(Map.of(
                 "name", "관리자 테스트 링크",
-                "url", "https://example.com/admin-test",
-                "category", "TEST"
+                "url", "https://example.com/admin-test"
         ));
 
         mockMvc.perform(post("/api/admin/links")

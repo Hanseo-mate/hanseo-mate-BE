@@ -17,7 +17,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "일반 사용자 링크 조회", description = "학교생활 필수 링크를 조회합니다.")
@@ -29,21 +28,10 @@ public class EssentialLinkController {
 
     private final EssentialLinkService essentialLinkService;
 
-    @Operation(summary = "링크 목록 조회", description = "ID 오름차순으로 조회하며 카테고리 필터를 선택적으로 적용합니다.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 카테고리",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            )
-    })
+    @Operation(summary = "링크 목록 조회", description = "등록된 모든 링크를 ID 오름차순으로 조회합니다.")
     @GetMapping
-    public List<EssentialLinkResponse> getLinks(
-            @Parameter(description = "조회할 카테고리")
-            @RequestParam(required = false) String category
-    ) {
-        return essentialLinkService.getLinks(category);
+    public List<EssentialLinkResponse> getLinks() {
+        return essentialLinkService.getLinks();
     }
 
     @Operation(summary = "링크 상세 조회")
