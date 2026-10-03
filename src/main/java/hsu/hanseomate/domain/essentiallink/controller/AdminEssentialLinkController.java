@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "관리자 링크 관리", description = "학교생활 필수 링크를 조회, 등록, 수정, 삭제합니다.")
@@ -40,24 +39,16 @@ public class AdminEssentialLinkController {
 
     @Operation(
             summary = "링크 목록 조회",
-            description = "ID 오름차순으로 조회하며 카테고리 필터를 선택적으로 적용합니다."
+            description = "등록된 모든 링크를 ID 오름차순으로 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 카테고리",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
-            ),
             @ApiResponse(responseCode = "401", description = "인증 필요"),
             @ApiResponse(responseCode = "403", description = "관리자 권한 필요")
     })
     @GetMapping
-    public List<EssentialLinkResponse> getLinks(
-            @Parameter(description = "조회할 카테고리")
-            @RequestParam(required = false) String category
-    ) {
-        return essentialLinkService.getLinks(category);
+    public List<EssentialLinkResponse> getLinks() {
+        return essentialLinkService.getLinks();
     }
 
     @Operation(summary = "링크 등록")

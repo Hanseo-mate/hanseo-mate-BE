@@ -27,22 +27,17 @@ public class EssentialLink extends BaseTimeEntity {
     @Column(nullable = false, length = 2048)
     private String url;
 
-    @Column(nullable = false, length = 50)
-    private String category;
-
-    private EssentialLink(String name, String url, String category) {
+    private EssentialLink(String name, String url) {
         this.name = name;
         this.url = url;
-        this.category = category;
     }
 
-    public static EssentialLink create(String name, String url, String category) {
-        return new EssentialLink(name, url, category);
+    public static EssentialLink create(String name, String url) {
+        return new EssentialLink(name, url);
     }
 
-    public void update(String name, String url, String category) {
+    public void update(String name, String url) {
         this.name = name;
         this.url = url;
-        this.category = category;
     }
 }

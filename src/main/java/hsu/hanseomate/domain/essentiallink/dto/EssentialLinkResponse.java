@@ -7,7 +7,6 @@ public record EssentialLinkResponse(
         Long id,
         String name,
         String url,
-        String category,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -17,7 +16,6 @@ public record EssentialLinkResponse(
                 essentialLink.getId(),
                 essentialLink.getName(),
                 essentialLink.getUrl(),
-                essentialLink.getCategory(),
                 essentialLink.getCreatedAt(),
                 essentialLink.getUpdatedAt()
         );
