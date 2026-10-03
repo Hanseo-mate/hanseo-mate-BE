@@ -57,7 +57,7 @@ class EssentialLinkApiIntegrationTest {
                 """, String.class);
 
         assertThat(columns).containsExactlyInAnyOrder(
-                "id", "name", "url", "category", "created_at", "updated_at"
+                "id", "name", "url", "created_at", "updated_at"
         );
     }
 
@@ -68,8 +68,7 @@ class EssentialLinkApiIntegrationTest {
                         .content("""
                                 {
                                   "name": "  e클래스  ",
-                                  "url": "  https://eclass.hanseo.ac.kr  ",
-                                  "category": "  remote_class  "
+                                  "url": "  https://eclass.hanseo.ac.kr  "
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -77,7 +76,7 @@ class EssentialLinkApiIntegrationTest {
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.name").value("e클래스"))
                 .andExpect(jsonPath("$.url").value("https://eclass.hanseo.ac.kr"))
-                .andExpect(jsonPath("$.category").value("REMOTE_CLASS"))
+                .andExpect(jsonPath("$.category").doesNotExist())
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
     }
@@ -92,39 +91,28 @@ class EssentialLinkApiIntegrationTest {
 
     @Test
     void returnsAllLinksInIdOrder() throws Exception {
-        EssentialLink first = saveLink("한서포탈", "https://portal.hanseo.ac.kr", "ACADEMIC");
-        EssentialLink second = saveLink("도서관", "https://library.hanseo.ac.kr", "CAMPUS");
+        EssentialLink first = saveLink("한서포탈", "https://portal.hanseo.ac.kr");
+        EssentialLink second = saveLink("도서관", "https://library.hanseo.ac.kr");
 
         mockMvc.perform(get("/api/links"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value(first.getId()))
-                .andExpect(jsonPath("$[1].id").value(second.getId()));
+                .andExpect(jsonPath("$[1].id").value(second.getId()))
+                .andExpect(jsonPath("$[0].category").doesNotExist());
     }
 
     @Test
-    void filtersLinksByNormalizedCategory() throws Exception {
-        saveLink("OCU", "https://cons.ocu.ac.kr", "REMOTE_CLASS");
-        saveLink("도서관", "https://library.hanseo.ac.kr", "CAMPUS");
+    void adminReturnsAllLinksInIdOrder() throws Exception {
+        saveLink("OCU", "https://cons.ocu.ac.kr");
+        saveLink("도서관", "https://library.hanseo.ac.kr");
 
-        mockMvc.perform(get("/api/links").param("category", " remote_class "))
+        mockMvc.perform(get("/api/admin/links"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].name").value("OCU"))
-                .andExpect(jsonPath("$[0].category").value("REMOTE_CLASS"));
-    }
-
-    @Test
-    void adminReturnsLinksFilteredByNormalizedCategory() throws Exception {
-        saveLink("OCU", "https://cons.ocu.ac.kr", "REMOTE_CLASS");
-        saveLink("도서관", "https://library.hanseo.ac.kr", "CAMPUS");
-
-        mockMvc.perform(get("/api/admin/links")
-                        .param("category", " remote_class "))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].name").value("OCU"))
-                .andExpect(jsonPath("$[0].category").value("REMOTE_CLASS"));
+                .andExpect(jsonPath("$[1].name").value("도서관"))
+                .andExpect(jsonPath("$[0].category").doesNotExist());
     }
 
     @Test
@@ -141,17 +129,18 @@ class EssentialLinkApiIntegrationTest {
 
     @Test
     void returnsLinkDetails() throws Exception {
-        EssentialLink link = saveLink("전자출결", "https://attendance.hanseo.ac.kr", "ACADEMIC");
+        EssentialLink link = saveLink("전자출결", "https://attendance.hanseo.ac.kr");
 
         mockMvc.perform(get("/api/links/{linkId}", link.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(link.getId()))
-                .andExpect(jsonPath("$.name").value("전자출결"));
+                .andExpect(jsonPath("$.name").value("전자출결"))
+                .andExpect(jsonPath("$.category").doesNotExist());
     }
 
     @Test
     void updatesEntireLink() throws Exception {
-        EssentialLink link = saveLink("포탈", "https://old.hanseo.ac.kr", "academic");
+        EssentialLink link = saveLink("포탈", "https://old.hanseo.ac.kr");
         EssentialLink persisted = essentialLinkRepository.findById(link.getId()).orElseThrow();
         LocalDateTime createdAt = persisted.getCreatedAt();
         LocalDateTime updatedAt = persisted.getUpdatedAt();
@@ -161,14 +150,14 @@ class EssentialLinkApiIntegrationTest {
                         .content("""
                                 {
                                   "name": "한서포탈",
-                                  "url": "https://portal.hanseo.ac.kr",
-                                  "category": " school_service "
+                                  "url": "https://portal.hanseo.ac.kr"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(link.getId()))
                 .andExpect(jsonPath("$.name").value("한서포탈"))
-                .andExpect(jsonPath("$.category").value("SCHOOL_SERVICE"));
+                .andExpect(jsonPath("$.url").value("https://portal.hanseo.ac.kr"))
+                .andExpect(jsonPath("$.category").doesNotExist());
 
         EssentialLink updated = essentialLinkRepository.findById(link.getId()).orElseThrow();
         assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
@@ -177,7 +166,7 @@ class EssentialLinkApiIntegrationTest {
 
     @Test
     void deletesLink() throws Exception {
-        EssentialLink link = saveLink("삭제 대상", "https://delete.example.com", "ETC");
+        EssentialLink link = saveLink("삭제 대상", "https://delete.example.com");
 
         mockMvc.perform(delete("/api/admin/links/{linkId}", link.getId()))
                 .andExpect(status().isNoContent());
@@ -218,8 +207,7 @@ class EssentialLinkApiIntegrationTest {
                         .content("""
                                 {
                                   "name": "   ",
-                                  "url": "https://portal.hanseo.ac.kr",
-                                  "category": "ACADEMIC"
+                                  "url": "https://portal.hanseo.ac.kr"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
@@ -234,49 +222,9 @@ class EssentialLinkApiIntegrationTest {
                         .content("""
                                 {
                                   "name": "위험한 링크",
-                                  "url": "javascript:alert(1)",
-                                  "category": "ETC"
+                                  "url": "javascript:alert(1)"
                                 }
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
-    }
-
-    @Test
-    void rejectsMissingCategory() throws Exception {
-        mockMvc.perform(post("/api/admin/links")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "name": "한서포탈",
-                                  "url": "https://portal.hanseo.ac.kr"
-                                }
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
-    }
-
-    @Test
-    void rejectsCategoryThatExceedsLimitAfterNormalization() throws Exception {
-        String category = "ß".repeat(50);
-        String request = """
-                {
-                  "name": "한서포탈",
-                  "url": "https://portal.hanseo.ac.kr",
-                  "category": "%s"
-                }
-                """.formatted(category);
-
-        mockMvc.perform(post("/api/admin/links")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
-    }
-
-    @Test
-    void rejectsBlankCategoryFilter() throws Exception {
-        mockMvc.perform(get("/api/links").param("category", "   "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }
@@ -304,16 +252,15 @@ class EssentialLinkApiIntegrationTest {
                 .andExpect(jsonPath("$.status").value(400));
     }
 
-    private EssentialLink saveLink(String name, String url, String category) {
-        return essentialLinkRepository.saveAndFlush(EssentialLink.create(name, url, category));
+    private EssentialLink saveLink(String name, String url) {
+        return essentialLinkRepository.saveAndFlush(EssentialLink.create(name, url));
     }
 
     private String validRequestJson() {
         return """
                 {
                   "name": "한서포탈",
-                  "url": "https://portal.hanseo.ac.kr",
-                  "category": "ACADEMIC"
+                  "url": "https://portal.hanseo.ac.kr"
                 }
                 """;
     }

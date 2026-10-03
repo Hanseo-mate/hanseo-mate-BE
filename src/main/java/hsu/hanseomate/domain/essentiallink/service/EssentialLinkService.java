@@ -5,10 +5,8 @@ import hsu.hanseomate.domain.essentiallink.dto.EssentialLinkResponse;
 import hsu.hanseomate.domain.essentiallink.dto.EssentialLinkUpdateRequest;
 import hsu.hanseomate.domain.essentiallink.entity.EssentialLink;
 import hsu.hanseomate.domain.essentiallink.exception.EssentialLinkNotFoundException;
-import hsu.hanseomate.domain.essentiallink.exception.InvalidCategoryException;
 import hsu.hanseomate.domain.essentiallink.repository.EssentialLinkRepository;
 import java.util.List;
-import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,12 +18,8 @@ public class EssentialLinkService {
 
     private final EssentialLinkRepository essentialLinkRepository;
 
-    public List<EssentialLinkResponse> getLinks(String category) {
-        List<EssentialLink> links = category == null
-                ? essentialLinkRepository.findAllByOrderByIdAsc()
-                : essentialLinkRepository.findAllByCategoryOrderByIdAsc(normalizeCategory(category));
-
-        return links.stream()
+    public List<EssentialLinkResponse> getLinks() {
+        return essentialLinkRepository.findAllByOrderByIdAsc().stream()
                 .map(EssentialLinkResponse::from)
                 .toList();
     }
@@ -38,8 +32,7 @@ public class EssentialLinkService {
     public EssentialLinkResponse createLink(EssentialLinkCreateRequest request) {
         EssentialLink essentialLink = EssentialLink.create(
                 request.name().trim(),
-                request.url().trim(),
-                normalizeCategory(request.category())
+                request.url().trim()
         );
 
         return EssentialLinkResponse.from(essentialLinkRepository.saveAndFlush(essentialLink));
@@ -50,8 +43,7 @@ public class EssentialLinkService {
         EssentialLink essentialLink = findLink(linkId);
         essentialLink.update(
                 request.name().trim(),
-                request.url().trim(),
-                normalizeCategory(request.category())
+                request.url().trim()
         );
         essentialLinkRepository.flush();
 
@@ -70,11 +62,4 @@ public class EssentialLinkService {
                 .orElseThrow(() -> new EssentialLinkNotFoundException(linkId));
     }
 
-    private String normalizeCategory(String category) {
-        String normalized = category.trim().toUpperCase(Locale.ROOT);
-        if (normalized.isEmpty() || normalized.length() > 50) {
-            throw new InvalidCategoryException();
-        }
-        return normalized;
-    }
 }
