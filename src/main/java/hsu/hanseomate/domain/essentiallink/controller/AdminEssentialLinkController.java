@@ -51,6 +51,25 @@ public class AdminEssentialLinkController {
         return essentialLinkService.getLinks();
     }
 
+    @Operation(summary = "링크 상세 조회", description = "관리자 권한으로 링크 한 건을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 링크 ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 필요"),
+            @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+            @ApiResponse(responseCode = "404", description = "링크 없음",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    @GetMapping("/{linkId}")
+    public EssentialLinkResponse getLink(
+            @Parameter(description = "링크 ID", required = true)
+            @Positive(message = "링크 ID는 1 이상이어야 합니다.")
+            @PathVariable Long linkId
+    ) {
+        return essentialLinkService.getLink(linkId);
+    }
+
     @Operation(summary = "링크 등록")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공"),

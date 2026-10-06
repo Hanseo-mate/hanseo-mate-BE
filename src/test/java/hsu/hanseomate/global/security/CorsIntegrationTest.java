@@ -2,6 +2,12 @@ package hsu.hanseomate.global.security;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,6 +17,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.transaction.annotation.Transactional;
+import com.jayway.jsonpath.JsonPath;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,6 +37,93 @@ class CorsIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Test
+    void adminEssentialLinkDetailPreflightAllowsConfiguredOrigin() throws Exception {
+        assertPublicReadPreflight("/api/admin/links/1");
+    }
+
+    @Test
+    void adminEssentialLinkDetailErrorsIncludeCorsHeaders() throws Exception {
+        mockMvc.perform(get("/api/admin/links/999999")
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        mockMvc.perform(get("/api/admin/links/999999")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isForbidden())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        mockMvc.perform(get("/api/admin/links/999999")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+    }
+
+    @Test
+    void adminEssentialLinkCrudPreflightAllowsConfiguredOrigin() throws Exception {
+        for (HttpMethod method : new HttpMethod[]{HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE}) {
+            String path = method == HttpMethod.PUT || method == HttpMethod.DELETE
+                    ? "/api/admin/links/1" : "/api/admin/links";
+            mockMvc.perform(options(path)
+                            .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method.name())
+                            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization, Content-Type"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        }
+    }
+
+    @Test
+    void adminEssentialLinkAuthErrorsIncludeCorsHeaders() throws Exception {
+        for (HttpMethod method : new HttpMethod[]{HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE}) {
+            String path = method == HttpMethod.PUT || method == HttpMethod.DELETE
+                    ? "/api/admin/links/1" : "/api/admin/links";
+            mockMvc.perform(request(method, path).header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+            mockMvc.perform(request(method, path).header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                            .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                    .andExpect(status().isForbidden())
+                    .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        }
+    }
+
+    @Test
+    @Transactional
+    void adminEssentialLinkCrudResponsesIncludeCorsHeaders() throws Exception {
+        String body = "{\"name\":\"CORS link\",\"url\":\"https://example.com\"}";
+        String created = mockMvc.perform(post("/api/admin/links")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN))
+                .andReturn().getResponse().getContentAsString();
+        long id = JsonPath.<Number>read(created, "$.id").longValue();
+        mockMvc.perform(get("/api/admin/links/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        mockMvc.perform(get("/api/admin/links")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        mockMvc.perform(put("/api/admin/links/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+        mockMvc.perform(delete("/api/admin/links/{id}", id)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+    }
 
     @Test
     void adminApiPreflightAllowsConfiguredOrigin()
