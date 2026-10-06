@@ -9,11 +9,33 @@
 | GET | `/api/links` | 전체 목록 조회 | 로그인 없이 가능 |
 | GET | `/api/links/{linkId}` | 상세 조회 | 로그인 없이 가능 |
 | GET | `/api/admin/links` | 관리자 전체 목록 조회 | ADMIN JWT 필요 |
+| GET | `/api/admin/links/{linkId}` | 관리자 상세 조회 | ADMIN JWT 필요 |
 | POST | `/api/admin/links` | 등록 | ADMIN JWT 필요 |
 | PUT | `/api/admin/links/{linkId}` | 전체 수정 | ADMIN JWT 필요 |
 | DELETE | `/api/admin/links/{linkId}` | 삭제 | ADMIN JWT 필요 |
 
-관리자 목록은 `GET /api/admin/links`로 조회할 수 있습니다. 일반 사용자 목록과 응답 구조·정렬이 동일하며 ADMIN JWT가 필요합니다. 상세 조회에는 `GET /api/links/{linkId}`를 사용합니다. 목록은 ID 오름차순이며 데이터가 없으면 빈 배열을 반환합니다. 목록 조회에는 필터와 페이지네이션이 없습니다.
+관리자 목록은 `GET /api/admin/links`로 조회할 수 있습니다. 일반 사용자 목록과 응답 구조·정렬이 동일하며 ADMIN JWT가 필요합니다. 관리자 상세 조회에는 `GET /api/admin/links/{linkId}`를 사용합니다. 목록은 ID 오름차순이며 데이터가 없으면 빈 배열을 반환합니다. 목록 조회에는 필터와 페이지네이션이 없습니다.
+
+## 관리자 상세 조회
+
+```http
+GET /api/admin/links/1
+Authorization: Bearer {accessToken}
+```
+
+요청 본문은 없습니다. `linkId`는 1 이상의 정수입니다. 성공 시 `200 OK`와 아래 링크 객체를 반환합니다.
+
+```json
+{
+  "id": 1,
+  "name": "한서포탈",
+  "url": "https://portal.hanseo.ac.kr",
+  "createdAt": "2026-10-06T10:00:00.123456",
+  "updatedAt": "2026-10-06T10:00:00.123456"
+}
+```
+
+잘못된 ID는 `400`, 인증이 없거나 유효하지 않으면 `401`, ADMIN 권한이 없으면 `403`, 링크가 없으면 `404`입니다. 관리자 상세 화면은 이 경로를 사용합니다. 공통 관리자 CORS 설정이 적용되며, 운영 허용 Origin에 프론트 주소가 등록되어 있어야 합니다.
 
 ## 등록·수정 양식
 
