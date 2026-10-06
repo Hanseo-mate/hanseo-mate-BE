@@ -139,6 +139,46 @@ class EssentialLinkApiIntegrationTest {
     }
 
     @Test
+    void adminReturnsLinkDetails() throws Exception {
+        EssentialLink link = saveLink("전자출결", "https://attendance.hanseo.ac.kr");
+
+        mockMvc.perform(get("/api/admin/links/{linkId}", link.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(link.getId()))
+                .andExpect(jsonPath("$.name").value("전자출결"))
+                .andExpect(jsonPath("$.url").value("https://attendance.hanseo.ac.kr"))
+                .andExpect(jsonPath("$.createdAt").exists())
+                .andExpect(jsonPath("$.updatedAt").exists())
+                .andExpect(jsonPath("$.category").doesNotExist());
+    }
+
+    @Test
+    void protectsAdminLinkDetailsWithAdminRole() throws Exception {
+        EssentialLink link = saveLink("전자출결", "https://attendance.hanseo.ac.kr");
+        mockMvc.perform(get("/api/admin/links/{linkId}", link.getId()).with(anonymous()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/links/{linkId}", link.getId())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminLinkDetailsReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/admin/links/999999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.path").value("/api/admin/links/999999"));
+    }
+
+    @Test
+    void adminLinkDetailsRejectsInvalidIds() throws Exception {
+        for (String id : new String[]{"0", "-1", "abc"}) {
+            mockMvc.perform(get("/api/admin/links/" + id))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void updatesEntireLink() throws Exception {
         EssentialLink link = saveLink("포탈", "https://old.hanseo.ac.kr");
         EssentialLink persisted = essentialLinkRepository.findById(link.getId()).orElseThrow();
