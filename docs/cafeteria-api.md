@@ -187,12 +187,11 @@ Authorization: Bearer {accessToken}
 
 ## 8. 배포 영향
 
-- 학식 수집과 DB 저장은 Python 크롤러가 담당하고 Spring Boot는 저장된 식단을 조회합니다.
-- 정기 실행은 한국 시간 월~금 01, 03, 05, 07, 09, 11, 13, 15, 17시이며, 매번 당일 미완료 식당 수집을 요청합니다.
-- 이번 스케줄 변경에는 Spring DB 마이그레이션이나 식단 초기화가 없습니다. `cafeteria_crawl_progress`는 Python 배포 스크립트가 준비합니다.
-- 과거 식단 구조/선호 캠퍼스 마이그레이션은 기존 스키마의 이력에 따라 적용하는 별도 작업입니다. 이번 스케줄 배포를 위해 과거의 식단 삭제 SQL을 다시 실행하지 않습니다.
-- 크롤러 새 코드 배포 후 Spring 새 코드를 배포합니다. 두 코드가 모두 적용되어야 최종 일정이 동작합니다.
-- 상세 요청·상태 계약과 배포 확인은 [학식 크롤러 운영 문서](cafeteria-crawler-scheduling.md)를 따릅니다.
+- 식단 테이블 구조 변경(3-tier → 2-tier): `docs/cafeteria-menu-restructure-migration-mysql.sql` 를 앱 배포 전 1회 적용
+- 기존 식단 데이터는 마이그레이션에서 전량 삭제되며, Spring Boot 가 크롤러 결과로 다시 채움
+- DB 쓰기 소유권이 Python 크롤러에서 Spring Boot 로 이동(비교 후 변경 시에만 delete+insert)
+- `docs/user-preferred-campus-migration-mysql.sql`을 앱 배포 전에 적용
+- 서버 properties 추가 없음
 
 ## 9. CORS
 
