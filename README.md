@@ -225,12 +225,12 @@ flowchart LR
 | API 처리 | `SecurityFilterChain → Controller → Service → Repository` 순으로 접근 정책, 요청 검증, 업무 규칙, 데이터 조회·저장을 처리 |
 | MySQL | 사용자·강좌·콘텐츠 등 서비스 데이터와 알림 전송 대기 작업을 저장. Outbox도 같은 DB의 테이블이며 별도 메시지 서버가 아님 |
 | 파일 저장소 | DB에는 파일 URL·메타데이터를, 파일 저장소에는 실제 내용을 저장. 공개 이미지는 `/uploads/**`, 일반 첨부파일은 다운로드 API로 제공 |
-| 크롤러 연동 | 공지·학식 수집을 외부 크롤러에 요청. 학식은 Python이 DB에 직접 저장하며 Spring은 평일 01~17시 2시간 간격으로 당일 미완료 식당 수집을 요청 |
+| 크롤러 연동 | 공지는 외부 크롤러에 수집 실행을 요청. 학식은 파싱 결과를 응답으로 받아 백엔드에서 검증·저장 |
 | 알림 작업 | 애플리케이션 내부 Worker가 DB의 대기 작업을 읽어 Expo에 전송하고, 별도 Worker가 전송 결과를 확인 |
 
 공개 API·로그인 필수 API·관리자 API는 접근 정책이 다릅니다. 개인 데이터의 소유권은 서비스에서도 확인합니다. 크롤러 내부의 수집·저장 구조는 이 저장소의 범위가 아니므로 표시하지 않았습니다.
 
-[보안 설정](src/main/java/hsu/hanseomate/global/security/SecurityConfig.java) · [공지 수집 요청](src/main/java/hsu/hanseomate/domain/notices/service/CrawlOperationService.java) · [학식 스케줄](src/main/java/hsu/hanseomate/domain/cafeteria/service/CafeteriaScheduler.java) · [학식 크롤러 운영 계약](docs/cafeteria-crawler-scheduling.md) · [공개 이미지 제공](src/main/java/hsu/hanseomate/global/config/StaticResourceConfig.java)
+[보안 설정](src/main/java/hsu/hanseomate/global/security/SecurityConfig.java) · [공지 수집 요청](src/main/java/hsu/hanseomate/domain/notices/service/CrawlOperationService.java) · [학식 동기화](src/main/java/hsu/hanseomate/domain/cafeteria/sync/CafeteriaSyncOrchestrator.java) · [공개 이미지 제공](src/main/java/hsu/hanseomate/global/config/StaticResourceConfig.java)
 
 ### 2. 핵심 데이터 관계 — 강좌·시간표·성적
 
@@ -360,6 +360,10 @@ $appArgs = @(
   "--spring.profiles.active=local"
   "--crawler.api.base-url=http://127.0.0.1:8000"
   "--cafeteria.crawler.api-base-url=http://127.0.0.1:8000"
+  "--cafeteria.crawler.main-student-url=http://127.0.0.1/main-student"
+  "--cafeteria.crawler.main-staff-url=http://127.0.0.1/main-staff"
+  "--cafeteria.crawler.taean-student-url=http://127.0.0.1/taean-student"
+  "--cafeteria.crawler.taean-staff-url=http://127.0.0.1/taean-staff"
   "--app.updates.scheduler-enabled=false"
   "--app.timetable-reminder.enabled=false"
 )
@@ -367,7 +371,7 @@ $appArgs = @(
 ```
 
 - JWT 키와 비밀번호는 개발 전용 값으로 지정합니다.
-- 학식 원본 URL은 Python 크롤러가 관리합니다. Spring에는 크롤러 API 주소만 지정하며, 실제 수집에는 새 계약을 지원하는 크롤러가 필요합니다.
+- 학식 원본 URL 4개는 기동에 필요한 **예시 값**입니다. 실제 동기화에는 유효한 원본 URL과 별도 크롤러가 필요합니다.
 - 위 옵션은 앱 정책·수업 알림 작업을 비활성화합니다. 다른 자동 실행 작업까지 모두 중지하는 설정은 아닙니다.
 - `.env.example` 복사만으로 Spring이 환경변수를 자동으로 읽지는 않습니다.
 - 이 명령은 코드·설정에 근거한 안내이며, 위 테스트 기록과 별개로 실제 로컬 MySQL 연결을 확인해야 합니다.
