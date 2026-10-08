@@ -23,7 +23,10 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(
         name = "clubs",
-        indexes = @Index(name = "idx_clubs_category", columnList = "category"),
+        indexes = {
+                @Index(name = "idx_clubs_category", columnList = "category"),
+                @Index(name = "idx_clubs_display_order", columnList = "display_order,id")
+        },
         uniqueConstraints = @UniqueConstraint(name = "uk_clubs_name", columnNames = "name")
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -40,6 +43,9 @@ public class Club extends BaseTimeEntity {
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private ClubCategory category;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
 
     @Column(name = "profile_image_url", length = 2048)
     private String profileImageUrl;
@@ -99,6 +105,10 @@ public class Club extends BaseTimeEntity {
         this.instagramUrl = instagramUrl;
         this.kakaoTalkUrl = kakaoTalkUrl;
         this.recruitmentContent = recruitmentContent;
+    }
+
+    public void updateDisplayOrder(int displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     public void updateProfileImage(String profileImageUrl) {

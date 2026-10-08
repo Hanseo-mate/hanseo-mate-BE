@@ -13,9 +13,13 @@ import jakarta.persistence.LockModeType;
 
 public interface ClubRepository extends JpaRepository<Club, Long> {
 
-    List<Club> findAllByOrderByIdAsc();
+    List<Club> findAllByOrderByDisplayOrderAscIdAsc();
 
-    List<Club> findAllByCategoryOrderByIdAsc(ClubCategory category);
+    List<Club> findAllByCategoryOrderByDisplayOrderAscIdAsc(ClubCategory category);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select club from Club club order by club.id asc")
+    List<Club> findAllForOrderUpdate();
 
     boolean existsByName(String name);
 

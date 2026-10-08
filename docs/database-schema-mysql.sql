@@ -1237,6 +1237,7 @@ CREATE TABLE clubs (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     category VARCHAR(30) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
     profile_image_url VARCHAR(2048) NULL,
     background_image_url VARCHAR(2048) NULL,
     short_description VARCHAR(255) NULL,
@@ -1249,7 +1250,8 @@ CREATE TABLE clubs (
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_clubs_name UNIQUE (name),
-    INDEX idx_clubs_category (category)
+    INDEX idx_clubs_category (category),
+    INDEX idx_clubs_display_order (display_order, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE club_likes (

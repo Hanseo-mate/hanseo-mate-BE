@@ -244,6 +244,144 @@ class ClubApiIntegrationTest {
     }
 
     @Test
+    void savesClubOrderForPublicAdminAndFilteredLists() throws Exception {
+        long first = createClub("정렬 학술 첫째", "ACADEMIC");
+        long second = createClub("정렬 체육", "SPORTS");
+        long third = createClub("정렬 학술 둘째", "ACADEMIC");
+        List<Long> orderedIds = List.of(third, second, first);
+
+        // Retrying the same request must preserve the saved order.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mockMvc.perform(put("/api/admin/clubs/order")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(Map.of("clubIds", orderedIds))))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+        }
+
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT id FROM clubs ORDER BY display_order, id", Long.class))
+                .containsExactly(third, second, first);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT display_order FROM clubs ORDER BY display_order, id", Integer.class))
+                .containsExactly(1, 2, 3);
+
+        for (String endpoint : List.of("/api/clubs", "/api/admin/clubs")) {
+            mockMvc.perform(get(endpoint))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].id").value(third))
+                    .andExpect(jsonPath("$[0].displayOrder").value(1))
+                    .andExpect(jsonPath("$[1].id").value(second))
+                    .andExpect(jsonPath("$[2].id").value(first));
+            mockMvc.perform(get(endpoint).param("category", "ACADEMIC"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(third))
+                    .andExpect(jsonPath("$[1].id").value(first))
+                    .andExpect(jsonPath("$[1].displayOrder").value(3));
+        }
+        mockMvc.perform(get("/api/clubs").with(anonymous()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(third));
+    }
+
+    @Test
+    void rejectsInvalidOrderWithoutChangingSavedPositions() throws Exception {
+        long first = createClub("검증 첫째", "ACADEMIC");
+        long second = createClub("검증 둘째", "SPORTS");
+        mockMvc.perform(put("/api/admin/clubs/order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("clubIds", List.of(second, first)))))
+                .andExpect(status().isNoContent());
+
+        for (String body : List.of(
+                "{}", "{\"clubIds\":null}", "{\"clubIds\":[]}",
+                "{\"clubIds\":[null]}", "{\"clubIds\":[0]}", "{\"clubIds\":[-1]}",
+                json(Map.of("clubIds", List.of(first, first))),
+                json(Map.of("clubIds", List.of(first))),
+                json(Map.of("clubIds", List.of(first, Long.MAX_VALUE))),
+                json(Map.of("clubIds", List.of(first, second, Long.MAX_VALUE)))
+        )) {
+            mockMvc.perform(put("/api/admin/clubs/order")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+            assertThat(jdbcTemplate.queryForList(
+                    "SELECT id FROM clubs ORDER BY display_order, id", Long.class))
+                    .containsExactly(second, first);
+            assertThat(jdbcTemplate.queryForList(
+                    "SELECT display_order FROM clubs ORDER BY display_order, id", Integer.class))
+                    .containsExactly(1, 2);
+        }
+    }
+
+    @Test
+    void requiresAdminToChangeClubOrder() throws Exception {
+        long clubId = createClub("순서 권한 검증", "ACADEMIC");
+        String body = json(Map.of("clubIds", List.of(clubId)));
+        mockMvc.perform(put("/api/admin/clubs/order").with(anonymous())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/admin/clubs/order").with(userJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT display_order FROM clubs WHERE id = ?", Integer.class, clubId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void appendsNewClubAfterReorderingAndDeletingAClub() throws Exception {
+        long first = createClub("추가 첫째", "ACADEMIC");
+        long second = createClub("추가 둘째", "SPORTS");
+        long third = createClub("추가 셋째", "HOBBY");
+        mockMvc.perform(put("/api/admin/clubs/order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("clubIds", List.of(third, second, first)))))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/admin/clubs/{clubId}", second))
+                .andExpect(status().isNoContent());
+
+        long fourth = createClub("추가 넷째", "ACADEMIC");
+        mockMvc.perform(get("/api/clubs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].id").value(third))
+                .andExpect(jsonPath("$[1].id").value(first))
+                .andExpect(jsonPath("$[2].id").value(fourth))
+                .andExpect(jsonPath("$[2].displayOrder").value(4));
+
+        // A stale screen containing the deleted club must not partially update the order.
+        mockMvc.perform(put("/api/admin/clubs/order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("clubIds", List.of(first, second, third)))))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT id FROM clubs ORDER BY display_order, id", Long.class))
+                .containsExactly(third, first, fourth);
+    }
+
+    @Test
+    void acceptsEmptyOrderOnlyWhenNoClubsExist() throws Exception {
+        mockMvc.perform(put("/api/admin/clubs/order")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"clubIds\":[]}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/clubs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void breaksEqualDisplayOrderTiesById() throws Exception {
+        long first = createClub("동순위 첫째", "ACADEMIC");
+        long second = createClub("동순위 둘째", "ACADEMIC");
+        jdbcTemplate.update("UPDATE clubs SET display_order = 0");
+        mockMvc.perform(get("/api/clubs").param("category", "ACADEMIC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(first))
+                .andExpect(jsonPath("$[1].id").value(second));
+    }
+
+    @Test
     void returnsUnifiedClubDetailWithInformationRecruitmentAndReviewerCount()
             throws Exception {
         long clubId = createClub("상세 조회 동아리", "HOBBY");
