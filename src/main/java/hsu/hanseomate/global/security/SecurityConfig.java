@@ -102,6 +102,7 @@ public class SecurityConfig {
     public SecurityFilterChain optionalJwtApiSecurityFilterChain(
             HttpSecurity http,
             RestAuthenticationEntryPoint authenticationEntryPoint,
+            RestAccessDeniedHandler accessDeniedHandler,
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
@@ -127,15 +128,19 @@ public class SecurityConfig {
                                 "/api/clubs/reviews/*/me"
                         ).authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/clubs/reviews/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/clubs/*/recruitment")
+                        .hasRole("CLUB_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/clubs/likes/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(authenticationEntryPoint))
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(
                                 jwtAuthenticationConverter
                         ))
-                        .authenticationEntryPoint(authenticationEntryPoint));
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler));
         return http.build();
     }
 

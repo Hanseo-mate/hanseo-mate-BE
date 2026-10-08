@@ -109,4 +109,8 @@ public class Club extends BaseTimeEntity {
         this.backgroundImageUrl = backgroundImageUrl;
     }
 
+    public void updateRecruitmentContent(String recruitmentContent) {
+        this.recruitmentContent = recruitmentContent;
+    }
+
 }

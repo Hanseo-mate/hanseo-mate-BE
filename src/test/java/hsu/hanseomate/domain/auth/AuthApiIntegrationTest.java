@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -369,6 +370,36 @@ class AuthApiIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void clubAdminLoginIssuesRoleForRecruitmentEditingWithoutAdminAccess() throws Exception {
+        long userId = signup("club-editor", "password");
+        jdbcTemplate.update(
+                "UPDATE user_accounts SET role = 'CLUB_ADMIN' WHERE id = ?",
+                userId
+        );
+
+        MvcResult loginResult = login("club-editor", "password")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("CLUB_ADMIN"))
+                .andReturn();
+        String token = responseBody(loginResult).path("accessToken").stringValue();
+        assertThat(jwtDecoder.decode(token).getClaimAsString("role"))
+                .isEqualTo("CLUB_ADMIN");
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("CLUB_ADMIN"));
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", 999999L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"recruitmentContent\":\"모집합니다\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/admin/clubs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 
     @Test

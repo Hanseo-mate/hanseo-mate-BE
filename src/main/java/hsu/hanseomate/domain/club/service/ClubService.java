@@ -10,6 +10,7 @@ import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
+import hsu.hanseomate.domain.club.dto.ClubRecruitmentUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
 import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.entity.Club;
@@ -27,6 +28,7 @@ import hsu.hanseomate.domain.club.type.ClubImageType;
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
+import hsu.hanseomate.domain.user.type.UserRole;
 import hsu.hanseomate.global.exception.BadRequestException;
 import hsu.hanseomate.global.exception.ResourceNotFoundException;
 import hsu.hanseomate.global.storage.LocalImageStorageService;
@@ -48,6 +50,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -189,16 +192,37 @@ public class ClubService {
             throw duplicateClubName(name);
         }
 
+        publishRecruitmentChange(club, previousRecruitmentContent);
+    }
+
+    @Transactional
+    public void updateRecruitment(
+            Long clubId,
+            Long editorId,
+            ClubRecruitmentUpdateRequest request
+    ) {
+        if (findAuthenticatedUser(editorId).getRole() != UserRole.CLUB_ADMIN) {
+            throw new AccessDeniedException("동아리관리자 권한이 필요합니다.");
+        }
+        Club club = findClubForUpdate(clubId);
+        String previousRecruitmentContent = club.getRecruitmentContent();
+        club.updateRecruitmentContent(content(request.recruitmentContent()));
+        clubRepository.flush();
+        publishRecruitmentChange(club, previousRecruitmentContent);
+    }
+
+    private void publishRecruitmentChange(Club club, String previousRecruitmentContent) {
+        String recruitmentContent = club.getRecruitmentContent();
         if (recruitmentContent != null
                 && !Objects.equals(previousRecruitmentContent, recruitmentContent)) {
             ChangeType changeType = previousRecruitmentContent == null
                     ? ChangeType.CREATED
                     : ChangeType.UPDATED;
             eventPublisher.publishEvent(new ClubRecruitmentChangedEvent(
-                    clubId,
-                    name,
+                    club.getId(),
+                    club.getName(),
                     changeType,
-                    clubLikeRepository.findLikerIdsByClubId(clubId)
+                    clubLikeRepository.findLikerIdsByClubId(club.getId())
             ));
         }
     }

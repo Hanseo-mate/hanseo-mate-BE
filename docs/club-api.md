@@ -9,6 +9,7 @@ Image Content-Type: multipart/form-data
 ```
 
 JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/admin/**`는 ADMIN 역할만 접근할 수 있다.
+`CLUB_ADMIN`은 앱에서 모든 동아리의 모집공고만 수정할 수 있으며 `/api/admin/**`에는 접근할 수 없다.
 활동 후기 조회는 공개 API이고, 활동 후기 등록·수정·제거에는 로그인 JWT가 필요하다.
 좋아요 변경에는 로그인 JWT가 필요하며 사용자별·동아리별로 좋아요 한 건만 저장된다.
 토글 API를 호출할 때마다 해당 좋아요가 등록 또는 취소된다.
@@ -28,6 +29,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
+| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용만 수정 |
 | 관리자 | `GET` | `/api/admin/clubs` | 전체 또는 분과별 동아리 목록 조회 |
 | 관리자 | `GET` | `/api/admin/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
@@ -271,6 +273,32 @@ Content-Type: application/json
 - 존재하지 않는 동아리인 경우: `404 Not Found`
 - 로그인 사용자별로 동아리당 현재 후기 1건만 저장한다.
 - 후기 통계와 동아리 상세의 `reviewerCount`는 저장된 로그인 사용자 후기 기준으로 즉시 다시 계산된다.
+
+---
+
+# 동아리관리자 API
+
+`CLUB_ADMIN` 계정으로 로그인하면 로그인 응답과 `GET /api/auth/me`의 `role`이
+`CLUB_ADMIN`이다. 앱은 이 역할일 때 각 동아리 상세의 모집공고에 수정 버튼을 표시한다.
+공개 상세 조회 `GET /api/clubs/{clubId}`의 `recruitmentContent`를 편집 화면의 초기값으로 사용한다.
+
+```http
+PUT /api/clubs/{clubId}/recruitment
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{"recruitmentContent":"신입 부원을 모집합니다."}
+```
+
+성공 시 `204 No Content`를 반환한다. 공백 또는 `null`은 모집공고를 지운다.
+새 공고를 등록하거나 기존 공고를 변경하면 해당 동아리를 좋아요한 사용자에게
+기존 관리자 수정 API와 동일한 알림을 생성한다. 같은 내용으로 저장하거나 지울 때는 알림이 없다.
+인증이 없으면 `401`, 다른 역할이면 `403`, 동아리가 없으면 `404`를 반환한다.
+서버는 요청의 `recruitmentContent`만 수정하며, 다른 동아리 정보는 변경하지 않는다.
+
+동아리관리자 계정은 공개 회원가입으로 만들 수 없다. 운영자가 기존 계정을 확인한 뒤
+`user_accounts.role`을 `CLUB_ADMIN`으로 변경한다. 역할 컬럼은 이미 `VARCHAR(20)`이어서
+이 역할을 위한 스키마 변경은 필요 없다. 권한 변경 후 사용자는 다시 로그인해야 한다.
 
 ---
 

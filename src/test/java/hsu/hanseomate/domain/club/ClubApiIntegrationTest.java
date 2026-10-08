@@ -55,6 +55,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -554,6 +555,72 @@ class ClubApiIntegrationTest {
 
         assertThat(notificationRepository.count()).isEqualTo(2);
         assertThat(notificationOutboxRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void clubAdminCanEditRecruitmentForEveryClubButNoOtherClubFields()
+            throws Exception {
+        long firstClubId = createClub("첫 동아리", "ACADEMIC");
+        long secondClubId = createClub("둘째 동아리", "SPORTS");
+        long editorId = createReviewUser();
+        long likedUserId = createReviewUser();
+        toggleLikeAsUser(firstClubId, likedUserId);
+        jdbcTemplate.update("UPDATE user_accounts SET role = 'CLUB_ADMIN' WHERE id = ?", editorId);
+
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", firstClubId)
+                        .with(clubAdminJwt(editorId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("recruitmentContent", "  첫 공고  ",
+                                "name", "바꾸면 안 되는 이름"))))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", secondClubId)
+                        .with(clubAdminJwt(editorId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("recruitmentContent", "둘째 공고"))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/clubs/{clubId}", firstClubId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("첫 동아리"))
+                .andExpect(jsonPath("$.recruitmentContent").value("첫 공고"));
+        mockMvc.perform(get("/api/clubs/{clubId}", secondClubId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recruitmentContent").value("둘째 공고"));
+        assertThat(notificationRepository.findAll())
+                .hasSize(1)
+                .extracting(Notification::getTargetUserId)
+                .containsExactly(likedUserId);
+
+        mockMvc.perform(get("/api/admin/clubs").with(clubAdminJwt(editorId)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void recruitmentEditRejectsOtherRolesAndRevokedClubAdmin()
+            throws Exception {
+        long clubId = createClub("권한 검사 동아리", "ACADEMIC");
+        long editorId = createReviewUser();
+        String body = json(Map.of("recruitmentContent", "새 공고"));
+
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(anonymous())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(userJwt(editorId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(clubAdminJwt(editorId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/clubs/{clubId}", clubId))
+                .andExpect(jsonPath("$.recruitmentContent")
+                        .value("현재 신입 부원을 모집합니다 🙌"));
     }
 
     @Test
@@ -1517,6 +1584,13 @@ class ClubApiIntegrationTest {
         return jwt().jwt(token -> token
                 .subject(Long.toString(userId))
                 .claim("role", "USER"));
+    }
+
+    private RequestPostProcessor clubAdminJwt(long userId) {
+        return jwt().jwt(token -> token
+                        .subject(Long.toString(userId))
+                        .claim("role", "CLUB_ADMIN"))
+                .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMIN"));
     }
 
     private String expiredAccessToken(long userId) {

@@ -32,7 +32,9 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
                 response.getOutputStream(),
                 ApiErrorResponse.of(
                         HttpStatus.FORBIDDEN,
-                        "관리자 권한이 필요합니다.",
+                        request.getRequestURI().startsWith("/api/clubs/")
+                                ? "동아리관리자 권한이 필요합니다."
+                                : "관리자 권한이 필요합니다.",
                         request.getRequestURI()
                 )
         );

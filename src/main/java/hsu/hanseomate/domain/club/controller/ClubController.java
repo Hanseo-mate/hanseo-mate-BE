@@ -6,6 +6,7 @@ import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
+import hsu.hanseomate.domain.club.dto.ClubRecruitmentUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
@@ -21,6 +22,7 @@ import jakarta.validation.constraints.Positive;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
@@ -99,6 +101,28 @@ public class ClubController {
             Authentication authentication
     ) {
         return clubService.getClub(clubId, optionalCurrentUserId(authentication));
+    }
+
+    @Operation(
+            summary = "모집공고 수정",
+            description = "CLUB_ADMIN 권한으로 모든 동아리의 모집공고 내용만 수정합니다. "
+                    + "빈 내용은 모집공고를 지웁니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 동아리 ID 또는 요청값"),
+            @ApiResponse(responseCode = "401", description = "로그인 필요"),
+            @ApiResponse(responseCode = "403", description = "동아리관리자 권한 필요"),
+            @ApiResponse(responseCode = "404", description = "동아리 없음")
+    })
+    @PutMapping("/{clubId}/recruitment")
+    public ResponseEntity<Void> updateRecruitment(
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
+            @Valid @RequestBody ClubRecruitmentUpdateRequest request,
+            Authentication authentication
+    ) {
+        clubService.updateRecruitment(clubId, currentUserId(authentication), request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
