@@ -71,6 +71,22 @@ public class NotificationService {
         enqueue(title, body, data);
     }
 
+    /** 로그인 여부와 관계없이 모든 활성 기기에 셔틀 예매 사전 알림을 등록합니다. */
+    @Transactional
+    public void enqueueShuttleReservationReminder(OffsetDateTime reservationStartsAt) {
+        Map<String, Object> data = Map.of(
+                "version", 1,
+                "type", "shuttle_reservation",
+                "route", "/notifications",
+                "startsAt", reservationStartsAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                "minutesBefore", 10
+        );
+        LocalDateTime expiresAt = reservationStartsAt
+                .withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        enqueue("[셔틀 예매 알림]", "약 10분 뒤인 오후 6시에 셔틀 예매가 시작됩니다.",
+                data, null, expiresAt);
+    }
+
     /** 테스트 알림 Enqueue (관리자 전용) */
     @Transactional
     public void enqueueTestNotification(String title, String body) {
