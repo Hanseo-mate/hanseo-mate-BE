@@ -9,6 +9,8 @@ import hsu.hanseomate.domain.push.entity.NotificationOutbox;
 import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import hsu.hanseomate.domain.push.type.NotificationCategory;
 import java.util.Map;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -43,9 +45,19 @@ public class NotificationService {
                 "version", 1,
                 "type", "notice",
                 "route", "/notices",
-                "entityId", entityId
+                "entityId", entityId,
+                "category", NotificationCategory.NOTICE_MILESTONE.name()
         );
         enqueue(title, body, data);
+    }
+
+    /** 학생회 공지는 화면 이동 규격을 유지하면서 알림 종류를 분리합니다. */
+    @Transactional
+    public void enqueueStudentCouncilNoticeNotification(String title, String body, String entityId) {
+        enqueue(title, body, Map.of(
+                "version", 1, "type", "notice", "route", "/notices", "entityId", entityId,
+                "category", NotificationCategory.STUDENT_COUNCIL_NOTICE.name()
+        ));
     }
 
     /** 시스템 공지 알림 Enqueue */
@@ -170,6 +182,11 @@ public class NotificationService {
             LocalDateTime expiresAt
     ) {
         try {
+            NotificationCategory category = NotificationCategory.resolve(data);
+            if (category != null) {
+                data = new LinkedHashMap<>(data);
+                data.put("category", category.name());
+            }
             String dataJson = objectMapper.writeValueAsString(data);
             String payloadJson = objectMapper.writeValueAsString(new NotificationPayload(title, body, data));
 

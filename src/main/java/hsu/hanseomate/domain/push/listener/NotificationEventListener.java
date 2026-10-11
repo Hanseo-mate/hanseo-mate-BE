@@ -77,7 +77,7 @@ public class NotificationEventListener {
 
         log.info("[NotificationEvent] StudentCouncilNotice created: noticeId={}", event.noticeId());
 
-        notificationService.enqueueNoticeNotification(title, body, event.noticeId().toString());
+        notificationService.enqueueStudentCouncilNoticeNotification(title, body, event.noticeId().toString());
     }
 
     /** 시스템 공지 신규 등록 이벤트 처리. */

@@ -8,6 +8,29 @@
 
 ## 설계 원칙
 
+### 프론트 알림 종류 구분
+
+푸시 `data`와 알림함 `payloadData`의 JSON에 `category` 필드를 추가합니다.
+기존 `type`, `route`, `entityId`, 발생 조건, 수신 대상, 발송 로직은 유지합니다.
+
+| category | 알림 종류 | 기존 type |
+|----------|-----------|-----------|
+| `NOTICE_MILESTONE` | 일반 공지 조회수 100회 | `notice` |
+| `STUDENT_COUNCIL_NOTICE` | 학생회 공지 등록 | `notice` |
+| `SYSTEM_NOTICE` | 시스템 공지 등록 | `system_notice` |
+| `CLUB_RECRUITMENT` | 찜한 동아리 모집공고 등록·수정 | `club_recruitment` |
+| `CLASS_REMINDER` | 수업 시작 1시간 전 | `schedule` |
+| `SHUTTLE_RESERVATION` | 수요일 17:50 셔틀 예매 안내 | `shuttle_reservation` |
+
+전체 및 종류별 ON/OFF 상태 저장과 표시 제어는 프론트에서 구현합니다.
+백엔드 설정 API, 설정 테이블, 사용자 설정에 따른 발송 차단은 추가하지 않습니다.
+기존 저장 알림에는 `category`가 없을 수 있으므로 프론트에서는 선택 필드로 처리합니다.
+테스트 알림에는 `category`가 추가되지 않습니다.
+
+앱이 백그라운드이거나 종료된 상태에서는 OS가 푸시를 직접 표시할 수 있습니다.
+종류 구분 필드만으로 모든 앱 상태에서 알림 표시 차단이 보장되지는 않으므로,
+프론트의 기존 푸시 수신·표시 구현에서 지원 범위를 확인해야 합니다.
+
 | 항목 | 내용 |
 |------|------|
 | 알림 원본 | 전체 알림은 1건, 동아리 모집공고 알림은 찜 사용자별로 1건 저장 |
