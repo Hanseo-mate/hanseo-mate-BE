@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.club;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -270,7 +271,8 @@ class ClubApiIntegrationTest {
             mockMvc.perform(get(endpoint))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(third))
-                    .andExpect(jsonPath("$[0].displayOrder").value(1))
+                    .andExpect(jsonPath("$[*]", everyItem(aMapWithSize(8))))
+                    .andExpect(jsonPath("$[0].displayOrder").doesNotExist())
                     .andExpect(jsonPath("$[1].id").value(second))
                     .andExpect(jsonPath("$[2].id").value(first));
             mockMvc.perform(get(endpoint).param("category", "ACADEMIC"))
@@ -278,7 +280,8 @@ class ClubApiIntegrationTest {
                     .andExpect(jsonPath("$.length()").value(2))
                     .andExpect(jsonPath("$[0].id").value(third))
                     .andExpect(jsonPath("$[1].id").value(first))
-                    .andExpect(jsonPath("$[1].displayOrder").value(3));
+                    .andExpect(jsonPath("$[*]", everyItem(aMapWithSize(8))))
+                    .andExpect(jsonPath("$[1].displayOrder").doesNotExist());
         }
         mockMvc.perform(get("/api/clubs").with(anonymous()))
                 .andExpect(status().isOk())
@@ -348,7 +351,10 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$[0].id").value(third))
                 .andExpect(jsonPath("$[1].id").value(first))
                 .andExpect(jsonPath("$[2].id").value(fourth))
-                .andExpect(jsonPath("$[2].displayOrder").value(4));
+                .andExpect(jsonPath("$[2].displayOrder").doesNotExist());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT display_order FROM clubs WHERE id = ?", Integer.class, fourth))
+                .isEqualTo(4);
 
         // A stale screen containing the deleted club must not partially update the order.
         mockMvc.perform(put("/api/admin/clubs/order")
