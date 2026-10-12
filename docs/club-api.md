@@ -29,6 +29,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
 | 관리자 | `GET` | `/api/admin/clubs` | 전체 또는 분과별 동아리 목록 조회 |
+| 관리자 | `PUT` | `/api/admin/clubs/order` | 전체 동아리 표시 순서 저장 |
 | 관리자 | `GET` | `/api/admin/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
 | 관리자 | `PUT` | `/api/admin/clubs/background-images/{clubId}` | 배경 이미지 파일 업로드 |
@@ -68,6 +69,11 @@ GET /api/clubs?category=ACADEMIC
   }
 ]
 ```
+
+응답 필드는 기존과 동일하며 `displayOrder` 필드를 추가하지 않는다.
+목록 배열은 관리자가 저장한 표시 순서대로 반환한다. 같은 내부 순서 값이면 `id` 오름차순으로 정렬한다.
+전체 목록과 분과별 목록 모두 같은 전역 순서를 사용한다.
+새 동아리는 목록 마지막에 추가된다. 프론트는 응답 배열 순서대로 표시한다.
 
 `topReviewTags`는 누적 선택 수가 많은 순서대로 최대 2개를 반환한다.
 `likedByMe`는 로그인한 사용자가 해당 동아리에 좋아요를 등록했는지를 의미한다.
@@ -295,6 +301,42 @@ Authorization: Bearer {accessToken}
 - 토큰이 없거나 유효하지 않은 경우: `401 Unauthorized`
 - USER 역할인 경우: `403 Forbidden`
 - ADMIN 역할인 경우: `200 OK`
+
+---
+
+## 1-1. 동아리 표시 순서 저장
+
+```http
+PUT /api/admin/clubs/order
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```json
+{
+  "clubIds": [3, 1, 2]
+}
+```
+
+현재 등록된 **전체 동아리 ID**를 원하는 순서대로 한 번씩 전달한다.
+위 예시는 전체 동아리가 1, 2, 3일 때 3 → 1 → 2 순서로 저장하며,
+성공 응답은 본문 없는 `204 No Content`이다. 표시 순서는 DB 내부에서만 관리하며 목록 응답에는 포함하지 않는다.
+
+- 전체 목록과 분과별 사용자·관리자 목록에 동일하게 반영된다.
+- 분과별로 독립된 순서를 저장하지 않는다. 분과 화면에서도 전체 ID 목록을 기준으로 요청한다.
+- 중복, 누락, 존재하지 않는 ID, null, 0 이하 ID는 `400 Bad Request`로 거부하며 기존 순서는 유지한다.
+- 빈 배열은 등록된 동아리가 없을 때만 허용한다. 요청 본문과 `clubIds` 필드는 필수다.
+- 저장 사이에 동아리가 추가·삭제되어 목록이 달라졌다면 전체 목록을 다시 조회한 뒤 저장한다.
+- 저장은 트랜잭션으로 처리하며 같은 요청을 반복해도 결과는 같다. 동시 순서 변경은 뒤에 처리된 요청이 최종 순서가 된다.
+- 새 동아리는 목록 마지막에 추가된다. 삭제 시 나머지 순서는 유지한다.
+- 인증이 없으면 `401`, USER 권한이면 `403`이다.
+
+연동 순서: `GET /api/admin/clubs`로 전체 조회 → 배열 재배치 → 전체 `clubIds` 저장 → 목록 재조회.
+사용자·관리자 목록의 응답 필드는 기존과 동일하다. 순서 변경은 전체 `clubIds` 배열로만 요청한다.
+
+운영 DB에는 `docs/club-display-order-migration-mysql.sql`을 새 백엔드 실행 전에 적용한다.
+기존 동아리는 ID 오름차순을 유지하고, 마이그레이션을 재실행해도 관리자가 저장한 순서는 보존된다.
+`hsm-deploy`의 배포 스크립트에도 해당 SQL 실행이 포함되어 있다.
 
 ---
 

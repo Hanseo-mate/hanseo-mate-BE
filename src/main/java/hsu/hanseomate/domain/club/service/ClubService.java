@@ -5,6 +5,7 @@ import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
+import hsu.hanseomate.domain.club.dto.ClubOrderUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewOptionResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
@@ -79,8 +80,8 @@ public class ClubService {
             Optional<Long> currentUserId
     ) {
         List<Club> clubs = category == null || category.isBlank()
-                ? clubRepository.findAllByOrderByIdAsc()
-                : clubRepository.findAllByCategoryOrderByIdAsc(normalizeCategory(category));
+                ? clubRepository.findAllByOrderByDisplayOrderAscIdAsc()
+                : clubRepository.findAllByCategoryOrderByDisplayOrderAscIdAsc(normalizeCategory(category));
 
         if (clubs.isEmpty()) {
             return List.of();
@@ -112,7 +113,34 @@ public class ClubService {
     }
 
     @Transactional
+    public void updateClubOrder(ClubOrderUpdateRequest request) {
+        List<Long> requestedIds = request.clubIds();
+        if (requestedIds == null || requestedIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BadRequestException("동아리 순서에는 1 이상의 ID 목록이 필요합니다.");
+        }
+        Set<Long> uniqueIds = new LinkedHashSet<>(requestedIds);
+        if (uniqueIds.size() != requestedIds.size()) {
+            throw new BadRequestException("동아리 순서에 같은 ID를 중복 지정할 수 없습니다.");
+        }
+
+        List<Club> clubs = clubRepository.findAllForOrderUpdate();
+        Map<Long, Club> clubsById = clubs.stream()
+                .collect(Collectors.toMap(Club::getId, club -> club));
+        if (!clubsById.keySet().equals(uniqueIds)) {
+            throw new BadRequestException(
+                    "전체 동아리 ID를 빠짐없이 전달해야 합니다. 동아리 목록을 새로 조회한 뒤 다시 저장해 주세요."
+            );
+        }
+
+        for (int index = 0; index < requestedIds.size(); index++) {
+            clubsById.get(requestedIds.get(index)).updateDisplayOrder(index + 1);
+        }
+    }
+
+    @Transactional
     public ClubCreateResponse createClub(ClubCreateRequest request) {
+        // Use the same lock order as reordering so a new club is appended to the saved order.
+        List<Club> existingClubs = clubRepository.findAllForOrderUpdate();
         String name = required(request.name());
         validateUniqueName(name, null);
 
@@ -120,6 +148,8 @@ public class ClubService {
                 name,
                 normalizeCategory(request.category())
         );
+        int lastOrder = existingClubs.stream().mapToInt(Club::getDisplayOrder).max().orElse(0);
+        club.updateDisplayOrder(Math.addExact(lastOrder, 1));
 
         try {
             Club savedClub = clubRepository.saveAndFlush(club);
