@@ -4,6 +4,7 @@ import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
+import hsu.hanseomate.domain.club.dto.ClubOrderUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
 import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.service.ClubService;
@@ -75,6 +76,24 @@ public class AdminClubController {
             @RequestParam(required = false) String category
     ) {
         return clubService.getClubs(category);
+    }
+
+    @Operation(
+            summary = "동아리 표시 순서 변경",
+            description = "전체 동아리 ID를 원하는 표시 순서대로 전달합니다. ADMIN 권한이 필요하며 "
+                    + "사용자·관리자 목록과 분과별 목록에 동일한 순서가 적용됩니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "순서 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID, 중복, 누락 또는 존재하지 않는 동아리",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 필요"),
+            @ApiResponse(responseCode = "403", description = "관리자 권한 필요")
+    })
+    @PutMapping("/order")
+    public ResponseEntity<Void> updateClubOrder(@Valid @RequestBody ClubOrderUpdateRequest request) {
+        clubService.updateClubOrder(request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
