@@ -1,8 +1,11 @@
 package hsu.hanseomate.domain.push.service;
 
 import hsu.hanseomate.domain.push.dto.RegisterPushTokenRequest;
+import hsu.hanseomate.domain.push.dto.NotificationPreferenceUpdateRequest;
+import hsu.hanseomate.domain.push.entity.NotificationPreference;
 import hsu.hanseomate.domain.push.entity.PushDevice;
 import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
+import hsu.hanseomate.domain.push.repository.NotificationPreferenceRepository;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
 import java.util.List;
 import java.util.Objects;
@@ -23,6 +26,7 @@ public class PushTokenService {
 
     private final PushDeviceRepository pushDeviceRepository;
     private final UserAccountRepository userAccountRepository;
+    private final NotificationPreferenceRepository preferenceRepository;
 
     /**
      * 토큰 등록 또는 갱신 (upsert).
@@ -33,6 +37,8 @@ public class PushTokenService {
     @Transactional
     public void registerOrUpdateToken(Long userId, RegisterPushTokenRequest request) {
         requireExistingUserWhenAuthenticated(userId);
+        NotificationPreferenceUpdateRequest initialPreferences = request.notificationPreferences() == null
+                ? null : NotificationPreferenceUpdateRequest.parse(request.notificationPreferences());
         List<PushDevice> candidates = pushDeviceRepository.findRegistrationCandidatesForUpdate(
                 request.installationId(),
                 request.expoPushToken()
@@ -40,15 +46,24 @@ public class PushTokenService {
         PushDevice installationMatch = findByInstallationId(candidates, request.installationId());
         PushDevice tokenMatch = findByExpoPushToken(candidates, request.expoPushToken());
 
+        PushDevice registeredDevice;
         if (installationMatch != null) {
             updateExistingInstallation(installationMatch, tokenMatch, userId, request);
-            return;
-        }
-        if (tokenMatch != null) {
+            registeredDevice = installationMatch;
+        } else if (tokenMatch != null) {
             reassignExistingToken(tokenMatch, userId, request);
-            return;
+            registeredDevice = tokenMatch;
+        } else {
+            registeredDevice = createNewDevice(userId, request);
         }
-        createNewDevice(userId, request);
+        if (initialPreferences != null) {
+            // 기기 등록과 설정을 같은 트랜잭션에서 공개하여 최초 등록 후 PATCH 사이의 ON 구간을 없앱니다.
+            String installationId = registeredDevice.getInstallationId();
+            NotificationPreference preference = preferenceRepository.findById(installationId)
+                    .orElseGet(() -> NotificationPreference.defaults(installationId));
+            preference.update(initialPreferences.enabled(), initialPreferences.categories());
+            preferenceRepository.save(preference);
+        }
     }
 
     private void requireExistingUserWhenAuthenticated(Long userId) {
@@ -118,7 +133,7 @@ public class PushTokenService {
                 device.getId(), request.installationId());
     }
 
-    private void createNewDevice(Long userId, RegisterPushTokenRequest request) {
+    private PushDevice createNewDevice(Long userId, RegisterPushTokenRequest request) {
         PushDevice device = PushDevice.create(
                 userId,
                 request.installationId(),
@@ -129,6 +144,7 @@ public class PushTokenService {
         );
         pushDeviceRepository.save(device);
         log.info("Registered new push device installationId={}", request.installationId());
+        return device;
     }
 
     private PushDevice findByInstallationId(List<PushDevice> candidates, String installationId) {

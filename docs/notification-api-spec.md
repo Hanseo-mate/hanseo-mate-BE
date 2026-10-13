@@ -41,7 +41,9 @@
 ### 개인 알림 수신 전제
 
 - 앱은 설치 후 생성한 동일한 `installationId`를 계속 저장해서 사용해야 합니다.
+- 최초 등록·기존 로컬 설정 전환 시 `PUT /api/v1/push-tokens`의 `notificationPreferences`에 로컬 전체·6종 설정을 함께 전달합니다. 기기 등록과 설정을 같은 트랜잭션에서 저장하므로 등록 후 별도 PATCH까지 기본값 ON으로 노출되는 구간이 없습니다. [초기 등록 요청 예시](notification-preferences-api.md#최초-등록-시-설정-함께-저장)
 - 로그인 직후 `Authorization: Bearer {accessToken}`을 포함해 `PUT /api/v1/push-tokens`를 호출해야 해당 기기와 사용자가 연결됩니다.
+- 일반 토큰 갱신에서 `notificationPreferences`를 생략하면 기존 서버 설정을 유지합니다. 기존 방식의 요청도 계속 사용할 수 있으며, 설정이 없는 새 설치의 기본값은 전체 ON입니다.
 - 같은 `installationId`로 보내는 비인증 토큰 갱신은 기존 사용자 연결을 유지합니다.
 - 로그아웃 시 `DELETE /api/v1/push-tokens/{installationId}`를 호출해야 사용자 연결이 해제됩니다.
 - 같은 Expo token이 새로운 `installationId`로 들어오면 기존 기기 행을 재사용합니다. 이 요청이 비인증이면 이전 사용자의 연결은 승계하지 않습니다.

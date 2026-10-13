@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,6 +39,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -102,6 +105,70 @@ class NotificationPreferenceIntegrationTest {
                 response.andExpect(jsonPath("$.categories." + category.name()).value(true));
             }
         }
+        assertThat(preferences.count()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void initialRegistrationStoresLocalMasterOffForGuestsAndUsers(boolean loggedIn) throws Exception {
+        String id = "initial-installation";
+        String pushToken = "ExponentPushToken[initial]";
+        var request = put("/api/v1/push-tokens").contentType(MediaType.APPLICATION_JSON)
+                .content(new ObjectMapper().writeValueAsString(Map.of(
+                        "installationId", id, "expoPushToken", pushToken, "platform", "android",
+                        "projectId", "project", "appVersion", "1.0.0",
+                        "notificationPreferences", Map.of("enabled", false))));
+        if (loggedIn) request.with(jwt().jwt(value -> value.subject(Long.toString(userId)).claim("role", "USER")));
+        mvc.perform(request).andExpect(status().isOk());
+        assertThat(devices.findByInstallationId(id).orElseThrow().getUserId()).isEqualTo(loggedIn ? userId : null);
+        mvc.perform(get(API).param("installationId", id).header("X-Push-Token", pushToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(false));
+        enqueueAll();
+        worker.processPendingNotifications();
+        var batches = ArgumentCaptor.forClass(List.class);
+        verify(expo, org.mockito.Mockito.atLeastOnce()).sendMessages(batches.capture());
+        for (List<?> batch : batches.getAllValues()) {
+            assertThat(batch).allSatisfy(message -> assertThat(((ExpoPushMessage) message).getTo()).isNotEqualTo(pushToken));
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(NotificationCategory.class)
+    void initialRegistrationAppliesEachLocalCategoryOffWithoutSeparatePatch(NotificationCategory disabled) throws Exception {
+        String id = "initial-category-installation";
+        String pushToken = "ExponentPushToken[initial-category]";
+        mvc.perform(put("/api/v1/push-tokens")
+                .with(jwt().jwt(value -> value.subject(Long.toString(userId)).claim("role", "USER")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(new ObjectMapper().writeValueAsString(Map.of(
+                        "installationId", id, "expoPushToken", pushToken, "platform", "android",
+                        "projectId", "project", "appVersion", "1.0.0",
+                        "notificationPreferences", Map.of("categories", Map.of(disabled.name(), false))))))
+                .andExpect(status().isOk());
+        enqueueAll();
+        worker.processPendingNotifications();
+        var batches = ArgumentCaptor.forClass(List.class);
+        verify(expo, org.mockito.Mockito.atLeastOnce()).sendMessages(batches.capture());
+        @SuppressWarnings("unchecked")
+        List<ExpoPushMessage> sentToNewDevice = batches.getAllValues().stream()
+                .flatMap(batch -> ((List<ExpoPushMessage>) batch).stream())
+                .filter(message -> pushToken.equals(message.getTo())).toList();
+        assertThat(sentToNewDevice).hasSize(5)
+                .noneMatch(message -> disabled.name().equals(message.getData().get("category")));
+    }
+
+    @Test
+    void invalidInitialSettingsDoNotRegisterDeviceOrRotateExistingToken() throws Exception {
+        for (String id : List.of("invalid-new-installation", OWNER)) {
+            mvc.perform(put("/api/v1/push-tokens").contentType(MediaType.APPLICATION_JSON)
+                    .content(new ObjectMapper().writeValueAsString(Map.of(
+                            "installationId", id, "expoPushToken", "ExponentPushToken[invalid]", "platform", "android",
+                            "projectId", "project", "appVersion", "1.0.0",
+                            "notificationPreferences", Map.of("enabled", false, "categories", Map.of("UNKNOWN", false))))))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(devices.findByInstallationId("invalid-new-installation")).isEmpty();
+        assertThat(devices.findByInstallationId(OWNER).orElseThrow().getExpoPushToken()).isEqualTo(OWNER_TOKEN);
         assertThat(preferences.count()).isZero();
     }
 

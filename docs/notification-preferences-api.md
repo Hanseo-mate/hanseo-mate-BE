@@ -125,15 +125,65 @@ JSON Boolean만 허용합니다. 문자열 `"false"`, 숫자, null, 알 수 없�
 
 ## 프론트 연동 순서
 
-1. 기존 방식으로 installationId를 보존하고 Expo 토큰을 등록합니다.
-2. 설정을 조회해 UI에 반영합니다. 기존 앱에만 저장된 설정이 있으면 최초 전환 시 PATCH로 동기화합니다.
+1. installationId를 보존하고, 로컬에 알림 설정이 있으면 Expo 토큰 등록 요청의 `notificationPreferences`에 함께 전달합니다. 최초 동기화를 토큰 등록 후 별도 PATCH로 나누지 않습니다.
+2. 등록 성공 후 설정을 조회해 UI에 반영합니다. 초기 로컬 설정은 등록과 함께 저장되어 있으므로 별도 초기 PATCH는 필요 없습니다.
 3. 토글 변경 시 변경값만 PATCH하고, 성공 응답의 전체 설정을 UI에 반영합니다.
 4. 빠른 연속 조작은 요청 순서를 유지합니다. 실패하면 서버에 저장됐다고 표시하지 말고 재시도 또는 이전값 복구를 제공합니다.
 5. 로그아웃 시 기존 토큰 DELETE API는 사용자 연결만 해제합니다. 알림 OFF 용도로 호출하지 않습니다.
 
 OS 알림 권한과 앱 설정은 별개입니다. 서버 설정 ON으로 OS 권한을 켤 수 없습니다.
-권한 미허용으로 Expo 토큰이 없으면 앱에 임시 설정을 저장하고, 토큰 발급·등록 후 PATCH로 동기화합니다.
+권한 미허용으로 Expo 토큰이 없으면 앱에 임시 설정을 저장하고, 토큰 발급 후 최초 등록 요청에 함께 전달합니다.
 등록 토큰이 있는 기기는 OS 권한을 끈 상태에서도 설정 API를 사용할 수 있습니다.
+
+### 최초 등록 시 설정 함께 저장
+
+`PUT /api/v1/push-tokens`에 선택 필드 `notificationPreferences`를 추가합니다.
+로그인 여부와 관계없이 기기 등록과 설정을 같은 트랜잭션에서 저장합니다.
+새 기기는 커밋 전 발송 대상에 보이지 않고, 커밋 후에는 함께 저장된 OFF 설정이 적용됩니다.
+설정 저장이 실패하면 기기 등록·갱신도 롤백됩니다.
+
+```http
+PUT /api/v1/push-tokens
+Content-Type: application/json
+```
+
+로그인 상태라면 기존처럼 `Authorization: Bearer {accessToken}`도 전달합니다.
+등록 요청에는 `X-Push-Token` 헤더가 필요하지 않습니다.
+
+```json
+{
+  "expoPushToken": "ExponentPushToken[현재_토큰]",
+  "projectId": "Expo 프로젝트 ID",
+  "platform": "android",
+  "installationId": "앱 설치 ID",
+  "appVersion": "1.0.0",
+  "notificationPreferences": {
+    "enabled": false,
+    "categories": {
+      "NOTICE_MILESTONE": true,
+      "STUDENT_COUNCIL_NOTICE": true,
+      "SYSTEM_NOTICE": true,
+      "CLUB_RECRUITMENT": true,
+      "CLASS_REMINDER": true,
+      "SHUTTLE_RESERVATION": false
+    }
+  }
+}
+```
+
+성공 응답은 기존처럼 `200 OK`, Body 없음입니다.
+`notificationPreferences` 내부 규칙은 설정 PATCH와 같으며,
+잘못된 Boolean, 알 수 없는 종류·필드, 빈 변경값은 `400`입니다.
+잘못된 초기 설정을 전달하면 토큰도 등록·변경하지 않습니다.
+로컬 설정이 있으면 전체 enabled와 보관한 6종 값을 함께 보내는 것을 권장합니다.
+
+이 필드를 생략하면 저장된 서버 설정을 유지하며, 설정이 없는 새 설치는 전체 ON입니다.
+로그인 및 일반 토큰 갱신에서는 초기 동기화가 완료됐다면 이 필드를 생략합니다.
+전달하면 등록 시에도 해당 값이 적용되므로, 오래된 로컬 값을 반복해서 보내 서버의 최신 설정을 덮어쓰지 않도록 합니다.
+
+기존 버전이 이 필드를 보내지 않는 경우까지 초기 로컬 OFF를 서버가 알 수는 없습니다.
+최초 동기화 틈을 막으려면 프론트도 첫 등록 요청부터 이 필드를 전달해야 합니다.
+이미 등록되어 기본값 ON으로 발송 중인 기기의 푸시는 소급 취소되지 않습니다.
 
 ## 발송 적용 범위
 
