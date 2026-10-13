@@ -8,8 +8,14 @@ import hsu.hanseomate.domain.push.entity.TicketStatus;
 import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
 import hsu.hanseomate.domain.push.repository.PushDeviceRepository;
 import hsu.hanseomate.domain.push.repository.PushTicketRepository;
+import hsu.hanseomate.domain.push.repository.NotificationPreferenceRepository;
+import hsu.hanseomate.domain.push.entity.NotificationPreference;
+import hsu.hanseomate.domain.push.type.NotificationCategory;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +35,19 @@ public class NotificationDispatchService {
     private final NotificationOutboxRepository outboxRepository;
     private final PushDeviceRepository pushDeviceRepository;
     private final PushTicketRepository pushTicketRepository;
+    private final NotificationPreferenceRepository preferenceRepository;
+
+    /** 발송 직전에 설정을 읽습니다. 설정이 없는 기존 기기는 전체 ON으로 처리합니다. */
+    @Transactional(readOnly = true)
+    public List<PushDevice> filterEnabledDevices(List<PushDevice> devices, NotificationCategory category) {
+        Map<String, NotificationPreference> preferences = preferenceRepository
+                .findAllById(devices.stream().map(PushDevice::getInstallationId).toList()).stream()
+                .collect(Collectors.toMap(NotificationPreference::getInstallationId, Function.identity()));
+        return devices.stream().filter(device -> {
+            NotificationPreference preference = preferences.get(device.getInstallationId());
+            return preference == null || preference.allows(category);
+        }).toList();
+    }
 
     // ── Send Worker 전용 ───────────────────────────────────────────────────────
 

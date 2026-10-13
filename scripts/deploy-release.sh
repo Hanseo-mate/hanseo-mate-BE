@@ -63,7 +63,7 @@ java "$REPO/scripts/write-mysql-client-config.java" "$CONFIG" "$MYSQL_CREDENTIAL
 
 cd "$REPO"
 
-for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql; do
+for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql docs/notification-preferences-migration-mysql.sql; do
     if [ ! -f "$sql_file" ]; then
         echo "Required SQL file is missing: $sql_file" >&2
         exit 1
@@ -117,7 +117,11 @@ echo "6. Remove retired club review option"
 echo "7. Remove essential link category"
 "${mysql_client[@]}" < docs/essential-link-category-removal-mysql.sql
 
+echo "Apply notification preferences migration"
+"${mysql_client[@]}" < docs/notification-preferences-migration-mysql.sql
+
 echo "8. Verify database migration"
+"${mysql_client[@]}" --execute='SELECT installation_id, enabled, notice_milestone, student_council_notice, system_notice, club_recruitment, class_reminder, shuttle_reservation, created_at, updated_at FROM notification_preferences LIMIT 0' >/dev/null
 "${mysql_client[@]}" --execute='SELECT id, name, url, created_at, updated_at FROM essential_links LIMIT 1' >/dev/null
 category_columns="$("${mysql_client[@]}" --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'essential_links' AND column_name = 'category'")"
 if [ "$category_columns" != "0" ]; then

@@ -2,6 +2,7 @@ package hsu.hanseomate.domain.push.worker;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -45,6 +46,7 @@ class NotificationSendWorkerTest {
                 "ios", "test-project", "1.0.0");
         when(dispatchService.claimPendingOutboxes()).thenReturn(List.of(outbox));
         when(dispatchService.findAllActiveDevices()).thenReturn(List.of(loggedIn, anonymous));
+        when(dispatchService.filterEnabledDevices(anyList(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(expoPushClient.sendMessages(anyList())).thenReturn(List.of());
 
         worker.processPendingNotifications();
@@ -113,6 +115,7 @@ class NotificationSendWorkerTest {
         when(dispatchService.claimPendingOutboxes()).thenReturn(List.of(outbox));
         when(dispatchService.findActiveDevicesByUserId(targetUserId))
                 .thenReturn(List.of(targetDevice));
+        when(dispatchService.filterEnabledDevices(anyList(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(expoPushClient.sendMessages(anyList())).thenReturn(List.of());
 
         worker.processPendingNotifications();

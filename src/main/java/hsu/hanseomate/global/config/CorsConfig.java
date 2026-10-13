@@ -123,11 +123,18 @@ public class CorsConfig {
         gradeCalculatorConfiguration.setAllowCredentials(false);
         gradeCalculatorConfiguration.setMaxAge(PREFLIGHT_MAX_AGE_SECONDS);
 
+        CorsConfiguration notificationPreferenceConfiguration = new CorsConfiguration(gradeCalculatorConfiguration);
+        notificationPreferenceConfiguration.setAllowedMethods(List.of(
+                HttpMethod.GET.name(), HttpMethod.PATCH.name(), HttpMethod.OPTIONS.name()));
+        notificationPreferenceConfiguration.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, HttpHeaders.ACCEPT, "X-Push-Token"));
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/admin/app-update-policies", appUpdateConfiguration);
         source.registerCorsConfiguration("/api/admin/app-update-policies/**", appUpdateConfiguration);
         source.registerCorsConfiguration("/api/admin/**", adminConfiguration);
+        source.registerCorsConfiguration("/api/v1/notification-preferences", notificationPreferenceConfiguration);
         source.registerCorsConfiguration(
                 "/api/v1/timetables/major",
                 adminConfiguration
