@@ -369,7 +369,8 @@ class AuthApiIntegrationTest {
         mockMvc.perform(get("/api/admin/clubs")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.totalCount").isNumber())
+                .andExpect(jsonPath("$.clubs").isArray());
     }
 
     @Test

@@ -23,14 +23,14 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 
 | 구분 | Method | URL | 기능 |
 |---|---|---|---|
-| 사용자 | `GET` | `/api/clubs` | 전체 또는 분과별 동아리 목록 조회 |
+| 사용자 | `GET` | `/api/clubs` | 분과·모집중만 보기 필터와 검색결과 개수 조회 |
 | 사용자 | `GET` | `/api/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 사용자 | `POST` | `/api/clubs/likes/{clubId}` | 로그인 사용자의 좋아요 상태 토글 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
-| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용만 수정 |
-| 관리자 | `GET` | `/api/admin/clubs` | 전체 또는 분과별 동아리 목록 조회 |
+| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용·기간 수정 |
+| 관리자 | `GET` | `/api/admin/clubs` | 분과·모집중만 보기 필터와 검색결과 개수 조회 |
 | 관리자 | `PUT` | `/api/admin/clubs/order` | 전체 동아리 표시 순서 저장 |
 | 관리자 | `GET` | `/api/admin/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
 | 관리자 | `POST` | `/api/admin/clubs` | 동아리 등록 |
@@ -41,6 +41,26 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 관리자 | `PUT` | `/api/admin/clubs/{clubId}` | 동아리 텍스트 정보 통합 수정 |
 | 관리자 | `DELETE` | `/api/admin/clubs/{clubId}` | 동아리 삭제 |
 
+## 모집 기간과 모집 상태
+
+모집공고를 작성·수정할 때 `recruitmentStartDate`와 `recruitmentEndDate`를
+`YYYY-MM-DD` 형식으로 함께 보낸다. 두 날짜는 모집공고가 있으면 필수이며,
+종료일은 시작일과 같거나 이후여야 한다. 과거 기간과 하루짜리 모집도 저장할 수 있다.
+
+목록과 상세에 `recruitmentStatus`를 반환한다. 상태는 한국 시간(`Asia/Seoul`)의
+오늘 날짜로 조회 시 계산하며 DB에 별도 저장하지 않는다.
+
+| 값 | 화면 표시 | 조건 |
+|---|---|---|
+| `UPCOMING` | 모집전 | 오늘 < 시작일 |
+| `RECRUITING` | 모집중 | 시작일 ≤ 오늘 ≤ 종료일 |
+| `CLOSED` | 모집완료 | 오늘 > 종료일 또는 공고/기간 없음 |
+
+시작일 00:00부터 종료일 23:59:59까지 모집중이다. 기존에 기간이 없는 공고는
+내용을 보존하고 모집완료로 표시한다. 프론트는 이 값을 화면 문구로 매핑하고,
+상세 응답의 두 날짜를 편집 화면 초기값으로 사용한다. 직접 상태를 지정하는 요청 필드는 없다.
+예제의 상태는 한국 날짜 2026-10-23을 기준으로 한다.
+
 ---
 
 # 사용자 API
@@ -50,32 +70,85 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 ```http
 GET /api/clubs
 GET /api/clubs?category=ACADEMIC
+GET /api/clubs?recruitingOnly=true
+GET /api/clubs?category=ACADEMIC&recruitingOnly=true
 ```
+
+### 쿼리 파라미터
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `category` | string | 아니오 | 분과 코드. 생략하거나 비우면 전체 분과 |
+| `recruitingOnly` | boolean | 아니오 | 모집중인 것만 보기 토글. `true`는 ON, `false` 또는 생략은 OFF |
+
+분과 코드는 `ACADEMIC`, `VOLUNTEER`, `SPORTS`, `RELIGION`, `PERFORMANCE`, `HOBBY`다.
+분과의 앞뒤 공백과 대소문자는 정규화한다. 전체 분과를 선택하면 `category`를 생략한다.
+`category=ALL`은 지원하지 않는다.
+
+| 선택한 분과 | 토글 | 요청 예시 | 결과 및 개수 기준 |
+|---|---|---|---|
+| 전체 | OFF | `/api/clubs?recruitingOnly=false` | 모든 동아리 |
+| 전체 | ON | `/api/clubs?recruitingOnly=true` | 전체 동아리 중 모집중인 동아리 |
+| 학술 | OFF | `/api/clubs?category=ACADEMIC&recruitingOnly=false` | 학술 동아리 전체 |
+| 학술 | ON | `/api/clubs?category=ACADEMIC&recruitingOnly=true` | 학술 동아리 중 모집중인 동아리 |
+
+두 조건은 **AND**로 적용한다. `true`일 때 한국 날짜 기준 `RECRUITING`만 반환하며,
+모집전·모집완료·공고나 기간이 없는 동아리는 제외한다.
+`false`는 모집 상태 필터만 해제하므로 선택한 분과 조건은 계속 적용된다.
+모집 상태를 직접 보내는 쿼리 파라미터는 사용하지 않는다.
 
 ### 응답
 
+`GET /api/clubs?category=ACADEMIC&recruitingOnly=true` 응답 예시:
+
 ```json
-[
-  {
-    "id": 1,
-    "name": "멋쟁이사자처럼 한서대학교",
-    "category": "ACADEMIC",
-    "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
-    "shortDescription": "함께 서비스를 만드는 IT 동아리",
-    "likeCount": 20,
-    "likedByMe": true,
-    "topReviewTags": [
-      "BUILD_RESUME",
-      "ACADEMIC_PASSION"
-    ]
-  }
-]
+{
+  "totalCount": 1,
+  "clubs": [
+    {
+      "id": 1,
+      "name": "멋쟁이사자처럼 한서대학교",
+      "category": "ACADEMIC",
+      "profileImageUrl": "http://localhost:8080/uploads/clubs/profile/example.png",
+      "shortDescription": "함께 서비스를 만드는 IT 동아리",
+      "likeCount": 20,
+      "likedByMe": true,
+      "topReviewTags": [
+        "BUILD_RESUME",
+        "ACADEMIC_PASSION"
+      ],
+      "recruitmentStatus": "RECRUITING"
+    }
+  ]
+}
 ```
 
-응답 필드는 기존과 동일하며 `displayOrder` 필드를 추가하지 않는다.
-목록 배열은 관리자가 저장한 표시 순서대로 반환한다. 같은 내부 순서 값이면 `id` 오름차순으로 정렬한다.
-전체 목록과 분과별 목록 모두 같은 전역 순서를 사용한다.
-새 동아리는 목록 마지막에 추가된다. 프론트는 응답 배열 순서대로 표시한다.
+`totalCount`는 두 필터를 모두 적용한 검색결과 개수다. 페이지네이션이 없으므로
+항상 `clubs.length`와 같다. 조건에 맞는 동아리가 없으면 `200 OK`와 다음 응답을 반환한다.
+
+```json
+{
+  "totalCount": 0,
+  "clubs": []
+}
+```
+
+**응답 형식 변경:** 기존 최상위 배열이 `{ "totalCount": ..., "clubs": [...] }` 객체로 바뀐다.
+사용자 앱과 관리자 페이지 모두 목록을 `response.clubs`에서 읽도록 변경해야 한다.
+화면에는 `검색결과 ${response.totalCount}개`를 표시한다.
+
+프론트는 선택한 분과와 토글 값을 각각 유지하고, 둘 중 하나를 바꿀 때 두 값을 함께 보내 재조회한다.
+분과를 바꿔도 ON인 토글을 유지하고, 토글을 끄더라도 선택한 분과를 유지한다.
+목록과 검색결과 개수는 같은 응답으로 갱신한다. 빠르게 필터를 바꿀 때는 이전 요청을 취소하거나
+최신 요청 응답만 반영해 이전 조건의 결과가 화면을 덮어쓰지 않게 한다.
+
+지원하지 않는 분과 또는 boolean으로 해석할 수 없는 토글 값(예: `recruitingOnly=invalid`)은
+`400 Bad Request`를 반환한다. 프론트는 `true` 또는 `false`를 보낸다.
+
+`recruitmentStatus`가 추가되며 `displayOrder`는 응답에 포함하지 않는다.
+`clubs` 배열은 관리자가 저장한 표시 순서대로 반환한다. 같은 내부 순서 값이면 `id` 오름차순으로 정렬한다.
+전체·분과별·모집중만 보기 목록 모두 같은 전역 순서를 사용한다.
+새 동아리는 목록 마지막에 추가된다. 프론트는 `clubs` 배열 순서대로 표시한다.
 
 `topReviewTags`는 누적 선택 수가 많은 순서대로 최대 2개를 반환한다.
 `likedByMe`는 로그인한 사용자가 해당 동아리에 좋아요를 등록했는지를 의미한다.
@@ -110,7 +183,10 @@ GET /api/clubs/{clubId}
   "instagramUrl": "https://instagram.com/example",
   "kakaoTalkUrl": "https://open.kakao.com/o/example",
   "recruitmentContent": "현재 신입 부원을 모집합니다 🙌",
-  "reviewerCount": 3
+  "reviewerCount": 3,
+  "recruitmentStartDate": "2026-10-25",
+  "recruitmentEndDate": "2026-10-31",
+  "recruitmentStatus": "UPCOMING"
 }
 ```
 
@@ -286,21 +362,29 @@ Content-Type: application/json
 
 `CLUB_ADMIN` 계정으로 로그인하면 로그인 응답과 `GET /api/auth/me`의 `role`이
 `CLUB_ADMIN`이다. 앱은 이 역할일 때 각 동아리 상세의 모집공고에 수정 버튼을 표시한다.
-공개 상세 조회 `GET /api/clubs/{clubId}`의 `recruitmentContent`를 편집 화면의 초기값으로 사용한다.
+공개 상세 조회 `GET /api/clubs/{clubId}`의 `recruitmentContent`,
+`recruitmentStartDate`, `recruitmentEndDate`를 편집 화면의 초기값으로 사용한다.
 
 ```http
 PUT /api/clubs/{clubId}/recruitment
 Authorization: Bearer {accessToken}
 Content-Type: application/json
 
-{"recruitmentContent":"신입 부원을 모집합니다."}
+{
+  "recruitmentContent": "신입 부원을 모집합니다.",
+  "recruitmentStartDate": "2026-10-25",
+  "recruitmentEndDate": "2026-10-31"
+}
 ```
 
-성공 시 `204 No Content`를 반환한다. 공백 또는 `null`은 모집공고를 지운다.
-새 공고를 등록하거나 기존 공고를 변경하면 해당 동아리를 좋아요한 사용자에게
-기존 관리자 수정 API와 동일한 알림을 생성한다. 같은 내용으로 저장하거나 지울 때는 알림이 없다.
+성공 시 `204 No Content`를 반환한다. 공고를 지우려면 내용은 공백 또는 `null`로,
+두 날짜는 모두 `null`로 보낸다. 삭제 후 날짜도 비워지고 상태는 `CLOSED`가 된다.
+본문이 있는데 날짜를 빠뜨리거나, 날짜 순서/형식이 잘못됐거나,
+본문이 없는데 날짜를 보내면 `400 Bad Request`다.
+새 공고를 등록하거나 기존 공고의 내용 또는 기간을 변경하면 해당 동아리를 좋아요한 사용자에게
+기존 관리자 수정 API와 동일한 알림을 생성한다. 내용과 기간이 모두 같거나 지울 때는 알림이 없다.
 인증이 없으면 `401`, 다른 역할이면 `403`, 동아리가 없으면 `404`를 반환한다.
-서버는 요청의 `recruitmentContent`만 수정하며, 다른 동아리 정보는 변경하지 않는다.
+서버는 모집공고 내용과 기간만 수정한다.
 
 동아리관리자 계정은 공개 회원가입으로 만들 수 없다. 운영자가 기존 계정을 확인한 뒤
 `user_accounts.role`을 `CLUB_ADMIN`으로 변경한다. 역할 컬럼은 이미 `VARCHAR(20)`이어서
@@ -321,10 +405,14 @@ Authorization: Bearer {accessToken}
 ```http
 GET /api/admin/clubs
 GET /api/admin/clubs?category=ACADEMIC
+GET /api/admin/clubs?recruitingOnly=true
+GET /api/admin/clubs?category=ACADEMIC&recruitingOnly=true
 Authorization: Bearer {accessToken}
 ```
 
-일반 사용자용 `GET /api/clubs`와 동일한 목록과 필터 결과를 반환한다.
+일반 사용자용 `GET /api/clubs`와 동일한 `category`, `recruitingOnly` 필터와
+`{ "totalCount": ..., "clubs": [...] }` 응답 형식을 사용한다.
+`totalCount`는 두 조건을 모두 적용한 개수이며 관리자 목록에서도 `clubs` 배열을 사용한다.
 
 - 토큰이 없거나 유효하지 않은 경우: `401 Unauthorized`
 - USER 역할인 경우: `403 Forbidden`
@@ -359,8 +447,9 @@ Content-Type: application/json
 - 새 동아리는 목록 마지막에 추가된다. 삭제 시 나머지 순서는 유지한다.
 - 인증이 없으면 `401`, USER 권한이면 `403`이다.
 
-연동 순서: `GET /api/admin/clubs`로 전체 조회 → 배열 재배치 → 전체 `clubIds` 저장 → 목록 재조회.
-사용자·관리자 목록의 응답 필드는 기존과 동일하다. 순서 변경은 전체 `clubIds` 배열로만 요청한다.
+연동 순서: `GET /api/admin/clubs`로 필터 없이 전체 조회 → `clubs` 배열 재배치 → 전체 `clubIds` 저장 → 목록 재조회.
+사용자·관리자 목록은 같은 응답 형식이며 `recruitmentStatus`를 포함한다.
+순서 변경은 전체 `clubIds` 배열로만 요청한다.
 
 운영 DB에는 `docs/club-display-order-migration-mysql.sql`을 새 백엔드 실행 전에 적용한다.
 기존 동아리는 ID 오름차순을 유지하고, 마이그레이션을 재실행해도 관리자가 저장한 순서는 보존된다.
@@ -397,7 +486,10 @@ Authorization: Bearer {accessToken}
   "instagramUrl": "https://instagram.com/example",
   "kakaoTalkUrl": "https://open.kakao.com/o/example",
   "recruitmentContent": "현재 신입 부원을 모집합니다 🙌",
-  "reviewerCount": 3
+  "reviewerCount": 3,
+  "recruitmentStartDate": "2026-10-25",
+  "recruitmentEndDate": "2026-10-31",
+  "recruitmentStatus": "UPCOMING"
 }
 ```
 
@@ -439,7 +531,7 @@ Location: /api/clubs/1
 동아리 등록 단계에서는 이름과 분과만 저장한다. 등록 후 반환받은 ID로
 나머지 텍스트 정보를 한 번에 수정하고, 프로필 이미지와 배경 이미지는 각각 업로드한다.
 따라서 생성 직후에는 `shortDescription`, 소개·활동·모집공고, SNS URL과
-이미지 URL이 모두 `null`이다.
+이미지 URL이 모두 `null`이다. 모집 시작일·종료일도 `null`이며 상태는 `CLOSED`다.
 
 ---
 
@@ -524,7 +616,9 @@ Content-Type: application/json
   "activityContent": "수정된 활동 내용 🚀",
   "instagramUrl": "https://instagram.com/updated",
   "kakaoTalkUrl": null,
-  "recruitmentContent": "수정된 모집공고 내용 🙌"
+  "recruitmentContent": "수정된 모집공고 내용 🙌",
+  "recruitmentStartDate": "2026-10-25",
+  "recruitmentEndDate": "2026-10-31"
 }
 ```
 
@@ -532,9 +626,11 @@ Content-Type: application/json
 이미지는 각각의 이미지 업로드 API를 사용한다.
 성공 시 `204 No Content`를 반환한다.
 
-`recruitmentContent`가 새로 작성되거나 기존 값과 다르게 수정되면 해당 시점에
+모집공고 내용이 있으면 두 날짜가 필수이며 동아리관리자 API와 같은 날짜 검증을 적용한다.
+기존 프론트의 전체 수정 요청도 두 날짜를 함께 보내도록 변경해야 한다.
+`recruitmentContent`가 새로 작성되거나 내용 또는 기간이 수정되면 해당 시점에
 동아리를 좋아요한 로그인 사용자에게만 모집공고 알림을 생성한다.
-모집공고가 동일하거나 다른 동아리 정보만 변경된 경우에는 알림을 생성하지 않는다.
+모집공고 내용과 기간이 모두 동일하거나 다른 동아리 정보만 변경된 경우에는 알림을 생성하지 않는다.
 
 ---
 

@@ -2,6 +2,8 @@ package hsu.hanseomate.domain.club.dto;
 
 import hsu.hanseomate.domain.club.entity.Club;
 import hsu.hanseomate.domain.club.type.ClubCategory;
+import hsu.hanseomate.domain.club.type.ClubRecruitmentStatus;
+import java.time.LocalDate;
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
 import java.util.List;
 
@@ -13,7 +15,8 @@ public record ClubSummaryResponse(
         String shortDescription,
         long likeCount,
         boolean likedByMe,
-        List<ClubReviewOption> topReviewTags
+        List<ClubReviewOption> topReviewTags,
+        ClubRecruitmentStatus recruitmentStatus
 ) {
 
     public ClubSummaryResponse {
@@ -24,7 +27,8 @@ public record ClubSummaryResponse(
             Club club,
             long likeCount,
             boolean likedByMe,
-            List<ClubReviewOption> topReviewTags
+            List<ClubReviewOption> topReviewTags,
+            LocalDate today
     ) {
         return new ClubSummaryResponse(
                 club.getId(),
@@ -34,7 +38,8 @@ public record ClubSummaryResponse(
                 club.getShortDescription(),
                 likeCount,
                 likedByMe,
-                topReviewTags
+                topReviewTags,
+                club.recruitmentStatus(today)
         );
     }
 }

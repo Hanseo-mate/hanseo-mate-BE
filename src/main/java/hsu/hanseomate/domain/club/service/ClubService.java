@@ -5,6 +5,7 @@ import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
 import hsu.hanseomate.domain.club.dto.ClubLikeResponse;
+import hsu.hanseomate.domain.club.dto.ClubListResponse;
 import hsu.hanseomate.domain.club.dto.ClubOrderUpdateRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewOptionResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
@@ -26,6 +27,7 @@ import hsu.hanseomate.domain.club.repository.ClubReviewCountProjection;
 import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
 import hsu.hanseomate.domain.club.type.ClubCategory;
 import hsu.hanseomate.domain.club.type.ClubImageType;
+import hsu.hanseomate.domain.club.type.ClubRecruitmentStatus;
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
@@ -35,6 +37,9 @@ import hsu.hanseomate.global.exception.ResourceNotFoundException;
 import hsu.hanseomate.global.storage.LocalImageStorageService;
 import hsu.hanseomate.global.storage.LocalImageStorageService.StoredImage;
 import java.util.Collection;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -73,32 +78,43 @@ public class ClubService {
     private final UserAccountRepository userAccountRepository;
     private final LocalImageStorageService imageStorageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
-    public List<ClubSummaryResponse> getClubs(String category) {
-        return getClubs(category, Optional.empty());
+    private static final ZoneId RECRUITMENT_ZONE = ZoneId.of("Asia/Seoul");
+
+    public ClubListResponse getClubs(String category, boolean recruitingOnly) {
+        return getClubs(category, recruitingOnly, Optional.empty());
     }
 
-    public List<ClubSummaryResponse> getClubs(
+    public ClubListResponse getClubs(
             String category,
+            boolean recruitingOnly,
             Optional<Long> currentUserId
     ) {
+        LocalDate today = LocalDate.now(clock.withZone(RECRUITMENT_ZONE));
         List<Club> clubs = category == null || category.isBlank()
                 ? clubRepository.findAllByOrderByDisplayOrderAscIdAsc()
                 : clubRepository.findAllByCategoryOrderByDisplayOrderAscIdAsc(normalizeCategory(category));
 
+        if (recruitingOnly) {
+            clubs = clubs.stream()
+                    .filter(club -> club.recruitmentStatus(today) == ClubRecruitmentStatus.RECRUITING)
+                    .toList();
+        }
         if (clubs.isEmpty()) {
-            return List.of();
+            return ClubListResponse.from(List.of());
         }
 
         EngagementSnapshot snapshot = loadEngagement(clubIds(clubs), currentUserId);
-        return clubs.stream()
+        return ClubListResponse.from(clubs.stream()
                 .map(club -> ClubSummaryResponse.from(
                         club,
                         snapshot.likeCount(club.getId()),
                         snapshot.likedByMe(club.getId()),
-                        snapshot.topReviews(club.getId(), LIST_TOP_REVIEW_LIMIT)
+                        snapshot.topReviews(club.getId(), LIST_TOP_REVIEW_LIMIT),
+                        today
                 ))
-                .toList();
+                .toList());
     }
 
     public ClubDetailResponse getClub(Long clubId) {
@@ -203,7 +219,11 @@ public class ClubService {
         Club club = findClubForUpdate(clubId);
         String name = required(request.name());
         String previousRecruitmentContent = club.getRecruitmentContent();
+        LocalDate previousStartDate = club.getRecruitmentStartDate();
+        LocalDate previousEndDate = club.getRecruitmentEndDate();
         String recruitmentContent = content(request.recruitmentContent());
+        validateRecruitmentPeriod(recruitmentContent,
+                request.recruitmentStartDate(), request.recruitmentEndDate());
         validateUniqueName(name, clubId);
 
         club.update(
@@ -213,7 +233,9 @@ public class ClubService {
                 content(request.activityContent()),
                 optional(request.instagramUrl()),
                 optional(request.kakaoTalkUrl()),
-                recruitmentContent
+                recruitmentContent,
+                request.recruitmentStartDate(),
+                request.recruitmentEndDate()
         );
 
         try {
@@ -222,7 +244,7 @@ public class ClubService {
             throw duplicateClubName(name);
         }
 
-        publishRecruitmentChange(club, previousRecruitmentContent);
+        publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate);
     }
 
     @Transactional
@@ -236,15 +258,41 @@ public class ClubService {
         }
         Club club = findClubForUpdate(clubId);
         String previousRecruitmentContent = club.getRecruitmentContent();
-        club.updateRecruitmentContent(content(request.recruitmentContent()));
+        LocalDate previousStartDate = club.getRecruitmentStartDate();
+        LocalDate previousEndDate = club.getRecruitmentEndDate();
+        String recruitmentContent = content(request.recruitmentContent());
+        validateRecruitmentPeriod(recruitmentContent,
+                request.recruitmentStartDate(), request.recruitmentEndDate());
+        club.updateRecruitment(recruitmentContent,
+                request.recruitmentStartDate(), request.recruitmentEndDate());
         clubRepository.flush();
-        publishRecruitmentChange(club, previousRecruitmentContent);
+        publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate);
     }
 
-    private void publishRecruitmentChange(Club club, String previousRecruitmentContent) {
+    private void validateRecruitmentPeriod(String recruitmentContent, LocalDate start, LocalDate end) {
+        if (recruitmentContent == null) {
+            if (start != null || end != null) {
+                throw new BadRequestException("모집공고가 비어 있으면 모집 시작일과 종료일도 비워야 합니다.");
+            }
+            return;
+        }
+        if (start == null || end == null) {
+            throw new BadRequestException("모집공고 작성 시 모집 시작일과 종료일은 필수입니다.");
+        }
+        if (start.isAfter(end)) {
+            throw new BadRequestException("모집 종료일은 시작일과 같거나 이후여야 합니다.");
+        }
+    }
+
+    private void publishRecruitmentChange(
+            Club club, String previousRecruitmentContent,
+            LocalDate previousStartDate, LocalDate previousEndDate
+    ) {
         String recruitmentContent = club.getRecruitmentContent();
         if (recruitmentContent != null
-                && !Objects.equals(previousRecruitmentContent, recruitmentContent)) {
+                && (!Objects.equals(previousRecruitmentContent, recruitmentContent)
+                || !Objects.equals(previousStartDate, club.getRecruitmentStartDate())
+                || !Objects.equals(previousEndDate, club.getRecruitmentEndDate()))) {
             ChangeType changeType = previousRecruitmentContent == null
                     ? ChangeType.CREATED
                     : ChangeType.UPDATED;
@@ -393,7 +441,8 @@ public class ClubService {
                 snapshot.likeCount(club.getId()),
                 snapshot.likedByMe(club.getId()),
                 snapshot.topReviews(club.getId(), DETAIL_TOP_REVIEW_LIMIT),
-                reviewerCount
+                reviewerCount,
+                LocalDate.now(clock.withZone(RECRUITMENT_ZONE))
         );
     }
 

@@ -2,6 +2,8 @@ package hsu.hanseomate.domain.club.dto;
 
 import hsu.hanseomate.domain.club.entity.Club;
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
+import hsu.hanseomate.domain.club.type.ClubRecruitmentStatus;
+import java.time.LocalDate;
 import java.util.List;
 
 public record ClubDetailResponse(
@@ -17,7 +19,10 @@ public record ClubDetailResponse(
         String instagramUrl,
         String kakaoTalkUrl,
         String recruitmentContent,
-        long reviewerCount
+        long reviewerCount,
+        LocalDate recruitmentStartDate,
+        LocalDate recruitmentEndDate,
+        ClubRecruitmentStatus recruitmentStatus
 ) {
 
     public ClubDetailResponse {
@@ -29,7 +34,8 @@ public record ClubDetailResponse(
             long likeCount,
             boolean likedByMe,
             List<ClubReviewOption> topReviewTags,
-            long reviewerCount
+            long reviewerCount,
+            LocalDate today
     ) {
         return new ClubDetailResponse(
                 club.getBackgroundImageUrl(),
@@ -44,7 +50,10 @@ public record ClubDetailResponse(
                 club.getInstagramUrl(),
                 club.getKakaoTalkUrl(),
                 club.getRecruitmentContent(),
-                reviewerCount
+                reviewerCount,
+                club.getRecruitmentStartDate(),
+                club.getRecruitmentEndDate(),
+                club.recruitmentStatus(today)
         );
     }
 }

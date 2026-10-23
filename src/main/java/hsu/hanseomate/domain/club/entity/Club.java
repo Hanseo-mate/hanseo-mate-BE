@@ -1,6 +1,8 @@
 package hsu.hanseomate.domain.club.entity;
 
 import hsu.hanseomate.domain.club.type.ClubCategory;
+import hsu.hanseomate.domain.club.type.ClubRecruitmentStatus;
+import java.time.LocalDate;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -68,6 +70,12 @@ public class Club extends BaseTimeEntity {
     @Column(name = "recruitment_content", columnDefinition = "LONGTEXT")
     private String recruitmentContent;
 
+    @Column(name = "recruitment_start_date")
+    private LocalDate recruitmentStartDate;
+
+    @Column(name = "recruitment_end_date")
+    private LocalDate recruitmentEndDate;
+
     @Column(name = "instagram_url", length = 2048)
     private String instagramUrl;
 
@@ -96,7 +104,9 @@ public class Club extends BaseTimeEntity {
             String activityContent,
             String instagramUrl,
             String kakaoTalkUrl,
-            String recruitmentContent
+            String recruitmentContent,
+            LocalDate recruitmentStartDate,
+            LocalDate recruitmentEndDate
     ) {
         this.name = name;
         this.shortDescription = shortDescription;
@@ -104,7 +114,7 @@ public class Club extends BaseTimeEntity {
         this.activityContent = activityContent;
         this.instagramUrl = instagramUrl;
         this.kakaoTalkUrl = kakaoTalkUrl;
-        this.recruitmentContent = recruitmentContent;
+        updateRecruitment(recruitmentContent, recruitmentStartDate, recruitmentEndDate);
     }
 
     public void updateDisplayOrder(int displayOrder) {
@@ -119,8 +129,19 @@ public class Club extends BaseTimeEntity {
         this.backgroundImageUrl = backgroundImageUrl;
     }
 
-    public void updateRecruitmentContent(String recruitmentContent) {
+    public void updateRecruitment(
+            String recruitmentContent, LocalDate recruitmentStartDate, LocalDate recruitmentEndDate
+    ) {
         this.recruitmentContent = recruitmentContent;
+        this.recruitmentStartDate = recruitmentStartDate;
+        this.recruitmentEndDate = recruitmentEndDate;
+    }
+
+    public ClubRecruitmentStatus recruitmentStatus(LocalDate today) {
+        if (recruitmentContent == null || recruitmentContent.isBlank()) {
+            return ClubRecruitmentStatus.CLOSED;
+        }
+        return ClubRecruitmentStatus.from(recruitmentStartDate, recruitmentEndDate, today);
     }
 
 }

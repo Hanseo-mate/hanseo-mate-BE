@@ -5,7 +5,7 @@ import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
 import hsu.hanseomate.domain.club.dto.ClubOrderUpdateRequest;
-import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
+import hsu.hanseomate.domain.club.dto.ClubListResponse;
 import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
@@ -19,7 +19,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.net.URI;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -50,13 +49,14 @@ public class AdminClubController {
 
     @Operation(
             summary = "관리자용 동아리 목록 조회",
-            description = "일반 사용자용 동아리 목록 조회와 동일한 결과를 반환하며 ADMIN 권한이 필요합니다."
+            description = "분과와 모집중만 보기 조건에 맞는 검색결과 개수(totalCount)와 목록(clubs)을 반환합니다. "
+                    + "일반 사용자용 목록 조회와 동일한 필터를 적용하며 ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "지원하지 않는 분과",
+                    description = "지원하지 않는 분과 또는 잘못된 recruitingOnly 값",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -71,11 +71,13 @@ public class AdminClubController {
             )
     })
     @GetMapping
-    public List<ClubSummaryResponse> getClubs(
+    public ClubListResponse getClubs(
             @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
-            @RequestParam(required = false) String category
+            @RequestParam(required = false) String category,
+            @Parameter(description = "모집중만 보기 토글. true면 모집중만, false 또는 생략하면 모든 모집 상태 조회")
+            @RequestParam(defaultValue = "false") boolean recruitingOnly
     ) {
-        return clubService.getClubs(category);
+        return clubService.getClubs(category, recruitingOnly);
     }
 
     @Operation(
@@ -264,7 +266,8 @@ public class AdminClubController {
 
     @Operation(
             summary = "동아리 정보 통합 수정",
-            description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다."
+            description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다. "
+                    + "모집공고 내용이 있으면 모집 시작일과 종료일(YYYY-MM-DD)이 필수입니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),

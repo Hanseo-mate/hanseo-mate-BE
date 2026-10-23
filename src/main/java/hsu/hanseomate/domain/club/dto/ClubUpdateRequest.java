@@ -3,6 +3,7 @@ package hsu.hanseomate.domain.club.dto;
 import hsu.hanseomate.global.validation.HttpUrl;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 
 public record ClubUpdateRequest(
         @NotBlank(message = "동아리명은 필수입니다.")
@@ -25,6 +26,8 @@ public record ClubUpdateRequest(
         @HttpUrl
         String kakaoTalkUrl,
 
-        String recruitmentContent
+        String recruitmentContent,
+        LocalDate recruitmentStartDate,
+        LocalDate recruitmentEndDate
 ) {
 }

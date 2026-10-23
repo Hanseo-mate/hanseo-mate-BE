@@ -63,7 +63,7 @@ java "$REPO/scripts/write-mysql-client-config.java" "$CONFIG" "$MYSQL_CREDENTIAL
 
 cd "$REPO"
 
-for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql docs/club-display-order-migration-mysql.sql; do
+for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql docs/club-display-order-migration-mysql.sql docs/club-recruitment-period-migration-mysql.sql; do
     if [ ! -f "$sql_file" ]; then
         echo "Required SQL file is missing: $sql_file" >&2
         exit 1
@@ -120,7 +120,11 @@ echo "7. Remove essential link category"
 echo "8. Add club display order"
 "${mysql_client[@]}" < docs/club-display-order-migration-mysql.sql
 
-echo "9. Verify database migration"
+echo "9. Add club recruitment period"
+"${mysql_client[@]}" < docs/club-recruitment-period-migration-mysql.sql
+
+echo "10. Verify database migration"
+"${mysql_client[@]}" --execute='SELECT recruitment_start_date, recruitment_end_date FROM clubs LIMIT 1' >/dev/null
 "${mysql_client[@]}" --execute='SELECT id, display_order FROM clubs ORDER BY display_order, id LIMIT 1' >/dev/null
 "${mysql_client[@]}" --execute='SELECT id, name, url, created_at, updated_at FROM essential_links LIMIT 1' >/dev/null
 category_columns="$("${mysql_client[@]}" --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'essential_links' AND column_name = 'category'")"
@@ -135,12 +139,12 @@ if [ "$remaining" != "0" ]; then
     recover 1
 fi
 
-echo "10. Install new JAR and start service"
+echo "11. Install new JAR and start service"
 jar_replaced=1
 cp "$JAR" "$APP"
 sudo systemctl start "$SERVICE"
 
-echo "11. Check health"
+echo "12. Check health"
 for i in $(seq 1 30); do
     if curl -fsS "$HEALTH" >/dev/null 2>&1; then
         trap - ERR INT TERM

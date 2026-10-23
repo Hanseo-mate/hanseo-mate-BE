@@ -1,4 +1,10 @@
 package hsu.hanseomate.domain.club.dto;
 
-public record ClubRecruitmentUpdateRequest(String recruitmentContent) {
+import java.time.LocalDate;
+
+public record ClubRecruitmentUpdateRequest(
+        String recruitmentContent,
+        LocalDate recruitmentStartDate,
+        LocalDate recruitmentEndDate
+) {
 }
