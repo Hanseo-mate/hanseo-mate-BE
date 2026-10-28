@@ -78,7 +78,7 @@ public class ClubController {
             summary = "동아리 상세 조회",
             description = "이미지, 이름, 한 줄 소개, 좋아요, 상위 활동 후기 3개, "
                     + "동아리 소개, 활동 내용, 문의 링크, 모집공고와 후기 작성 수를 조회합니다. "
-                    + "모집 시작일·종료일과 한국 날짜 기준 모집 상태를 반환합니다. "
+                    + "모집 시작일·종료일·링크와 한국 날짜 기준 모집 상태를 반환합니다. "
                     + "유효한 JWT를 보내면 본인 좋아요 여부도 함께 반환합니다."
     )
     @ApiResponses({
@@ -108,10 +108,10 @@ public class ClubController {
     }
 
     @Operation(
-            summary = "모집공고 수정",
-            description = "CLUB_ADMIN 권한으로 모든 동아리의 모집공고 내용과 기간을 수정합니다. "
-                    + "내용이 있으면 시작일과 종료일(YYYY-MM-DD)이 필수입니다. "
-                    + "공고를 지울 때는 내용과 두 날짜를 모두 비웁니다."
+            summary = "모집공고 작성·수정·삭제",
+            description = "CLUB_ADMIN 권한으로 모든 동아리의 모집공고 내용·기간·링크를 PUT으로 저장합니다. "
+                    + "네 필드는 각각 null 또는 생략 가능하며, 생략한 값도 null로 저장합니다. "
+                    + "모두 null이면 모집공고 삭제입니다. 두 날짜가 모두 있으면 종료일은 시작일 이후 또는 같은 날이어야 합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),

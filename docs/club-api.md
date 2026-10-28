@@ -29,7 +29,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
-| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용·기간 수정 |
+| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용·기간·링크 작성·수정·삭제 |
 | 관리자 | `GET` | `/api/admin/clubs` | 분과·모집중만 보기 필터와 검색결과 개수 조회 |
 | 관리자 | `PUT` | `/api/admin/clubs/order` | 전체 동아리 표시 순서 저장 |
 | 관리자 | `GET` | `/api/admin/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
@@ -43,9 +43,10 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 
 ## 모집 기간과 모집 상태
 
-모집공고를 작성·수정할 때 `recruitmentStartDate`와 `recruitmentEndDate`를
-`YYYY-MM-DD` 형식으로 함께 보낸다. 두 날짜는 모집공고가 있으면 필수이며,
-종료일은 시작일과 같거나 이후여야 한다. 과거 기간과 하루짜리 모집도 저장할 수 있다.
+모집공고의 내용(`recruitmentContent`), 시작일(`recruitmentStartDate`), 종료일
+(`recruitmentEndDate`), 링크(`recruitmentUrl`)는 각각 선택 입력이며 모두 `null`을 허용한다.
+날짜는 `YYYY-MM-DD` 형식이다. 두 날짜가 모두 있을 때 종료일은 시작일과 같거나 이후여야 한다.
+과거 기간과 하루짜리 모집도 저장할 수 있다. 링크는 `http` 또는 `https` URL이며 최대 2048자다.
 
 목록과 상세에 `recruitmentStatus`를 반환한다. 상태는 한국 시간(`Asia/Seoul`)의
 오늘 날짜로 조회 시 계산하며 DB에 별도 저장하지 않는다.
@@ -54,10 +55,12 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 |---|---|---|
 | `UPCOMING` | 모집전 | 오늘 < 시작일 |
 | `RECRUITING` | 모집중 | 시작일 ≤ 오늘 ≤ 종료일 |
-| `CLOSED` | 모집완료 | 오늘 > 종료일 또는 공고/기간 없음 |
+| `CLOSED` | 모집완료 | 오늘 > 종료일 또는 시작일·종료일 중 하나 이상 없음 |
 
-시작일 00:00부터 종료일 23:59:59까지 모집중이다. 기존에 기간이 없는 공고는
-내용을 보존하고 모집완료로 표시한다. 프론트는 이 값을 화면 문구로 매핑하고,
+시작일 00:00부터 종료일 23:59:59까지 모집중이다. 상태는 날짜만으로 계산하므로
+내용이나 링크가 없어도 두 날짜가 있다면 기간에 따른 상태를 반환한다. 날짜가 없거나
+한쪽만 있으면 `CLOSED`다. 기존에 기간이 없는 공고는 내용을 보존하고 모집완료로 표시한다.
+프론트는 이 값을 화면 문구로 매핑하고,
 상세 응답의 두 날짜를 편집 화면 초기값으로 사용한다. 직접 상태를 지정하는 요청 필드는 없다.
 예제의 상태는 한국 날짜 2026-10-23을 기준으로 한다.
 
@@ -93,7 +96,7 @@ GET /api/clubs?category=ACADEMIC&recruitingOnly=true
 | 학술 | ON | `/api/clubs?category=ACADEMIC&recruitingOnly=true` | 학술 동아리 중 모집중인 동아리 |
 
 두 조건은 **AND**로 적용한다. `true`일 때 한국 날짜 기준 `RECRUITING`만 반환하며,
-모집전·모집완료·공고나 기간이 없는 동아리는 제외한다.
+모집전·모집완료와 시작일 또는 종료일이 없는 동아리는 제외한다.
 `false`는 모집 상태 필터만 해제하므로 선택한 분과 조건은 계속 적용된다.
 모집 상태를 직접 보내는 쿼리 파라미터는 사용하지 않는다.
 
@@ -183,6 +186,7 @@ GET /api/clubs/{clubId}
   "instagramUrl": "https://instagram.com/example",
   "kakaoTalkUrl": "https://open.kakao.com/o/example",
   "recruitmentContent": "현재 신입 부원을 모집합니다 🙌",
+  "recruitmentUrl": "https://example.com/apply",
   "reviewerCount": 3,
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
@@ -363,7 +367,8 @@ Content-Type: application/json
 `CLUB_ADMIN` 계정으로 로그인하면 로그인 응답과 `GET /api/auth/me`의 `role`이
 `CLUB_ADMIN`이다. 앱은 이 역할일 때 각 동아리 상세의 모집공고에 수정 버튼을 표시한다.
 공개 상세 조회 `GET /api/clubs/{clubId}`의 `recruitmentContent`,
-`recruitmentStartDate`, `recruitmentEndDate`를 편집 화면의 초기값으로 사용한다.
+`recruitmentStartDate`, `recruitmentEndDate`, `recruitmentUrl`을 편집 화면의 초기값으로 사용한다.
+하나의 `PUT` API로 공고를 작성·수정·삭제한다.
 
 ```http
 PUT /api/clubs/{clubId}/recruitment
@@ -373,18 +378,24 @@ Content-Type: application/json
 {
   "recruitmentContent": "신입 부원을 모집합니다.",
   "recruitmentStartDate": "2026-10-25",
-  "recruitmentEndDate": "2026-10-31"
+  "recruitmentEndDate": "2026-10-31",
+  "recruitmentUrl": "https://example.com/apply"
 }
 ```
 
-성공 시 `204 No Content`를 반환한다. 공고를 지우려면 내용은 공백 또는 `null`로,
-두 날짜는 모두 `null`로 보낸다. 삭제 후 날짜도 비워지고 상태는 `CLOSED`가 된다.
-본문이 있는데 날짜를 빠뜨리거나, 날짜 순서/형식이 잘못됐거나,
-본문이 없는데 날짜를 보내면 `400 Bad Request`다.
-새 공고를 등록하거나 기존 공고의 내용 또는 기간을 변경하면 해당 동아리를 좋아요한 사용자에게
-기존 관리자 수정 API와 동일한 알림을 생성한다. 내용과 기간이 모두 같거나 지울 때는 알림이 없다.
+성공 시 `204 No Content`를 반환한다. 네 필드는 각각 `null`을 허용하며 링크만 저장하거나
+내용 없이 날짜를 저장하는 것도 가능하다. 내용과 링크의 앞뒤 공백은 제거하고 빈 문자열은 `null`로 저장한다.
+링크가 있다면 `http` 또는 `https` URL을 보내야 한다.
+
+이 API는 네 필드를 모두 대체한다. **생략한 필드도 `null`로 저장하므로 유지할 값은 함께 보내야 한다.**
+공고를 삭제하려면 네 필드를 모두 `null`로 보내거나 빈 객체 `{}`를 보낸다.
+전체 삭제 후 상태는 `CLOSED`다. 두 날짜가 있을 때 날짜 순서가 거꾸로이거나 날짜 형식·링크가
+잘못되면 `400 Bad Request`다.
+
+새 공고를 등록하거나 기존 공고의 내용·기간·링크 중 하나를 변경하면 해당 동아리를 좋아요한 사용자에게
+기존 관리자 수정 API와 동일한 알림을 생성한다. 네 필드가 모두 같거나 전체 삭제할 때는 알림이 없다.
 인증이 없으면 `401`, 다른 역할이면 `403`, 동아리가 없으면 `404`를 반환한다.
-서버는 모집공고 내용과 기간만 수정한다.
+서버는 모집공고 내용·기간·링크만 수정한다.
 
 동아리관리자 계정은 공개 회원가입으로 만들 수 없다. 운영자가 기존 계정을 확인한 뒤
 `user_accounts.role`을 `CLUB_ADMIN`으로 변경한다. 역할 컬럼은 이미 `VARCHAR(20)`이어서
@@ -486,6 +497,7 @@ Authorization: Bearer {accessToken}
   "instagramUrl": "https://instagram.com/example",
   "kakaoTalkUrl": "https://open.kakao.com/o/example",
   "recruitmentContent": "현재 신입 부원을 모집합니다 🙌",
+  "recruitmentUrl": "https://example.com/apply",
   "reviewerCount": 3,
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
@@ -511,7 +523,11 @@ Content-Type: application/json
 ```json
 {
   "name": "멋쟁이사자처럼 한서대학교",
-  "category": "ACADEMIC"
+  "category": "ACADEMIC",
+  "recruitmentContent": "신입 부원을 모집합니다.",
+  "recruitmentStartDate": "2026-10-25",
+  "recruitmentEndDate": "2026-10-31",
+  "recruitmentUrl": "https://example.com/apply"
 }
 ```
 
@@ -528,10 +544,10 @@ Location: /api/clubs/1
 }
 ```
 
-동아리 등록 단계에서는 이름과 분과만 저장한다. 등록 후 반환받은 ID로
-나머지 텍스트 정보를 한 번에 수정하고, 프로필 이미지와 배경 이미지는 각각 업로드한다.
-따라서 생성 직후에는 `shortDescription`, 소개·활동·모집공고, SNS URL과
-이미지 URL이 모두 `null`이다. 모집 시작일·종료일도 `null`이며 상태는 `CLOSED`다.
+이름과 분과는 필수다. 모집공고 내용·시작일·종료일·링크는 각각 `null` 또는 생략할 수 있다.
+이름과 분과만 보내면 모집공고 네 필드가 모두 `null`이고 상태는 `CLOSED`다.
+등록 후 반환받은 ID로 나머지 텍스트 정보를 수정하고, 프로필 이미지와 배경 이미지는 각각 업로드한다.
+생성 직후 `shortDescription`, 소개·활동, SNS URL과 이미지 URL은 `null`이다.
 
 ---
 
@@ -618,7 +634,8 @@ Content-Type: application/json
   "kakaoTalkUrl": null,
   "recruitmentContent": "수정된 모집공고 내용 🙌",
   "recruitmentStartDate": "2026-10-25",
-  "recruitmentEndDate": "2026-10-31"
+  "recruitmentEndDate": "2026-10-31",
+  "recruitmentUrl": "https://example.com/apply"
 }
 ```
 
@@ -626,11 +643,10 @@ Content-Type: application/json
 이미지는 각각의 이미지 업로드 API를 사용한다.
 성공 시 `204 No Content`를 반환한다.
 
-모집공고 내용이 있으면 두 날짜가 필수이며 동아리관리자 API와 같은 날짜 검증을 적용한다.
-기존 프론트의 전체 수정 요청도 두 날짜를 함께 보내도록 변경해야 한다.
-`recruitmentContent`가 새로 작성되거나 내용 또는 기간이 수정되면 해당 시점에
-동아리를 좋아요한 로그인 사용자에게만 모집공고 알림을 생성한다.
-모집공고 내용과 기간이 모두 동일하거나 다른 동아리 정보만 변경된 경우에는 알림을 생성하지 않는다.
+모집공고 네 필드는 각각 `null` 또는 생략 가능하며 동아리관리자 API와 같은 검증을 적용한다.
+이 API도 네 필드를 대체하므로 유지할 내용·날짜·링크를 모두 요청에 포함해야 한다.
+내용·날짜·링크 중 하나가 새로 입력되거나 변경되면 해당 시점에 동아리를 좋아요한 사용자에게
+모집공고 알림을 생성한다. 네 필드가 모두 같거나 전체 삭제할 때는 알림을 생성하지 않는다.
 
 ---
 

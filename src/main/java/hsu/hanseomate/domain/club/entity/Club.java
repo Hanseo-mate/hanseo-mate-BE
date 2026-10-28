@@ -76,6 +76,9 @@ public class Club extends BaseTimeEntity {
     @Column(name = "recruitment_end_date")
     private LocalDate recruitmentEndDate;
 
+    @Column(name = "recruitment_url", length = 2048)
+    private String recruitmentUrl;
+
     @Column(name = "instagram_url", length = 2048)
     private String instagramUrl;
 
@@ -106,7 +109,8 @@ public class Club extends BaseTimeEntity {
             String kakaoTalkUrl,
             String recruitmentContent,
             LocalDate recruitmentStartDate,
-            LocalDate recruitmentEndDate
+            LocalDate recruitmentEndDate,
+            String recruitmentUrl
     ) {
         this.name = name;
         this.shortDescription = shortDescription;
@@ -114,7 +118,7 @@ public class Club extends BaseTimeEntity {
         this.activityContent = activityContent;
         this.instagramUrl = instagramUrl;
         this.kakaoTalkUrl = kakaoTalkUrl;
-        updateRecruitment(recruitmentContent, recruitmentStartDate, recruitmentEndDate);
+        updateRecruitment(recruitmentContent, recruitmentStartDate, recruitmentEndDate, recruitmentUrl);
     }
 
     public void updateDisplayOrder(int displayOrder) {
@@ -130,17 +134,16 @@ public class Club extends BaseTimeEntity {
     }
 
     public void updateRecruitment(
-            String recruitmentContent, LocalDate recruitmentStartDate, LocalDate recruitmentEndDate
+            String recruitmentContent, LocalDate recruitmentStartDate, LocalDate recruitmentEndDate,
+            String recruitmentUrl
     ) {
         this.recruitmentContent = recruitmentContent;
         this.recruitmentStartDate = recruitmentStartDate;
         this.recruitmentEndDate = recruitmentEndDate;
+        this.recruitmentUrl = recruitmentUrl;
     }
 
     public ClubRecruitmentStatus recruitmentStatus(LocalDate today) {
-        if (recruitmentContent == null || recruitmentContent.isBlank()) {
-            return ClubRecruitmentStatus.CLOSED;
-        }
         return ClubRecruitmentStatus.from(recruitmentStartDate, recruitmentEndDate, today);
     }
 

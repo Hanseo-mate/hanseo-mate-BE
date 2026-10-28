@@ -22,7 +22,8 @@ public record ClubDetailResponse(
         long reviewerCount,
         LocalDate recruitmentStartDate,
         LocalDate recruitmentEndDate,
-        ClubRecruitmentStatus recruitmentStatus
+        ClubRecruitmentStatus recruitmentStatus,
+        String recruitmentUrl
 ) {
 
     public ClubDetailResponse {
@@ -53,7 +54,8 @@ public record ClubDetailResponse(
                 reviewerCount,
                 club.getRecruitmentStartDate(),
                 club.getRecruitmentEndDate(),
-                club.recruitmentStatus(today)
+                club.recruitmentStatus(today),
+                club.getRecruitmentUrl()
         );
     }
 }

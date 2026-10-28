@@ -1246,6 +1246,7 @@ CREATE TABLE clubs (
     recruitment_content LONGTEXT NULL,
     recruitment_start_date DATE NULL,
     recruitment_end_date DATE NULL,
+    recruitment_url VARCHAR(2048) NULL,
     instagram_url VARCHAR(2048) NULL,
     kakao_talk_url VARCHAR(2048) NULL,
     created_at DATETIME(6) NOT NULL,

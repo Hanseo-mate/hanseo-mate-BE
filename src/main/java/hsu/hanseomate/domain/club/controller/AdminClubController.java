@@ -134,7 +134,8 @@ public class AdminClubController {
 
     @Operation(
             summary = "동아리 등록",
-            description = "동아리 이름과 분과만 먼저 등록합니다. 나머지 텍스트 정보는 통합 수정 API로, "
+            description = "동아리 이름과 분과를 등록하고 모집공고 내용·시작일·종료일·링크를 선택 입력합니다. "
+                    + "모집공고 필드는 각각 null 또는 생략 가능합니다. 나머지 정보는 통합 수정 API로, "
                     + "이미지는 각각의 업로드 API로 등록합니다."
     )
     @ApiResponses({
@@ -267,7 +268,8 @@ public class AdminClubController {
     @Operation(
             summary = "동아리 정보 통합 수정",
             description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다. "
-                    + "모집공고 내용이 있으면 모집 시작일과 종료일(YYYY-MM-DD)이 필수입니다."
+                    + "모집공고 내용·시작일·종료일·링크는 각각 null 또는 생략 가능합니다. "
+                    + "생략한 값도 null로 저장하며, 네 필드를 모두 null로 보내면 모집공고를 삭제합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),

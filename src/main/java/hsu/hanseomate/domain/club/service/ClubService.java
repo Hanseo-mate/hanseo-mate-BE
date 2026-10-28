@@ -167,6 +167,9 @@ public class ClubService {
                 name,
                 normalizeCategory(request.category())
         );
+        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate());
+        club.updateRecruitment(content(request.recruitmentContent()),
+                request.recruitmentStartDate(), request.recruitmentEndDate(), optional(request.recruitmentUrl()));
         int lastOrder = existingClubs.stream().mapToInt(Club::getDisplayOrder).max().orElse(0);
         club.updateDisplayOrder(Math.addExact(lastOrder, 1));
 
@@ -221,9 +224,9 @@ public class ClubService {
         String previousRecruitmentContent = club.getRecruitmentContent();
         LocalDate previousStartDate = club.getRecruitmentStartDate();
         LocalDate previousEndDate = club.getRecruitmentEndDate();
+        String previousRecruitmentUrl = club.getRecruitmentUrl();
         String recruitmentContent = content(request.recruitmentContent());
-        validateRecruitmentPeriod(recruitmentContent,
-                request.recruitmentStartDate(), request.recruitmentEndDate());
+        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate());
         validateUniqueName(name, clubId);
 
         club.update(
@@ -235,7 +238,8 @@ public class ClubService {
                 optional(request.kakaoTalkUrl()),
                 recruitmentContent,
                 request.recruitmentStartDate(),
-                request.recruitmentEndDate()
+                request.recruitmentEndDate(),
+                optional(request.recruitmentUrl())
         );
 
         try {
@@ -244,7 +248,8 @@ public class ClubService {
             throw duplicateClubName(name);
         }
 
-        publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate);
+        publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate,
+                previousRecruitmentUrl);
     }
 
     @Transactional
@@ -260,40 +265,36 @@ public class ClubService {
         String previousRecruitmentContent = club.getRecruitmentContent();
         LocalDate previousStartDate = club.getRecruitmentStartDate();
         LocalDate previousEndDate = club.getRecruitmentEndDate();
+        String previousRecruitmentUrl = club.getRecruitmentUrl();
         String recruitmentContent = content(request.recruitmentContent());
-        validateRecruitmentPeriod(recruitmentContent,
-                request.recruitmentStartDate(), request.recruitmentEndDate());
+        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate());
         club.updateRecruitment(recruitmentContent,
-                request.recruitmentStartDate(), request.recruitmentEndDate());
+                request.recruitmentStartDate(), request.recruitmentEndDate(), optional(request.recruitmentUrl()));
         clubRepository.flush();
-        publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate);
+        publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate,
+                previousRecruitmentUrl);
     }
 
-    private void validateRecruitmentPeriod(String recruitmentContent, LocalDate start, LocalDate end) {
-        if (recruitmentContent == null) {
-            if (start != null || end != null) {
-                throw new BadRequestException("모집공고가 비어 있으면 모집 시작일과 종료일도 비워야 합니다.");
-            }
-            return;
-        }
-        if (start == null || end == null) {
-            throw new BadRequestException("모집공고 작성 시 모집 시작일과 종료일은 필수입니다.");
-        }
-        if (start.isAfter(end)) {
+    private void validateRecruitmentPeriod(LocalDate start, LocalDate end) {
+        if (start != null && end != null && start.isAfter(end)) {
             throw new BadRequestException("모집 종료일은 시작일과 같거나 이후여야 합니다.");
         }
     }
 
     private void publishRecruitmentChange(
             Club club, String previousRecruitmentContent,
-            LocalDate previousStartDate, LocalDate previousEndDate
+            LocalDate previousStartDate, LocalDate previousEndDate, String previousRecruitmentUrl
     ) {
         String recruitmentContent = club.getRecruitmentContent();
-        if (recruitmentContent != null
+        boolean hasRecruitment = recruitmentContent != null || club.getRecruitmentStartDate() != null
+                || club.getRecruitmentEndDate() != null || club.getRecruitmentUrl() != null;
+        if (hasRecruitment
                 && (!Objects.equals(previousRecruitmentContent, recruitmentContent)
                 || !Objects.equals(previousStartDate, club.getRecruitmentStartDate())
-                || !Objects.equals(previousEndDate, club.getRecruitmentEndDate()))) {
-            ChangeType changeType = previousRecruitmentContent == null
+                || !Objects.equals(previousEndDate, club.getRecruitmentEndDate())
+                || !Objects.equals(previousRecruitmentUrl, club.getRecruitmentUrl()))) {
+            ChangeType changeType = previousRecruitmentContent == null && previousStartDate == null
+                    && previousEndDate == null && previousRecruitmentUrl == null
                     ? ChangeType.CREATED
                     : ChangeType.UPDATED;
             eventPublisher.publishEvent(new ClubRecruitmentChangedEvent(

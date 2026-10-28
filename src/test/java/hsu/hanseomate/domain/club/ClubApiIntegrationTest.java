@@ -178,7 +178,7 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(16)))
+                .andExpect(jsonPath("$", aMapWithSize(17)))
                 .andExpect(jsonPath("$.name").value("멋쟁이사자처럼 한서대학교"))
                 .andExpect(jsonPath("$.shortDescription").value((Object) null))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
@@ -191,6 +191,7 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.instagramUrl").value((Object) null))
                 .andExpect(jsonPath("$.kakaoTalkUrl").value((Object) null))
                 .andExpect(jsonPath("$.recruitmentContent").value((Object) null))
+                .andExpect(jsonPath("$.recruitmentUrl").value((Object) null))
                 .andExpect(jsonPath("$.reviewerCount").value(0))
                 .andExpect(jsonPath("$.id").doesNotExist())
                 .andExpect(jsonPath("$.category").doesNotExist());
@@ -398,7 +399,7 @@ class ClubApiIntegrationTest {
 
         MvcResult publicDetailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(16)))
+                .andExpect(jsonPath("$", aMapWithSize(17)))
                 .andExpect(jsonPath("$.name").value("상세 조회 동아리"))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
@@ -708,6 +709,37 @@ class ClubApiIntegrationTest {
                 .andExpect(status().isNoContent());
         assertThat(notificationRepository.count()).isEqualTo(3);
         assertThat(notificationOutboxRepository.count()).isEqualTo(3);
+
+        updatedRequest.put("recruitmentUrl", "https://example.com/apply");
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(updatedRequest)))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(4);
+        assertThat(notificationOutboxRepository.count()).isEqualTo(4);
+
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(updatedRequest)))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(4);
+
+        long editorId = createReviewUser();
+        jdbcTemplate.update("UPDATE user_accounts SET role = 'CLUB_ADMIN' WHERE id = ?", editorId);
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(clubAdminJwt(editorId))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(4);
+
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(clubAdminJwt(editorId)).contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("recruitmentUrl", "https://example.com/only-link"))))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(5);
+        assertThat(jdbcTemplate.queryForObject("SELECT body FROM notifications ORDER BY id DESC LIMIT 1", String.class))
+                .isEqualTo("새로운 모집공고가 등록되었습니다.");
+        assertThat(notificationOutboxRepository.count()).isEqualTo(5);
     }
 
     @Test
@@ -1430,7 +1462,11 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/admin/clubs'].get.responses['403']")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties",
-                        aMapWithSize(2)))
+                        aMapWithSize(6)))
+                .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.recruitmentUrl").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.recruitmentUrl").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubRecruitmentUpdateRequest.properties.recruitmentUrl").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubDetailResponse.properties.recruitmentUrl").exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.name")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.category")
@@ -1454,7 +1490,7 @@ class ClubApiIntegrationTest {
                         "$.paths['/api/admin/clubs/{clubId}'].get.responses['404']"
                 ).exists())
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties",
-                        aMapWithSize(9)))
+                        aMapWithSize(10)))
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.name")
                         .exists())
                 .andExpect(jsonPath(

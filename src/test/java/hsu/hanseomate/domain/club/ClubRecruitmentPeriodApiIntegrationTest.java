@@ -111,12 +111,9 @@ class ClubRecruitmentPeriodApiIntegrationTest {
     void rejectsInvalidPeriodsWithoutChangingExistingNotice() throws Exception {
         saveRecruitment(body("기존 공고", "2026-10-25", "2026-10-31"));
         for (Map<String, Object> invalid : List.of(
-                body("수정", null, null),
-                body("수정", "2026-10-25", null),
-                body("수정", null, "2026-10-31"),
                 body("수정", "2026-11-01", "2026-10-31"),
                 body("수정", "2026-02-30", "2026-10-31"),
-                body("", "2026-10-25", "2026-10-31")
+                body(null, "2026-11-01", "2026-10-31")
         )) {
             mockMvc.perform(put("/api/clubs/{id}/recruitment", clubId)
                             .with(editor()).contentType(MediaType.APPLICATION_JSON)
@@ -139,7 +136,7 @@ class ClubRecruitmentPeriodApiIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNoContent());
         assertStatus("UPCOMING");
-        request.put("recruitmentEndDate", null);
+        request.put("recruitmentEndDate", "2026-10-24");
         request.put("name", "실패하면 반영되지 않을 이름");
         mockMvc.perform(put("/api/admin/clubs/{id}", clubId).with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -207,10 +204,129 @@ class ClubRecruitmentPeriodApiIntegrationTest {
         }
     }
 
+    @Test
+    void adminCanCreateClubsWithEveryCombinationOfNullableRecruitmentFields() throws Exception {
+        at("2026-10-24T15:00:00Z");
+        for (int mask = 0; mask < 16; mask++) {
+            Map<String, Object> request = nullableRecruitment(mask);
+            request.put("name", "선택 입력 동아리 " + mask);
+            request.put("category", "ACADEMIC");
+            String response = mockMvc.perform(post("/api/admin/clubs").with(admin())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            long createdId = objectMapper.readTree(response).get("id").asLong();
+            assertRecruitment(createdId, request);
+        }
+    }
+
+    @Test
+    void bothPutEndpointsAcceptEveryNullableCombinationAndClearAllFields() throws Exception {
+        at("2026-10-24T15:00:00Z");
+        for (String path : List.of("/api/clubs/{id}/recruitment", "/api/admin/clubs/{id}")) {
+            for (int mask = 15; mask >= 0; mask--) {
+                Map<String, Object> request = nullableRecruitment(mask);
+                request.put("name", "모집 기간 동아리");
+                request.put("shortDescription", "소개");
+                mockMvc.perform(put(path, clubId).with(path.startsWith("/api/admin/") ? admin() : editor())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                        .andExpect(status().isNoContent());
+                assertRecruitment(clubId, request);
+                assertStatus((mask & 6) == 6 ? "RECRUITING" : "CLOSED");
+            }
+        }
+    }
+
+    @Test
+    void putReplacesOmittedFieldsAndNormalizesBlankContentAndUrl() throws Exception {
+        Map<String, Object> request = nullableRecruitment(15);
+        request.put("recruitmentUrl", "  https://example.com/apply  ");
+        saveRecruitment(request);
+        assertThat(clubRepository.findById(clubId).orElseThrow().getRecruitmentUrl())
+                .isEqualTo("https://example.com/apply");
+        saveRecruitment(Map.of("recruitmentUrl", "https://example.com/only-link"));
+        Map<String, Object> onlyLink = nullableRecruitment(0);
+        onlyLink.put("recruitmentUrl", "https://example.com/only-link");
+        assertRecruitment(clubId, onlyLink);
+
+        saveRecruitment(Map.of("recruitmentContent", "  ", "recruitmentUrl", "  "));
+        assertRecruitment(clubId, nullableRecruitment(0));
+        saveRecruitment(nullableRecruitment(15));
+        saveRecruitment(Map.of());
+        assertRecruitment(clubId, nullableRecruitment(0));
+    }
+
+    @Test
+    void allWriteEndpointsRejectInvalidUrlsAndDateOrderWithoutPersistingChanges() throws Exception {
+        at("2026-10-24T15:00:00Z");
+        Map<String, Object> existing = nullableRecruitment(15);
+        saveRecruitment(existing);
+        long initialCount = clubRepository.count();
+        for (String invalidUrl : List.of("javascript:alert(1)", "ftp://example.com/apply", "not-a-url",
+                "https://example.com/" + "a".repeat(2030))) {
+            Map<String, Object> request = new LinkedHashMap<>(existing);
+            request.put("recruitmentUrl", invalidUrl);
+            assertRejectedByAllWriteEndpoints(request);
+        }
+        Map<String, Object> reversed = new LinkedHashMap<>(existing);
+        reversed.put("recruitmentStartDate", "2026-11-01");
+        assertRejectedByAllWriteEndpoints(reversed);
+        assertThat(clubRepository.count()).isEqualTo(initialCount);
+        assertRecruitment(clubId, existing);
+        assertThat(clubRepository.findById(clubId).orElseThrow().getName()).isEqualTo("모집 기간 동아리");
+    }
+
+    private void assertRejectedByAllWriteEndpoints(Map<String, Object> request) throws Exception {
+        request.put("name", "실패한 요청의 이름");
+        request.put("category", "ACADEMIC");
+        request.put("shortDescription", "소개");
+        String json = objectMapper.writeValueAsString(request);
+        mockMvc.perform(post("/api/admin/clubs").with(admin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/admin/clubs/{id}", clubId).with(admin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/clubs/{id}/recruitment", clubId).with(editor())
+                        .contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isBadRequest());
+    }
+
+    private Map<String, Object> nullableRecruitment(int mask) {
+        Map<String, Object> request = body((mask & 1) != 0 ? "모집 내용" : null,
+                (mask & 2) != 0 ? "2026-10-25" : null,
+                (mask & 4) != 0 ? "2026-10-31" : null);
+        request.put("recruitmentUrl", (mask & 8) != 0 ? "https://example.com/apply" : null);
+        return request;
+    }
+
+    private void assertRecruitment(long id, Map<String, Object> expected) throws Exception {
+        Club saved = clubRepository.findById(id).orElseThrow();
+        assertThat(saved.getRecruitmentContent()).isEqualTo(expected.get("recruitmentContent"));
+        assertThat(saved.getRecruitmentUrl()).isEqualTo(expected.get("recruitmentUrl"));
+        assertThat(saved.getRecruitmentStartDate()).isEqualTo(expected.get("recruitmentStartDate") == null
+                ? null : LocalDate.parse((String) expected.get("recruitmentStartDate")));
+        assertThat(saved.getRecruitmentEndDate()).isEqualTo(expected.get("recruitmentEndDate") == null
+                ? null : LocalDate.parse((String) expected.get("recruitmentEndDate")));
+        for (String path : List.of("/api/clubs/{id}", "/api/admin/clubs/{id}")) {
+            ResultActions result = mockMvc.perform(get(path, id).with(admin()))
+                    .andExpect(status().isOk());
+            for (String field : List.of("recruitmentContent", "recruitmentStartDate",
+                    "recruitmentEndDate", "recruitmentUrl")) {
+                result.andExpect(jsonPath("$." + field).hasJsonPath())
+                        .andExpect(jsonPath("$." + field).value(expected.get(field)));
+            }
+            result.andExpect(jsonPath("$.recruitmentStatus").value(
+                    expected.get("recruitmentStartDate") != null && expected.get("recruitmentEndDate") != null
+                            ? "RECRUITING" : "CLOSED"));
+        }
+    }
+
     private long createClub(String name, ClubCategory category, int order, String start, String end) {
         Club club = Club.create(name, category);
         club.updateDisplayOrder(order);
-        club.updateRecruitment("모집공고", LocalDate.parse(start), LocalDate.parse(end));
+        club.updateRecruitment("모집공고", LocalDate.parse(start), LocalDate.parse(end), null);
         return clubRepository.saveAndFlush(club).getId();
     }
 
