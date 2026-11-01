@@ -64,6 +64,35 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 상세 응답의 두 날짜를 편집 화면 초기값으로 사용한다. 직접 상태를 지정하는 요청 필드는 없다.
 예제의 상태는 한국 날짜 2026-10-23을 기준으로 한다.
 
+### 기간 조회 시 요일 표시
+
+일반 상세, 마이페이지의 모집공고 관리 상세, 관리자 페이지는 기간을 조회할 때
+날짜와 요일을 함께 표시한다. 작성·수정 입력창에서는 연·월·일만 선택하고,
+요청에는 기존처럼 `YYYY-MM-DD` 또는 `null`을 보낸다.
+
+상세 조회 응답에 다음 두 필드를 추가한다. 기존 날짜 필드의 형식은 바뀌지 않는다.
+
+| 응답 필드 | 타입 | 설명 |
+|---|---|---|
+| `recruitmentStartDayOfWeek` | String 또는 null | 시작일에서 계산한 요일. 시작일이 null이면 null |
+| `recruitmentEndDayOfWeek` | String 또는 null | 종료일에서 계산한 요일. 종료일이 null이면 null |
+
+| API 값 | 화면 표시 |
+|---|---|
+| `MONDAY` | 월요일 |
+| `TUESDAY` | 화요일 |
+| `WEDNESDAY` | 수요일 |
+| `THURSDAY` | 목요일 |
+| `FRIDAY` | 금요일 |
+| `SATURDAY` | 토요일 |
+| `SUNDAY` | 일요일 |
+
+예: 시작일 `2026-10-25` / `SUNDAY`, 종료일 `2026-10-31` / `SATURDAY`이면
+`2026.10.25 (일요일) ~ 2026.10.31 (토요일)`로 표시한다.
+날짜가 없는 쪽은 `시작일 미정` 또는 `종료일 미정`, 둘 다 없으면 `기간 미정`으로 표시한다.
+한쪽 날짜만 있어도 그 날짜의 요일은 반환한다. 두 요일 필드는 조회 전용이며
+저장 요청에는 포함하지 않는다. 요일은 조회 당시의 오늘 날짜가 아닌 저장된 모집 날짜에서 계산한다.
+
 ---
 
 # 사용자 API
@@ -190,7 +219,9 @@ GET /api/clubs/{clubId}
   "reviewerCount": 3,
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
-  "recruitmentStatus": "UPCOMING"
+  "recruitmentStatus": "UPCOMING",
+  "recruitmentStartDayOfWeek": "SUNDAY",
+  "recruitmentEndDayOfWeek": "SATURDAY"
 }
 ```
 
@@ -365,10 +396,56 @@ Content-Type: application/json
 # 동아리관리자 API
 
 `CLUB_ADMIN` 계정으로 로그인하면 로그인 응답과 `GET /api/auth/me`의 `role`이
-`CLUB_ADMIN`이다. 앱은 이 역할일 때 각 동아리 상세의 모집공고에 수정 버튼을 표시한다.
-공개 상세 조회 `GET /api/clubs/{clubId}`의 `recruitmentContent`,
-`recruitmentStartDate`, `recruitmentEndDate`, `recruitmentUrl`을 편집 화면의 초기값으로 사용한다.
-하나의 `PUT` API로 공고를 작성·수정·삭제한다.
+`CLUB_ADMIN`이다. 이 역할일 때 마이페이지에 **동아리 모집 공고 관리** 메뉴를 표시한다.
+일반 동아리 상세 화면은 이 역할로 로그인해도 조회용으로 사용하며,
+모집공고 수정 버튼이나 편집 화면으로 이동하는 동작을 제공하지 않는다.
+
+| 역할 | 마이페이지 관리 메뉴 | 모집공고 PUT | `/api/admin/**` |
+|---|---|---|---|
+| `USER` | 표시하지 않음 | 접근 불가 | 접근 불가 |
+| `CLUB_ADMIN` | 표시 | 모든 동아리 관리 가능 | 접근 불가 |
+| `ADMIN` | 표시하지 않음 | 접근 불가 | 기존 관리자 API 사용 |
+
+### 화면별 연결 순서
+
+1. 마이페이지에서 `GET /api/auth/me`를 호출하고 `role === "CLUB_ADMIN"`이면 관리 메뉴를 표시한다.
+2. 메뉴를 누르면 `GET /api/clubs`로 **전체 동아리 목록**을 조회한다. `category`는 생략하고
+   `recruitingOnly`는 생략하거나 `false`를 보낸다. `clubs`로 목록을, `totalCount`로 개수를 표시한다.
+   마이페이지의 `likedClubs`는 찜 목록이므로 관리할 동아리 목록으로 사용하지 않는다.
+3. 목록의 `id`를 선택하면 `GET /api/clubs/{clubId}`를 호출하여 별도의 **모집공고 관리 상세 화면**을 연다.
+4. 관리 상세의 **수정하기**를 누르면 시작일·종료일·내용·신청 링크를 편집한다.
+5. 아래 PUT API로 저장하고 `204`를 받으면 상세를 다시 조회한다. 목록으로 돌아갈 때도 목록을
+   다시 조회하거나 캐시를 갱신하여 바뀐 모집 상태를 표시한다.
+
+목록과 상세는 기존 공개 조회 API를 재사용한다. 화면 접근과 메뉴 노출은 프론트에서
+`CLUB_ADMIN`으로 제한하고, PUT 저장 권한은 서버에서도 검사한다. 관리 목록에 표시할
+동아리가 없으면 `totalCount: 0`, `clubs: []`를 반환한다.
+
+### 모집공고 관리 상세 화면
+
+| 화면 항목 | 상세 응답 필드 | 편집 가능 여부 |
+|---|---|---|
+| 동아리 사진 | `profileImageUrl` (배경이 필요하면 `backgroundImageUrl`) | 조회만 가능 |
+| 동아리 이름 | `name` | 조회만 가능 |
+| 한 줄 소개 | `shortDescription` | 조회만 가능 |
+| 모집 상태 | `recruitmentStatus` | 날짜에 따라 자동 결정 |
+| 시작일 | `recruitmentStartDate`, `recruitmentStartDayOfWeek` | 날짜만 수정 가능 |
+| 종료일 | `recruitmentEndDate`, `recruitmentEndDayOfWeek` | 날짜만 수정 가능 |
+| 모집 내용 | `recruitmentContent` | 수정 가능 |
+| 신청 링크 | `recruitmentUrl` | 수정 가능 |
+
+기간 표시에는 위의 요일 매핑을 사용한다. 이미지·한 줄 소개·모집 내용·링크가 `null`이면
+각 항목의 빈 상태를 표시하며, 링크가 없으면 신청 링크 버튼을 표시하지 않는다.
+
+관리 화면에서 편집할 동아리를 선택하면 `GET /api/clubs/{clubId}`로 기존 값을 조회하고,
+`recruitmentContent`, `recruitmentStartDate`, `recruitmentEndDate`, `recruitmentUrl`을
+입력 필드의 초기값으로 사용한다. 이 조회 API 호출을 위해 일반 상세 화면으로 이동할 필요는 없다.
+입력창에서 지운 값은 각각 `null`로 보낸다. 날짜를 비웠을 때는 빈 문자열 대신 `null`을 보낸다.
+
+### 모집공고 작성·수정·삭제
+
+관리 화면은 아래 하나의 `PUT` API로 공고를 작성·수정·삭제한다. 사진·이름·한 줄 소개·모집 상태·요일은
+저장 요청에 포함하지 않는다. 최초 동아리 등록은 기존 `ADMIN`의 `POST /api/admin/clubs`를 사용한다.
 
 ```http
 PUT /api/clubs/{clubId}/recruitment
@@ -389,6 +466,17 @@ Content-Type: application/json
 
 이 API는 네 필드를 모두 대체한다. **생략한 필드도 `null`로 저장하므로 유지할 값은 함께 보내야 한다.**
 공고를 삭제하려면 네 필드를 모두 `null`로 보내거나 빈 객체 `{}`를 보낸다.
+요청 본문 자체는 필요하며, 모두 비우는 요청은 다음과 같다.
+
+```json
+{
+  "recruitmentContent": null,
+  "recruitmentStartDate": null,
+  "recruitmentEndDate": null,
+  "recruitmentUrl": null
+}
+```
+
 전체 삭제 후 상태는 `CLOSED`다. 두 날짜가 있을 때 날짜 순서가 거꾸로이거나 날짜 형식·링크가
 잘못되면 `400 Bad Request`다.
 
@@ -501,7 +589,9 @@ Authorization: Bearer {accessToken}
   "reviewerCount": 3,
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
-  "recruitmentStatus": "UPCOMING"
+  "recruitmentStatus": "UPCOMING",
+  "recruitmentStartDayOfWeek": "SUNDAY",
+  "recruitmentEndDayOfWeek": "SATURDAY"
 }
 ```
 

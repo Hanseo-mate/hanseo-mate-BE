@@ -68,6 +68,55 @@ class ClubRecruitmentPeriodApiIntegrationTest {
     }
 
     @Test
+    void clubAdminCanSelectAnyClubFromMyPageAndManageItsRecruitment() throws Exception {
+        long sportsClubId = clubRepository.saveAndFlush(Club.create("운동 동아리", ClubCategory.SPORTS)).getId();
+        jdbcTemplate.update("UPDATE clubs SET profile_image_url = ?, short_description = ? WHERE id = ?",
+                "https://example.com/sports.png", "함께 운동하는 동아리", sportsClubId);
+
+        mockMvc.perform(get("/api/auth/me").with(editor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("CLUB_ADMIN"))
+                .andExpect(jsonPath("$.likedClubs").isEmpty());
+        mockMvc.perform(get("/api/clubs").with(editor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount").value(2))
+                .andExpect(jsonPath("$.clubs[0].id").value(clubId))
+                .andExpect(jsonPath("$.clubs[1].id").value(sportsClubId))
+                .andExpect(jsonPath("$.clubs[1].profileImageUrl").value("https://example.com/sports.png"))
+                .andExpect(jsonPath("$.clubs[1].shortDescription").value("함께 운동하는 동아리"));
+
+        Map<String, Object> request = body("운동할 부원을 모집합니다", "2026-10-26", "2026-11-01");
+        request.put("recruitmentUrl", "https://example.com/apply");
+        mockMvc.perform(put("/api/clubs/{id}/recruitment", sportsClubId).with(editor())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNoContent());
+
+        // The same saved calendar dates and weekdays are returned to every viewing screen.
+        for (String path : List.of("/api/clubs/{id}", "/api/admin/clubs/{id}")) {
+            mockMvc.perform(get(path, sportsClubId).with(path.startsWith("/api/admin/") ? admin() : editor()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.profileImageUrl").value("https://example.com/sports.png"))
+                    .andExpect(jsonPath("$.name").value("운동 동아리"))
+                    .andExpect(jsonPath("$.shortDescription").value("함께 운동하는 동아리"))
+                    .andExpect(jsonPath("$.recruitmentStatus").value("UPCOMING"))
+                    .andExpect(jsonPath("$.recruitmentContent").value("운동할 부원을 모집합니다"))
+                    .andExpect(jsonPath("$.recruitmentUrl").value("https://example.com/apply"))
+                    .andExpect(jsonPath("$.recruitmentStartDate").value("2026-10-26"))
+                    .andExpect(jsonPath("$.recruitmentStartDayOfWeek").value("MONDAY"))
+                    .andExpect(jsonPath("$.recruitmentEndDate").value("2026-11-01"))
+                    .andExpect(jsonPath("$.recruitmentEndDayOfWeek").value("SUNDAY"));
+        }
+        assertRecruitment(clubId, nullableRecruitment(0));
+
+        mockMvc.perform(put("/api/clubs/{id}/recruitment", sportsClubId).with(editor())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(nullableRecruitment(0))))
+                .andExpect(status().isNoContent());
+        assertRecruitment(sportsClubId, nullableRecruitment(0));
+    }
+
+    @Test
     void savedPeriodChangesStatusAtSeoulMidnightWithoutAnotherWrite() throws Exception {
         saveRecruitment(body("모집합니다", "2026-10-25", "2026-10-31"));
         assertStatus("UPCOMING");
@@ -319,7 +368,13 @@ class ClubRecruitmentPeriodApiIntegrationTest {
             }
             result.andExpect(jsonPath("$.recruitmentStatus").value(
                     expected.get("recruitmentStartDate") != null && expected.get("recruitmentEndDate") != null
-                            ? "RECRUITING" : "CLOSED"));
+                            ? "RECRUITING" : "CLOSED"))
+                    .andExpect(jsonPath("$.recruitmentStartDayOfWeek").hasJsonPath())
+                    .andExpect(jsonPath("$.recruitmentStartDayOfWeek").value(
+                            expected.get("recruitmentStartDate") == null ? null : "SUNDAY"))
+                    .andExpect(jsonPath("$.recruitmentEndDayOfWeek").hasJsonPath())
+                    .andExpect(jsonPath("$.recruitmentEndDayOfWeek").value(
+                            expected.get("recruitmentEndDate") == null ? null : "SATURDAY"));
         }
     }
 

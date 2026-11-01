@@ -178,7 +178,7 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(17)))
+                .andExpect(jsonPath("$", aMapWithSize(19)))
                 .andExpect(jsonPath("$.name").value("멋쟁이사자처럼 한서대학교"))
                 .andExpect(jsonPath("$.shortDescription").value((Object) null))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
@@ -399,7 +399,7 @@ class ClubApiIntegrationTest {
 
         MvcResult publicDetailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(17)))
+                .andExpect(jsonPath("$", aMapWithSize(19)))
                 .andExpect(jsonPath("$.name").value("상세 조회 동아리"))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
