@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 
 set -euo pipefail
@@ -52,7 +53,7 @@ if [ ! -s "$APP" ]; then
     exit 1
 fi
 
-for program in mysql mysqldump curl; do
+for program in mysql mysqldump curl sha256sum; do
     command -v "$program" >/dev/null || {
         echo "Required command is missing: $program" >&2
         exit 1
@@ -63,7 +64,7 @@ java "$REPO/scripts/write-mysql-client-config.java" "$CONFIG" "$MYSQL_CREDENTIAL
 
 cd "$REPO"
 
-for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql docs/club-display-order-migration-mysql.sql docs/club-recruitment-period-migration-mysql.sql docs/club-recruitment-url-migration-mysql.sql; do
+for sql_file in docs/home-message-migration-mysql.sql docs/club-review-strong-seniority-removal-mysql.sql docs/essential-link-category-removal-mysql.sql docs/club-display-order-migration-mysql.sql; do
     if [ ! -f "$sql_file" ]; then
         echo "Required SQL file is missing: $sql_file" >&2
         exit 1
@@ -120,14 +121,7 @@ echo "7. Remove essential link category"
 echo "8. Add club display order"
 "${mysql_client[@]}" < docs/club-display-order-migration-mysql.sql
 
-echo "9. Add club recruitment period"
-"${mysql_client[@]}" < docs/club-recruitment-period-migration-mysql.sql
-
-echo "10. Add club recruitment URL"
-"${mysql_client[@]}" < docs/club-recruitment-url-migration-mysql.sql
-
-echo "11. Verify database migration"
-"${mysql_client[@]}" --execute='SELECT recruitment_start_date, recruitment_end_date, recruitment_url FROM clubs LIMIT 1' >/dev/null
+echo "9. Verify database migration"
 "${mysql_client[@]}" --execute='SELECT id, display_order FROM clubs ORDER BY display_order, id LIMIT 1' >/dev/null
 "${mysql_client[@]}" --execute='SELECT id, name, url, created_at, updated_at FROM essential_links LIMIT 1' >/dev/null
 category_columns="$("${mysql_client[@]}" --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'essential_links' AND column_name = 'category'")"
@@ -142,12 +136,78 @@ if [ "$remaining" != "0" ]; then
     recover 1
 fi
 
-echo "12. Install new JAR and start service"
+echo "9a. Prepare new SQL migrations"
+
+"${mysql_client[@]}" --execute="
+CREATE TABLE IF NOT EXISTS deploy_schema_migrations (
+    script_name VARCHAR(255) NOT NULL PRIMARY KEY,
+    checksum CHAR(64) NOT NULL,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);"
+
+shopt -s nullglob
+pending_migrations=()
+
+for sql_file in docs/[0-9][0-9][0-9][0-9]_*.sql; do
+    name="${sql_file##*/}"
+
+    if [[ ! "$name" =~ ^[0-9]{4}_[A-Za-z0-9_-]+\.sql$ ]]; then
+        echo "Invalid SQL filename: $name" >&2
+        exit 1
+    fi
+
+    if [ ! -f "$sql_file" ] || [ -L "$sql_file" ]; then
+        echo "Invalid SQL file: $sql_file" >&2
+        exit 1
+    fi
+
+    checksum="$(sha256sum "$sql_file" | cut -d ' ' -f1)"
+
+    old="$("${mysql_client[@]}" --execute="
+        SELECT checksum
+        FROM deploy_schema_migrations
+        WHERE script_name='$name'
+    ")"
+
+    if [ -n "$old" ]; then
+        if [ "$old" != "$checksum" ]; then
+            echo "Previously applied SQL was modified: $name" >&2
+            exit 1
+        fi
+
+        echo "SKIP: $name"
+    else
+        pending_migrations+=("$sql_file")
+    fi
+done
+
+echo "9b. Apply new SQL migrations"
+
+if [ "${#pending_migrations[@]}" -eq 0 ]; then
+    echo "No new SQL migrations"
+else
+    for sql_file in "${pending_migrations[@]}"; do
+        name="${sql_file##*/}"
+        checksum="$(sha256sum "$sql_file" | cut -d ' ' -f1)"
+
+        echo "APPLY: $name"
+        "${mysql_client[@]}" < "$sql_file"
+
+        "${mysql_client[@]}" --execute="
+            INSERT INTO deploy_schema_migrations (script_name, checksum)
+            VALUES ('$name', '$checksum')
+        "
+    done
+
+    echo "SQL migrations completed"
+fi
+
+echo "10. Install new JAR and start service"
 jar_replaced=1
 cp "$JAR" "$APP"
 sudo systemctl start "$SERVICE"
 
-echo "13. Check health"
+echo "11. Check health"
 for i in $(seq 1 30); do
     if curl -fsS "$HEALTH" >/dev/null 2>&1; then
         trap - ERR INT TERM
