@@ -1,3 +1,6 @@
 # SQL migrations to apply during deployment
 # Add new docs/*.sql filenames below, one per line.
 # Do not add previously applied migrations.
+
+0001_club_recruitment_period.sql
+0002_club_recruitment_url.sql
