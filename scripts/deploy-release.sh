@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 
 set -euo pipefail
@@ -52,7 +53,7 @@ if [ ! -s "$APP" ]; then
     exit 1
 fi
 
-for program in mysql mysqldump curl; do
+for program in mysql mysqldump curl sha256sum; do
     command -v "$program" >/dev/null || {
         echo "Required command is missing: $program" >&2
         exit 1
@@ -133,6 +134,72 @@ remaining="$("${mysql_client[@]}" --execute="SELECT COUNT(*) FROM club_review_se
 if [ "$remaining" != "0" ]; then
     echo "STRONG_SENIORITY selections remain: $remaining" >&2
     recover 1
+fi
+
+echo "9a. Prepare new SQL migrations"
+
+"${mysql_client[@]}" --execute="
+CREATE TABLE IF NOT EXISTS deploy_schema_migrations (
+    script_name VARCHAR(255) NOT NULL PRIMARY KEY,
+    checksum CHAR(64) NOT NULL,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);"
+
+shopt -s nullglob
+pending_migrations=()
+
+for sql_file in docs/[0-9][0-9][0-9][0-9]_*.sql; do
+    name="${sql_file##*/}"
+
+    if [[ ! "$name" =~ ^[0-9]{4}_[A-Za-z0-9_-]+\.sql$ ]]; then
+        echo "Invalid SQL filename: $name" >&2
+        exit 1
+    fi
+
+    if [ ! -f "$sql_file" ] || [ -L "$sql_file" ]; then
+        echo "Invalid SQL file: $sql_file" >&2
+        exit 1
+    fi
+
+    checksum="$(sha256sum "$sql_file" | cut -d ' ' -f1)"
+
+    old="$("${mysql_client[@]}" --execute="
+        SELECT checksum
+        FROM deploy_schema_migrations
+        WHERE script_name='$name'
+    ")"
+
+    if [ -n "$old" ]; then
+        if [ "$old" != "$checksum" ]; then
+            echo "Previously applied SQL was modified: $name" >&2
+            exit 1
+        fi
+
+        echo "SKIP: $name"
+    else
+        pending_migrations+=("$sql_file")
+    fi
+done
+
+echo "9b. Apply new SQL migrations"
+
+if [ "${#pending_migrations[@]}" -eq 0 ]; then
+    echo "No new SQL migrations"
+else
+    for sql_file in "${pending_migrations[@]}"; do
+        name="${sql_file##*/}"
+        checksum="$(sha256sum "$sql_file" | cut -d ' ' -f1)"
+
+        echo "APPLY: $name"
+        "${mysql_client[@]}" < "$sql_file"
+
+        "${mysql_client[@]}" --execute="
+            INSERT INTO deploy_schema_migrations (script_name, checksum)
+            VALUES ('$name', '$checksum')
+        "
+    done
+
+    echo "SQL migrations completed"
 fi
 
 echo "10. Install new JAR and start service"
