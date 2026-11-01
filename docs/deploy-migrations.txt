@@ -4,3 +4,4 @@
 
 0001_club_recruitment_period.sql
 0002_club_recruitment_url.sql
+0003_notification_preferences.sql

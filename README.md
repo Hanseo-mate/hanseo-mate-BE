@@ -407,7 +407,7 @@ $appArgs = @(
 | 캠퍼스 | [장소·수업 위치](docs/campus-map-api.md) · [학식](docs/cafeteria-api.md) · [버스](docs/bus-schedule-api.md) |
 | 홈·콘텐츠 | [홈](docs/home-api.md) · [포스터](docs/home-poster-api.md) · [팝업](docs/app-popup-api.md) · [필수 링크](docs/essential-link-api.md) |
 | 앱 정책 | [축제 버튼](docs/festival-floating-button-api.md) · [앱 업데이트 정책](docs/app-update-policy-api.md) |
-| 알림 | [알림함](docs/notification-api-spec.md) · [학식 알림](docs/cafeteria-push-notification-spec.md) |
+| 알림 | [알림함](docs/notification-api-spec.md) · [푸시 ON/OFF](docs/notification-preferences-api.md) · [학식 알림](docs/cafeteria-push-notification-spec.md) |
 
 ### 관리자 일정 조회의 구분
 

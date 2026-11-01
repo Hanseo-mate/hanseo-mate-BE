@@ -3,10 +3,11 @@ package hsu.hanseomate.domain.push.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.Map;
 
 /**
  * PUT /api/v1/push-tokens 요청 DTO.
- * 가이드 3번 항목의 JSON 필드명과 100% 일치.
+ * 최초 등록 시 로컬 알림 설정을 함께 저장할 수 있습니다.
  */
 public record RegisterPushTokenRequest(
 
@@ -28,5 +29,13 @@ public record RegisterPushTokenRequest(
 
         @NotBlank(message = "appVersion은 필수입니다.")
         @Size(max = 20, message = "appVersion은 20자를 초과할 수 없습니다.")
-        String appVersion
-) {}
+        String appVersion,
+
+        /** 생략하면 저장된 설정을 유지합니다. 새 설치에 저장된 설정이 없으면 전체 ON입니다. */
+        Map<String, Object> notificationPreferences
+) {
+    public RegisterPushTokenRequest(String expoPushToken, String projectId, String platform,
+                                    String installationId, String appVersion) {
+        this(expoPushToken, projectId, platform, installationId, appVersion, null);
+    }
+}

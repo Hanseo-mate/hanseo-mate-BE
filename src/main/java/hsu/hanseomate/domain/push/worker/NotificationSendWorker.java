@@ -10,6 +10,7 @@ import hsu.hanseomate.domain.push.entity.NotificationOutbox;
 import hsu.hanseomate.domain.push.entity.PushDevice;
 import hsu.hanseomate.domain.push.entity.PushTicket;
 import hsu.hanseomate.domain.push.service.NotificationDispatchService;
+import hsu.hanseomate.domain.push.type.NotificationCategory;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.Clock;
@@ -81,9 +82,9 @@ public class NotificationSendWorker {
     private void processOutbox(NotificationOutbox outbox, List<PushDevice> activeDevices) {
         try {
             NotificationPayload payload = objectMapper.readValue(outbox.getPayload(), NotificationPayload.class);
-            dispatchToDevices(outbox.getId(), payload, activeDevices);
+            int sentCount = dispatchToDevices(outbox.getId(), payload, activeDevices);
             dispatchService.markOutboxSent(outbox.getId());
-            log.info("Outbox id={} sent to {} device(s)", outbox.getId(), activeDevices.size());
+            log.info("Outbox id={} sent to {} device(s)", outbox.getId(), sentCount);
         } catch (JsonProcessingException e) {
             String msg = "Failed to parse outbox payload: " + e.getMessage();
             log.error("Outbox id={} parse error: {}", outbox.getId(), e.getMessage());
@@ -95,31 +96,33 @@ public class NotificationSendWorker {
         }
     }
 
-    private void dispatchToDevices(
+    private int dispatchToDevices(
             Long outboxId,
             NotificationPayload payload,
             List<PushDevice> devices
     ) {
         // 디바이스 순서를 보존하여 Ticket 매핑에 활용
         List<PushDevice> orderedDevices = new ArrayList<>(devices);
-        List<ExpoPushMessage> messages = new ArrayList<>(devices.size());
-
-        for (PushDevice device : orderedDevices) {
-            messages.add(buildMessage(device, payload));
-        }
+        NotificationCategory category = NotificationCategory.resolve(payload.getData(), payload.getTitle());
+        int sentCount = 0;
 
         // 100개 단위로 청크 분할 후 발송 (ExpoPushClient도 내부에서 분할하지만,
         // 여기서 직접 분할하여 Device-Ticket 1:1 매핑을 유지합니다)
-        int total = messages.size();
+        int total = orderedDevices.size();
         for (int i = 0; i < total; i += CHUNK_SIZE) {
             int end = Math.min(i + CHUNK_SIZE, total);
-            List<ExpoPushMessage> chunk = messages.subList(i, end);
-            List<PushDevice> chunkDevices = orderedDevices.subList(i, end);
+            List<PushDevice> chunkDevices = dispatchService.filterEnabledDevices(
+                    orderedDevices.subList(i, end), category);
+            if (chunkDevices.isEmpty()) continue;
+            List<ExpoPushMessage> chunk = chunkDevices.stream()
+                    .map(device -> buildMessage(device, payload)).toList();
 
             List<ExpoTicketData> ticketDataList = expoPushClient.sendMessages(chunk);
             List<PushTicket> tickets = buildTickets(outboxId, chunkDevices, ticketDataList);
             dispatchService.saveTickets(tickets);
+            sentCount += chunkDevices.size();
         }
+        return sentCount;
     }
 
     private ExpoPushMessage buildMessage(PushDevice device, NotificationPayload payload) {
