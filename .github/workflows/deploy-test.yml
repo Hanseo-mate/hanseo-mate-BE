@@ -3,8 +3,7 @@ name: Deploy Test Server
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,12 +15,13 @@ concurrency:
 jobs:
   deploy:
     runs-on: [self-hosted, Linux, X64, hanseo-test]
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v4
 
-      - name: Disable cafeteria scheduler in test
+      - name: Apply test-only scheduler setting
         run: |
           FILE=src/main/java/hsu/hanseomate/domain/cafeteria/service/CafeteriaScheduler.java
           test -f "$FILE"
@@ -31,13 +31,26 @@ jobs:
           grep -Fq 'Profile("!test")' "$FILE"
 
       - name: Build Spring Boot
-        run: bash ./gradlew bootJar -x test --no-daemon
+        run: bash ./gradlew clean bootJar -x test --no-daemon
 
-      - name: Prepare JAR
+      - name: Prepare deployment JAR
         run: |
-          install -m 600 \
-            build/libs/hanseomate-0.0.1-SNAPSHOT.jar \
-            /var/lib/hanseo-test-deploy/app-test.jar
+          JAR=$(find build/libs -maxdepth 1 -type f \
+            -name '*.jar' ! -name '*plain.jar' -print -quit)
+          test -n "$JAR"
+          install -m 600 "$JAR" /var/lib/hanseo-test-deploy/app-test.jar
 
-      - name: Deploy Test Server
+      - name: Prepare SQL migrations
+        run: |
+          DIR=/var/lib/hanseo-test-deploy/migrations
+          find "$DIR" -maxdepth 1 -type f -name '*.sql' -delete
+          if [ -d db/migrations ]; then
+            find db/migrations -maxdepth 1 -type f \
+              -name '*.sql' -exec cp -t "$DIR" {} +
+          fi
+
+      - name: Migrate test database
+        run: sudo -n /usr/local/sbin/migrate-hanseo-test
+
+      - name: Deploy test application
         run: sudo -n /usr/local/sbin/deploy-hanseo-test
