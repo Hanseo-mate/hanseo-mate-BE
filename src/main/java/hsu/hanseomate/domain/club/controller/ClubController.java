@@ -6,7 +6,8 @@ import hsu.hanseomate.domain.club.dto.ClubReviewMeResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveRequest;
 import hsu.hanseomate.domain.club.dto.ClubReviewSaveResponse;
 import hsu.hanseomate.domain.club.dto.ClubReviewStatisticsResponse;
-import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
+import hsu.hanseomate.domain.club.dto.ClubRecruitmentUpdateRequest;
+import hsu.hanseomate.domain.club.dto.ClubListResponse;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,9 +19,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
@@ -44,14 +45,16 @@ public class ClubController {
     private final ClubService clubService;
 
     @Operation(
-            summary = "분과별 동아리 목록 조회",
-            description = "분과 필터는 선택입니다. 유효한 JWT를 보내면 각 동아리의 본인 좋아요 여부를 함께 반환합니다."
+            summary = "동아리 목록 및 검색결과 개수 조회",
+            description = "분과와 모집중만 보기 필터는 선택이며 함께 지정하면 두 조건을 모두 적용합니다. "
+                    + "조건에 맞는 검색결과 개수(totalCount)와 목록(clubs)을 반환합니다. "
+                    + "유효한 JWT를 보내면 각 동아리의 본인 좋아요 여부를 함께 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "지원하지 않는 분과",
+                    description = "지원하지 않는 분과 또는 잘못된 recruitingOnly 값",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -61,18 +64,22 @@ public class ClubController {
             )
     })
     @GetMapping
-    public List<ClubSummaryResponse> getClubs(
+    public ClubListResponse getClubs(
             @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
             @RequestParam(required = false) String category,
+            @Parameter(description = "모집중만 보기 토글. true면 모집중만, false 또는 생략하면 모든 모집 상태 조회")
+            @RequestParam(defaultValue = "false") boolean recruitingOnly,
             Authentication authentication
     ) {
-        return clubService.getClubs(category, optionalCurrentUserId(authentication));
+        return clubService.getClubs(category, recruitingOnly, optionalCurrentUserId(authentication));
     }
 
     @Operation(
             summary = "동아리 상세 조회",
             description = "이미지, 이름, 한 줄 소개, 좋아요, 상위 활동 후기 3개, "
                     + "동아리 소개, 활동 내용, 문의 링크, 모집공고와 후기 작성 수를 조회합니다. "
+                    + "모집 시작일·종료일과 각각의 요일, 신청 링크, 한국 날짜 기준 모집 상태를 반환합니다. "
+                    + "마이페이지의 동아리 모집공고 관리 상세에서도 이 API를 사용합니다. "
                     + "유효한 JWT를 보내면 본인 좋아요 여부도 함께 반환합니다."
     )
     @ApiResponses({
@@ -99,6 +106,30 @@ public class ClubController {
             Authentication authentication
     ) {
         return clubService.getClub(clubId, optionalCurrentUserId(authentication));
+    }
+
+    @Operation(
+            summary = "모집공고 작성·수정·삭제",
+            description = "CLUB_ADMIN 권한으로 모든 동아리의 모집공고 내용·기간·링크를 PUT으로 저장합니다. "
+                    + "마이페이지의 동아리 모집공고 관리 화면에서 사용하며 날짜는 YYYY-MM-DD만 입력합니다. "
+                    + "네 필드는 각각 null 또는 생략 가능하며, 생략한 값도 null로 저장합니다. "
+                    + "모두 null이면 모집공고 삭제입니다. 두 날짜가 모두 있으면 종료일은 시작일 이후 또는 같은 날이어야 합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 동아리 ID 또는 요청값"),
+            @ApiResponse(responseCode = "401", description = "로그인 필요"),
+            @ApiResponse(responseCode = "403", description = "동아리관리자 권한 필요"),
+            @ApiResponse(responseCode = "404", description = "동아리 없음")
+    })
+    @PutMapping("/{clubId}/recruitment")
+    public ResponseEntity<Void> updateRecruitment(
+            @Positive(message = "동아리 ID는 1 이상이어야 합니다.") @PathVariable Long clubId,
+            @Valid @RequestBody ClubRecruitmentUpdateRequest request,
+            Authentication authentication
+    ) {
+        clubService.updateRecruitment(clubId, currentUserId(authentication), request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

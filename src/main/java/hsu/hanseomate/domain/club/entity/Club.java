@@ -1,6 +1,8 @@
 package hsu.hanseomate.domain.club.entity;
 
 import hsu.hanseomate.domain.club.type.ClubCategory;
+import hsu.hanseomate.domain.club.type.ClubRecruitmentStatus;
+import java.time.LocalDate;
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,7 +25,10 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(
         name = "clubs",
-        indexes = @Index(name = "idx_clubs_category", columnList = "category"),
+        indexes = {
+                @Index(name = "idx_clubs_category", columnList = "category"),
+                @Index(name = "idx_clubs_display_order", columnList = "display_order,id")
+        },
         uniqueConstraints = @UniqueConstraint(name = "uk_clubs_name", columnNames = "name")
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -40,6 +45,9 @@ public class Club extends BaseTimeEntity {
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private ClubCategory category;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
 
     @Column(name = "profile_image_url", length = 2048)
     private String profileImageUrl;
@@ -61,6 +69,15 @@ public class Club extends BaseTimeEntity {
     @Lob
     @Column(name = "recruitment_content", columnDefinition = "LONGTEXT")
     private String recruitmentContent;
+
+    @Column(name = "recruitment_start_date")
+    private LocalDate recruitmentStartDate;
+
+    @Column(name = "recruitment_end_date")
+    private LocalDate recruitmentEndDate;
+
+    @Column(name = "recruitment_url", length = 2048)
+    private String recruitmentUrl;
 
     @Column(name = "instagram_url", length = 2048)
     private String instagramUrl;
@@ -90,7 +107,10 @@ public class Club extends BaseTimeEntity {
             String activityContent,
             String instagramUrl,
             String kakaoTalkUrl,
-            String recruitmentContent
+            String recruitmentContent,
+            LocalDate recruitmentStartDate,
+            LocalDate recruitmentEndDate,
+            String recruitmentUrl
     ) {
         this.name = name;
         this.shortDescription = shortDescription;
@@ -98,7 +118,11 @@ public class Club extends BaseTimeEntity {
         this.activityContent = activityContent;
         this.instagramUrl = instagramUrl;
         this.kakaoTalkUrl = kakaoTalkUrl;
-        this.recruitmentContent = recruitmentContent;
+        updateRecruitment(recruitmentContent, recruitmentStartDate, recruitmentEndDate, recruitmentUrl);
+    }
+
+    public void updateDisplayOrder(int displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     public void updateProfileImage(String profileImageUrl) {
@@ -107,6 +131,20 @@ public class Club extends BaseTimeEntity {
 
     public void updateBackgroundImage(String backgroundImageUrl) {
         this.backgroundImageUrl = backgroundImageUrl;
+    }
+
+    public void updateRecruitment(
+            String recruitmentContent, LocalDate recruitmentStartDate, LocalDate recruitmentEndDate,
+            String recruitmentUrl
+    ) {
+        this.recruitmentContent = recruitmentContent;
+        this.recruitmentStartDate = recruitmentStartDate;
+        this.recruitmentEndDate = recruitmentEndDate;
+        this.recruitmentUrl = recruitmentUrl;
+    }
+
+    public ClubRecruitmentStatus recruitmentStatus(LocalDate today) {
+        return ClubRecruitmentStatus.from(recruitmentStartDate, recruitmentEndDate, today);
     }
 
 }

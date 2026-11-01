@@ -4,7 +4,8 @@ import hsu.hanseomate.domain.club.dto.ClubCreateRequest;
 import hsu.hanseomate.domain.club.dto.ClubCreateResponse;
 import hsu.hanseomate.domain.club.dto.ClubDetailResponse;
 import hsu.hanseomate.domain.club.dto.ClubImageUploadResponse;
-import hsu.hanseomate.domain.club.dto.ClubSummaryResponse;
+import hsu.hanseomate.domain.club.dto.ClubOrderUpdateRequest;
+import hsu.hanseomate.domain.club.dto.ClubListResponse;
 import hsu.hanseomate.domain.club.dto.ClubUpdateRequest;
 import hsu.hanseomate.domain.club.service.ClubService;
 import hsu.hanseomate.global.exception.ApiErrorResponse;
@@ -18,7 +19,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.net.URI;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -49,13 +49,14 @@ public class AdminClubController {
 
     @Operation(
             summary = "관리자용 동아리 목록 조회",
-            description = "일반 사용자용 동아리 목록 조회와 동일한 결과를 반환하며 ADMIN 권한이 필요합니다."
+            description = "분과와 모집중만 보기 조건에 맞는 검색결과 개수(totalCount)와 목록(clubs)을 반환합니다. "
+                    + "일반 사용자용 목록 조회와 동일한 필터를 적용하며 ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(
                     responseCode = "400",
-                    description = "지원하지 않는 분과",
+                    description = "지원하지 않는 분과 또는 잘못된 recruitingOnly 값",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             ),
             @ApiResponse(
@@ -70,11 +71,31 @@ public class AdminClubController {
             )
     })
     @GetMapping
-    public List<ClubSummaryResponse> getClubs(
+    public ClubListResponse getClubs(
             @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
-            @RequestParam(required = false) String category
+            @RequestParam(required = false) String category,
+            @Parameter(description = "모집중만 보기 토글. true면 모집중만, false 또는 생략하면 모든 모집 상태 조회")
+            @RequestParam(defaultValue = "false") boolean recruitingOnly
     ) {
-        return clubService.getClubs(category);
+        return clubService.getClubs(category, recruitingOnly);
+    }
+
+    @Operation(
+            summary = "동아리 표시 순서 변경",
+            description = "전체 동아리 ID를 원하는 표시 순서대로 전달합니다. ADMIN 권한이 필요하며 "
+                    + "사용자·관리자 목록과 분과별 목록에 동일한 순서가 적용됩니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "순서 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID, 중복, 누락 또는 존재하지 않는 동아리",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 필요"),
+            @ApiResponse(responseCode = "403", description = "관리자 권한 필요")
+    })
+    @PutMapping("/order")
+    public ResponseEntity<Void> updateClubOrder(@Valid @RequestBody ClubOrderUpdateRequest request) {
+        clubService.updateClubOrder(request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -113,7 +134,8 @@ public class AdminClubController {
 
     @Operation(
             summary = "동아리 등록",
-            description = "동아리 이름과 분과만 먼저 등록합니다. 나머지 텍스트 정보는 통합 수정 API로, "
+            description = "동아리 이름과 분과를 등록하고 모집공고 내용·시작일·종료일·링크를 선택 입력합니다. "
+                    + "모집공고 필드는 각각 null 또는 생략 가능합니다. 나머지 정보는 통합 수정 API로, "
                     + "이미지는 각각의 업로드 API로 등록합니다."
     )
     @ApiResponses({
@@ -245,7 +267,9 @@ public class AdminClubController {
 
     @Operation(
             summary = "동아리 정보 통합 수정",
-            description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다."
+            description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다. "
+                    + "모집공고 내용·시작일·종료일·링크는 각각 null 또는 생략 가능합니다. "
+                    + "생략한 값도 null로 저장하며, 네 필드를 모두 null로 보내면 모집공고를 삭제합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),

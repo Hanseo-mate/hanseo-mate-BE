@@ -197,6 +197,8 @@ category가 없는 기존 큐 알림은 type으로 구분하고, 기존 학생�
 ## DB 적용
 
 운영은 `ddl-auto=validate`이므로 앱 배포 전에
-[증분 SQL](notification-preferences-migration-mysql.sql)을 적용해야 합니다.
+[증분 SQL](0003_notification_preferences.sql)을 적용해야 합니다.
 대상 DB 확인 → 백업 → SQL 적용 → SHOW CREATE TABLE 및 컬럼 확인 → 앱 배포 순서입니다.
-배포 스크립트에도 이 SQL을 포함합니다. 재실행은 저장된 설정을 초기화하지 않습니다.
+`docs/deploy-migrations.txt`에 등록했으며, 기존 배포 절차가 번호가 붙은 SQL을 감지해 이력·체크섬으로 관리합니다.
+테스트 서버 자동 배포와 운영 `hsm-deploy`는 동일한 `0003_notification_preferences.sql`을 사용합니다.
+재실행은 저장된 설정을 초기화하지 않습니다. 기존 수동 적용용 SQL 파일은 변경하지 않습니다.

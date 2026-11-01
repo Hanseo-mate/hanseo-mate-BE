@@ -222,20 +222,6 @@ CREATE TABLE push_devices (
         FOREIGN KEY (user_id) REFERENCES user_accounts (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE notification_preferences (
-    installation_id VARCHAR(100) NOT NULL,
-    enabled BIT(1) NOT NULL DEFAULT b'1',
-    notice_milestone BIT(1) NOT NULL DEFAULT b'1',
-    student_council_notice BIT(1) NOT NULL DEFAULT b'1',
-    system_notice BIT(1) NOT NULL DEFAULT b'1',
-    club_recruitment BIT(1) NOT NULL DEFAULT b'1',
-    class_reminder BIT(1) NOT NULL DEFAULT b'1',
-    shuttle_reservation BIT(1) NOT NULL DEFAULT b'1',
-    created_at DATETIME(6) NOT NULL,
-    updated_at DATETIME(6) NOT NULL,
-    PRIMARY KEY (installation_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE push_tickets (
     id BIGINT NOT NULL AUTO_INCREMENT,
     expo_ticket_id VARCHAR(100) NOT NULL,
@@ -1251,19 +1237,24 @@ CREATE TABLE clubs (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     category VARCHAR(30) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
     profile_image_url VARCHAR(2048) NULL,
     background_image_url VARCHAR(2048) NULL,
     short_description VARCHAR(255) NULL,
     introduction LONGTEXT NULL,
     activity_content LONGTEXT NULL,
     recruitment_content LONGTEXT NULL,
+    recruitment_start_date DATE NULL,
+    recruitment_end_date DATE NULL,
+    recruitment_url VARCHAR(2048) NULL,
     instagram_url VARCHAR(2048) NULL,
     kakao_talk_url VARCHAR(2048) NULL,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_clubs_name UNIQUE (name),
-    INDEX idx_clubs_category (category)
+    INDEX idx_clubs_category (category),
+    INDEX idx_clubs_display_order (display_order, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE club_likes (

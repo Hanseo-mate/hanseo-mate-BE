@@ -4,6 +4,9 @@
 
 로그인한 사용자의 기본 계정 정보, 선호 캠퍼스, 본인이 작성한 동아리 활동 후기, 좋아요한 동아리 목록을 한 번에 조회하고, 선호 캠퍼스를 변경하거나 계정을 영구 삭제할 수 있습니다.
 
+`role`이 `CLUB_ADMIN`이면 마이페이지에 **동아리 모집 공고 관리** 메뉴를 표시합니다.
+해당 메뉴의 전체 동아리 목록과 관리 상세는 별도의 동아리 조회 API로 불러옵니다.
+
 - Bearer JWT 필수
 - 다른 사용자의 후기는 반환하지 않음
 - 다른 사용자의 좋아요는 반환하지 않음
@@ -55,6 +58,7 @@ Query Parameter와 Request Body는 사용하지 않습니다.
     {
       "clubId": 3,
       "clubName": "멋쟁이사자처럼",
+      "profileImageUrl": "https://example.com/clubs/likelion.png",
       "reviewTags": [
         "BUILD_RESUME",
         "SOCIALIZING"
@@ -76,13 +80,14 @@ Query Parameter와 Request Body는 사용하지 않습니다.
 | --- | --- | --- |
 | `userId` | Number | 로그인 사용자 ID |
 | `loginId` | String | 로그인 아이디 |
-| `role` | String | 사용자 권한, `USER` 또는 `ADMIN` |
+| `role` | String | 사용자 권한, `USER`, `CLUB_ADMIN`, `ADMIN` 중 하나 |
 | `preferredCampusCode` | String | 선호 캠퍼스, `SEOSAN` 또는 `TAEAN` |
 | `createdAt` | String | 계정 생성 일시 |
 | `updatedAt` | String | 계정 수정 일시 |
 | `clubReviews` | Array | 본인이 현재 작성한 동아리 후기 목록 |
 | `clubReviews[].clubId` | Number | 후기 작성 대상 동아리 ID |
 | `clubReviews[].clubName` | String | 동아리 이름 |
+| `clubReviews[].profileImageUrl` | String 또는 null | 동아리 프로필 이미지 URL |
 | `clubReviews[].reviewTags` | Array | 본인이 선택한 후기 태그 코드 목록 |
 | `likedClubs` | Array | 본인이 현재 좋아요한 동아리 목록 |
 | `likedClubs[].clubId` | Number | 좋아요한 동아리 ID |
@@ -135,6 +140,35 @@ Authorization: Bearer {accessToken}
 - 이미 좋아요한 동아리에 호출하면 좋아요가 취소됩니다.
 - 등록 후 마이페이지를 다시 조회하면 해당 동아리가 `likedClubs`에 포함됩니다.
 - 취소 후 마이페이지를 다시 조회하면 해당 동아리가 `likedClubs`에서 제외됩니다.
+
+### 동아리 모집 공고 관리 (`CLUB_ADMIN`)
+
+마이페이지 응답의 `role === "CLUB_ADMIN"`일 때만 **동아리 모집 공고 관리** 메뉴를 표시합니다.
+`USER`와 `ADMIN`에게는 이 메뉴를 표시하지 않습니다. `ADMIN`은 기존 관리자 페이지를 사용합니다.
+
+| 순서 | 화면 / 동작 | 연결 API |
+|---|---|---|
+| 1 | 마이페이지에서 권한 확인 | `GET /api/auth/me`의 `role` |
+| 2 | 관리 메뉴를 눌러 전체 동아리 목록 표시 | `GET /api/clubs`의 `clubs`, `totalCount` |
+| 3 | 동아리 선택 후 모집공고 관리 상세 표시 | `GET /api/clubs/{clubId}` |
+| 4 | 수정하기: 기간·내용·신청 링크 편집 후 저장 | `PUT /api/clubs/{clubId}/recruitment` |
+| 5 | 저장 성공 후 상세 갱신 | `GET /api/clubs/{clubId}` 재호출 |
+
+관리 목록은 찜 여부나 담당 동아리 지정과 관계없이 **모든 동아리**를 표시합니다.
+목록 첫 조회에서는 `category`를 생략하고 `recruitingOnly`를 생략하거나 `false`로 보냅니다.
+`GET /api/auth/me`의 `likedClubs`는 찜 목록이며, 관리 목록 전체가 이 응답에 추가되는 것은 아닙니다.
+
+관리 상세에는 사진, 이름, 한 줄 소개, 모집 상태, 모집 기간, 내용, 신청 링크를 표시합니다.
+일반 동아리 상세는 조회용이며, **수정하기**는 마이페이지에서 진입한 관리 상세에만 표시합니다.
+편집하는 네 값(`recruitmentStartDate`, `recruitmentEndDate`, `recruitmentContent`, `recruitmentUrl`)은
+각각 `null`이 가능하며 모두 `null`로 저장하면 모집공고를 삭제합니다.
+
+기간을 보는 화면에서는 `recruitmentStartDayOfWeek`와 `recruitmentEndDayOfWeek`를 함께 사용해
+`2026.10.25 (일요일) ~ 2026.10.31 (토요일)`처럼 표시합니다. 날짜가 `null`이면 해당 요일도 `null`입니다.
+작성·수정할 때는 요일을 입력받지 않고 날짜만 `YYYY-MM-DD` 또는 `null`로 보냅니다.
+
+요청 예시, 요일 매핑, 상태 계산, 권한과 오류 처리는
+[동아리 API 명세서의 동아리관리자 API](club-api.md#동아리관리자-api)를 참고하세요.
 
 ---
 
@@ -268,6 +302,9 @@ Content-Type: application/json
 | Method | URL | 인증 | 기능 |
 | --- | --- | --- | --- |
 | `GET` | `/api/auth/me` | Bearer JWT 필수 | 내 계정 정보, 선호 캠퍼스, 작성한 후기 및 좋아요한 동아리 조회 |
+| `GET` | `/api/clubs` | 선택 | 모집공고 관리 메뉴에서 전체 동아리 목록과 개수 조회 |
+| `GET` | `/api/clubs/{clubId}` | 선택 | 관리 상세 정보 및 모집 기간의 요일 조회 |
+| `PUT` | `/api/clubs/{clubId}/recruitment` | `CLUB_ADMIN` JWT 필수 | 모집공고 기간·내용·신청 링크 작성·수정·삭제 |
 | `PUT` | `/api/auth/me/campus-preference` | Bearer JWT 필수 | 서산·태안 선호 캠퍼스 변경 |
 | `DELETE` | `/api/auth/me` | Bearer JWT 필수 | 비밀번호 확인 후 계정과 회원 관련 데이터 영구 삭제 |
 
