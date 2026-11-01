@@ -6,8 +6,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import hsu.hanseomate.domain.notification.entity.Notification;
 import hsu.hanseomate.domain.notification.repository.NotificationRepository;
+import hsu.hanseomate.domain.push.repository.NotificationOutboxRepository;
+import hsu.hanseomate.domain.push.service.NotificationService;
+import hsu.hanseomate.domain.push.entity.OutboxStatus;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -37,6 +41,44 @@ class NotificationApiIntegrationTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private NotificationOutboxRepository outboxRepository;
+
+    @Test
+    void shuttleReminderCreatesBroadcastOutboxAndInboxVisibleWithoutLogin() throws Exception {
+        notificationService.enqueueShuttleReservationReminder(
+                OffsetDateTime.parse("2026-10-14T18:00:00+09:00"));
+
+        assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
+            assertThat(outbox.getTargetUserId()).isNull();
+            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.PENDING);
+            assertThat(outbox.getExpiresAt()).isEqualTo(LocalDateTime.of(2026, 10, 14, 9, 0));
+        });
+        var payload = new ObjectMapper().readTree(outboxRepository.findAll().get(0).getPayload());
+        assertThat(payload.path("title").asText()).isEqualTo("[셔틀 예매 알림]");
+        assertThat(payload.path("body").asText()).isEqualTo("약 10분 뒤인 오후 6시에 셔틀 예매가 시작됩니다.");
+        assertThat(payload.path("data").path("type").asText()).isEqualTo("shuttle_reservation");
+        assertThat(payload.path("data").path("route").asText()).isEqualTo("/notifications");
+        assertThat(payload.path("data").path("startsAt").asText()).isEqualTo("2026-10-14T18:00:00+09:00");
+        assertThat(payload.path("data").path("minutesBefore").asInt()).isEqualTo(10);
+        assertThat(notificationRepository.findAll()).singleElement().satisfies(notification -> {
+            assertThat(notification.getTargetUserId()).isNull();
+            assertThat(notification.getPayloadData()).isEqualTo(payload.path("data").toString());
+        });
+
+        mockMvc.perform(get("/api/v1/notifications").param("installationId", "shuttle-guest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].title").value("[셔틀 예매 알림]"))
+                .andExpect(jsonPath("$[0].isRead").value(false));
+        mockMvc.perform(get("/api/v1/notifications/unread-count").param("installationId", "shuttle-guest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unreadCount").value(1));
+    }
 
     @Test
     void returnsKoreanOffsetWithoutShiftingStoredTimeAndPreservesNewestFirstOrder()

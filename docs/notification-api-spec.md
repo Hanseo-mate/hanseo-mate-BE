@@ -8,6 +8,29 @@
 
 ## 설계 원칙
 
+### 프론트 알림 종류 구분
+
+푸시 `data`와 알림함 `payloadData`의 JSON에 `category` 필드를 추가합니다.
+기존 `type`, `route`, `entityId`, 발생 조건과 수신 대상은 유지합니다.
+
+| category | 알림 종류 | 기존 type |
+|----------|-----------|-----------|
+| `NOTICE_MILESTONE` | 일반 공지 조회수 100회 | `notice` |
+| `STUDENT_COUNCIL_NOTICE` | 학생회 공지 등록 | `notice` |
+| `SYSTEM_NOTICE` | 시스템 공지 등록 | `system_notice` |
+| `CLUB_RECRUITMENT` | 찜한 동아리 모집공고 등록·수정 | `club_recruitment` |
+| `CLASS_REMINDER` | 수업 시작 1시간 전 | `schedule` |
+| `SHUTTLE_RESERVATION` | 수요일 17:50 셔틀 예매 안내 | `shuttle_reservation` |
+
+전체 및 종류별 ON/OFF는 [기기별 설정 API](notification-preferences-api.md)로 서버에 저장합니다.
+백엔드는 Expo 발송 직전에 해당 기기의 전체·종류별 설정을 확인해 OFF인 푸시를 차단합니다.
+알림함 목록과 읽음·미확인 개수에는 이 푸시 설정을 적용하지 않습니다.
+기존 저장 알림에는 `category`가 없을 수 있으므로 프론트에서는 선택 필드로 처리합니다.
+테스트 알림에는 `category`가 추가되지 않습니다.
+
+앱 상태와 관계없이 서버 발송 단계에서 설정을 적용합니다.
+이미 발송 중이거나 Expo/OS에 전달된 푸시는 취소할 수 없습니다.
+
 | 항목 | 내용 |
 |------|------|
 | 알림 원본 | 전체 알림은 1건, 동아리 모집공고 알림은 찜 사용자별로 1건 저장 |
@@ -18,7 +41,9 @@
 ### 개인 알림 수신 전제
 
 - 앱은 설치 후 생성한 동일한 `installationId`를 계속 저장해서 사용해야 합니다.
+- 최초 등록·기존 로컬 설정 전환 시 `PUT /api/v1/push-tokens`의 `notificationPreferences`에 로컬 전체·6종 설정을 함께 전달합니다. 기기 등록과 설정을 같은 트랜잭션에서 저장하므로 등록 후 별도 PATCH까지 기본값 ON으로 노출되는 구간이 없습니다. [초기 등록 요청 예시](notification-preferences-api.md#최초-등록-시-설정-함께-저장)
 - 로그인 직후 `Authorization: Bearer {accessToken}`을 포함해 `PUT /api/v1/push-tokens`를 호출해야 해당 기기와 사용자가 연결됩니다.
+- 일반 토큰 갱신에서 `notificationPreferences`를 생략하면 기존 서버 설정을 유지합니다. 기존 방식의 요청도 계속 사용할 수 있으며, 설정이 없는 새 설치의 기본값은 전체 ON입니다.
 - 같은 `installationId`로 보내는 비인증 토큰 갱신은 기존 사용자 연결을 유지합니다.
 - 로그아웃 시 `DELETE /api/v1/push-tokens/{installationId}`를 호출해야 사용자 연결이 해제됩니다.
 - 같은 Expo token이 새로운 `installationId`로 들어오면 기존 기기 행을 재사용합니다. 이 요청이 비인증이면 이전 사용자의 연결은 승계하지 않습니다.
@@ -231,6 +256,7 @@ PATCH /api/v1/notifications/read-all?installationId={installationId}
 | 학생회 공지 **신규 작성** | `[학생회 공지] {공지제목}` | `총학생회에서 새로운 공지를 등록했습니다.` |
 | 찜한 동아리 모집공고 **신규 작성** | `[동아리 모집공고] {동아리명}` | `새로운 모집공고가 등록되었습니다.` |
 | 찜한 동아리 모집공고 **내용 수정** | `[동아리 모집공고] {동아리명}` | `모집공고 내용이 수정되었습니다.` |
+| 매주 **수요일 17:50 (Asia/Seoul)** | `[셔틀 예매 알림]` | `약 10분 뒤인 오후 6시에 셔틀 예매가 시작됩니다.` |
 
 > 알림 저장(`notifications`)과 Expo 푸시 발송 큐(`notification_outbox`) 등록이 **동일 트랜잭션**에서 원자적으로 처리됩니다.
 > 동아리명·소개 등 다른 정보만 수정하거나 모집공고 내용이 동일하면 알림을 생성하지 않습니다.
@@ -257,3 +283,28 @@ PATCH /api/v1/notifications/read-all?installationId={installationId}
 
 동아리 모집공고 알림은 `type="club_recruitment"`, `route="/clubs"`,
 `entityId="{clubId}"`를 사용합니다.
+
+### 셔틀 예매 사전 알림
+
+매주 수요일 한국 시간 17:50에 전체 대상 알림 1건과 발송 큐 1건을 저장합니다.
+기존 Expo 발송 Worker가 로그인 여부와 관계없이 등록된 모든 활성 기기로 전송합니다.
+개인 대상 알림이 아니므로 `target_user_id`는 `NULL`이며, 비로그인 사용자도 알림함에서 조회할 수 있습니다.
+
+```json
+{
+  "version": 1,
+  "type": "shuttle_reservation",
+  "route": "/notifications",
+  "startsAt": "2026-10-14T18:00:00+09:00",
+  "minutesBefore": 10
+}
+```
+
+- 알림 클릭 경로는 기존 알림함(`/notifications`)입니다. 별도 공지 ID는 없으므로 `entityId`를 넣지 않습니다.
+- 프론트가 `type`별로 분기한다면 `shuttle_reservation`을 알림함으로 연결합니다.
+- 17:50은 큐 등록 시각입니다. 기존 발송 Worker의 처리 주기(30초)와 Expo/단말 상황에 따라 도착 시각은 달라질 수 있습니다.
+- 해당 수요일 18:00(KST)을 큐의 UTC 만료 시각으로 기록합니다. 그 시각부터 아직 보내지 않은 큐는 `EXPIRED` 처리하며, 알림함 기록은 유지합니다. 이미 Expo에 전달한 푸시는 취소하지 않습니다.
+- `app.shuttle-reservation-reminder.enabled`는 기본 `true`입니다. 운영자가 `false`로 설정하면 이 스케줄러의 등록을 중단합니다. 사용자별 수신 설정과는 별개입니다.
+- 공휴일·방학 예외 없이 매주 실행합니다. 실행 시각에 서버가 중단되어 있었다면 다음 주 예약 시각부터 실행하며, 지난 알림을 소급 생성하지 않습니다.
+- 기존 스케줄러와 동일하게 애플리케이션 인스턴스마다 실행합니다. 여러 인스턴스로 운영하는 경우 이 스케줄러는 한 인스턴스에서만 활성화해야 합니다.
+- 기존 `notifications`, `notification_outbox.expires_at`을 사용하므로 이번 변경으로 추가되는 DB 마이그레이션은 없습니다.

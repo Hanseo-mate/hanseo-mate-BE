@@ -14,6 +14,10 @@ public interface PushDeviceRepository extends JpaRepository<PushDevice, Long> {
 
     Optional<PushDevice> findByInstallationId(String installationId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select device from PushDevice device where device.installationId = :installationId")
+    Optional<PushDevice> findByInstallationIdForUpdate(@Param("installationId") String installationId);
+
     Optional<PushDevice> findByExpoPushToken(String expoPushToken);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
