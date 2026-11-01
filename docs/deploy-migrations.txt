@@ -1,0 +1,3 @@
+# SQL migrations to apply during deployment
+# Add new docs/*.sql filenames below, one per line.
+# Do not add previously applied migrations.
