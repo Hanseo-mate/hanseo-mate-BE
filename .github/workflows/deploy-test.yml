@@ -1,0 +1,43 @@
+
+name: Deploy Test Server
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hanseo-test-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, X64, hanseo-test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Disable cafeteria scheduler in test
+        run: |
+          FILE=src/main/java/hsu/hanseomate/domain/cafeteria/service/CafeteriaScheduler.java
+          test -f "$FILE"
+          if ! grep -Fq 'Profile("!test")' "$FILE"; then
+            sed -i '/^@Component$/i @org.springframework.context.annotation.Profile("!test")' "$FILE"
+          fi
+          grep -Fq 'Profile("!test")' "$FILE"
+
+      - name: Build Spring Boot
+        run: bash ./gradlew bootJar -x test --no-daemon
+
+      - name: Prepare JAR
+        run: |
+          install -m 600 \
+            build/libs/hanseomate-0.0.1-SNAPSHOT.jar \
+            /var/lib/hanseo-test-deploy/app-test.jar
+
+      - name: Deploy Test Server
+        run: sudo -n /usr/local/sbin/deploy-hanseo-test
