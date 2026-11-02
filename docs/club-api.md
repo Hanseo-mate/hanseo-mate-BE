@@ -29,7 +29,7 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}` | 활동 후기 비율 조회 |
 | 사용자 | `GET` | `/api/clubs/reviews/{clubId}/me` | 로그인 사용자의 후기 등록 상태 조회 |
 | 사용자 | `PUT` | `/api/clubs/reviews/{clubId}` | 로그인 사용자의 활동 후기 등록·수정·제거 |
-| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용·기간·링크 작성·수정·삭제 |
+| 동아리관리자 | `PUT` | `/api/clubs/{clubId}/recruitment` | 모든 동아리의 모집공고 내용·기간·링크·상시모집 여부 작성·수정·삭제 |
 | 관리자 | `GET` | `/api/admin/clubs` | 분과·모집중만 보기 필터와 검색결과 개수 조회 |
 | 관리자 | `PUT` | `/api/admin/clubs/order` | 전체 동아리 표시 순서 저장 |
 | 관리자 | `GET` | `/api/admin/clubs/{clubId}` | 동아리 전체 상세 정보 조회 |
@@ -45,23 +45,30 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 
 모집공고의 내용(`recruitmentContent`), 시작일(`recruitmentStartDate`), 종료일
 (`recruitmentEndDate`), 링크(`recruitmentUrl`)는 각각 선택 입력이며 모두 `null`을 허용한다.
-날짜는 `YYYY-MM-DD` 형식이다. 두 날짜가 모두 있을 때 종료일은 시작일과 같거나 이후여야 한다.
+추가 입력 `recruitmentAlwaysOpen`은 boolean이며 생략하거나 `null`이면 `false`로 저장한다.
+날짜는 `YYYY-MM-DD` 형식이다. 상시모집이 `false`이고 두 날짜가 모두 있으면 종료일은 시작일과 같거나 이후여야 한다.
 과거 기간과 하루짜리 모집도 저장할 수 있다. 링크는 `http` 또는 `https` URL이며 최대 2048자다.
 
-목록과 상세에 `recruitmentStatus`를 반환한다. 상태는 한국 시간(`Asia/Seoul`)의
-오늘 날짜로 조회 시 계산하며 DB에 별도 저장하지 않는다.
+목록과 상세에 `recruitmentAlwaysOpen`과 `recruitmentStatus`를 반환한다. 상태는 상시모집 여부를 먼저 확인하고,
+상시모집이 아니면 한국 시간(`Asia/Seoul`)의 오늘 날짜로 조회 시 계산하며 DB에 별도 저장하지 않는다.
 
 | 값 | 화면 표시 | 조건 |
 |---|---|---|
-| `UPCOMING` | 모집전 | 오늘 < 시작일 |
-| `RECRUITING` | 모집중 | 시작일 ≤ 오늘 ≤ 종료일 |
-| `CLOSED` | 모집완료 | 오늘 > 종료일 또는 시작일·종료일 중 하나 이상 없음 |
+| `ALWAYS_OPEN` | 상시모집 | `recruitmentAlwaysOpen === true`. 날짜와 관계없이 최우선 적용 |
+| `UPCOMING` | 모집전 | 상시모집이 false이고 두 날짜가 있으며 오늘 < 시작일 |
+| `RECRUITING` | 모집중 | 상시모집이 false이고 시작일 ≤ 오늘 ≤ 종료일 |
+| `CLOSED` | 모집완료 | 상시모집이 false이고 오늘 > 종료일 또는 시작일·종료일 중 하나 이상 없음 |
 
-시작일 00:00부터 종료일 23:59:59까지 모집중이다. 상태는 날짜만으로 계산하므로
+상시모집이 `true`이면 날짜가 없거나 한쪽만 있거나 과거·미래·역순이어도 `ALWAYS_OPEN`이다.
+입력한 날짜와 요일은 그대로 저장·조회하며, 날짜 형식과 링크 검증은 계속 적용한다.
+상시모집을 `false`로 바꿀 때는 날짜 순서 검증을 다시 적용하므로 역순 날짜는 수정하거나 비워야 한다.
+
+상시모집이 아니면 시작일 00:00부터 종료일 23:59:59까지 모집중이다.
 내용이나 링크가 없어도 두 날짜가 있다면 기간에 따른 상태를 반환한다. 날짜가 없거나
-한쪽만 있으면 `CLOSED`다. 기존에 기간이 없는 공고는 내용을 보존하고 모집완료로 표시한다.
+한쪽만 있으면 `CLOSED`다. 기존 동아리의 상시모집 값은 `false`이며 기존 내용과 날짜는 보존한다.
 프론트는 이 값을 화면 문구로 매핑하고,
-상세 응답의 두 날짜를 편집 화면 초기값으로 사용한다. 직접 상태를 지정하는 요청 필드는 없다.
+상세 응답의 두 날짜와 `recruitmentAlwaysOpen`을 편집 화면 초기값으로 사용한다.
+상태 enum인 `recruitmentStatus`는 조회 전용이며 저장 요청에는 포함하지 않는다.
 예제의 상태는 한국 날짜 2026-10-23을 기준으로 한다.
 
 ### 기간 조회 시 요일 표시
@@ -89,7 +96,8 @@ JWT 로그인과 역할 기반 권한 검사가 적용되어 있으며 `/api/adm
 
 예: 시작일 `2026-10-25` / `SUNDAY`, 종료일 `2026-10-31` / `SATURDAY`이면
 `2026.10.25 (일요일) ~ 2026.10.31 (토요일)`로 표시한다.
-날짜가 없는 쪽은 `시작일 미정` 또는 `종료일 미정`, 둘 다 없으면 `기간 미정`으로 표시한다.
+상시모집이면 기간 표시 영역에 `상시모집`을 표시한다. 상시모집이 아니면서 날짜가 없는 쪽은
+`시작일 미정` 또는 `종료일 미정`, 둘 다 없으면 `기간 미정`으로 표시한다.
 한쪽 날짜만 있어도 그 날짜의 요일은 반환한다. 두 요일 필드는 조회 전용이며
 저장 요청에는 포함하지 않는다. 요일은 조회 당시의 오늘 날짜가 아닌 저장된 모집 날짜에서 계산한다.
 
@@ -120,12 +128,12 @@ GET /api/clubs?category=ACADEMIC&recruitingOnly=true
 | 선택한 분과 | 토글 | 요청 예시 | 결과 및 개수 기준 |
 |---|---|---|---|
 | 전체 | OFF | `/api/clubs?recruitingOnly=false` | 모든 동아리 |
-| 전체 | ON | `/api/clubs?recruitingOnly=true` | 전체 동아리 중 모집중인 동아리 |
+| 전체 | ON | `/api/clubs?recruitingOnly=true` | 전체 동아리 중 모집중 또는 상시모집인 동아리 |
 | 학술 | OFF | `/api/clubs?category=ACADEMIC&recruitingOnly=false` | 학술 동아리 전체 |
-| 학술 | ON | `/api/clubs?category=ACADEMIC&recruitingOnly=true` | 학술 동아리 중 모집중인 동아리 |
+| 학술 | ON | `/api/clubs?category=ACADEMIC&recruitingOnly=true` | 학술 동아리 중 모집중 또는 상시모집인 동아리 |
 
-두 조건은 **AND**로 적용한다. `true`일 때 한국 날짜 기준 `RECRUITING`만 반환하며,
-모집전·모집완료와 시작일 또는 종료일이 없는 동아리는 제외한다.
+두 조건은 **AND**로 적용한다. `true`일 때 `RECRUITING`과 `ALWAYS_OPEN`을 반환하며,
+모집전·모집완료는 제외한다. 상시모집은 시작일 또는 종료일이 없어도 포함한다.
 `false`는 모집 상태 필터만 해제하므로 선택한 분과 조건은 계속 적용된다.
 모집 상태를 직접 보내는 쿼리 파라미터는 사용하지 않는다.
 
@@ -149,7 +157,8 @@ GET /api/clubs?category=ACADEMIC&recruitingOnly=true
         "BUILD_RESUME",
         "ACADEMIC_PASSION"
       ],
-      "recruitmentStatus": "RECRUITING"
+      "recruitmentStatus": "RECRUITING",
+      "recruitmentAlwaysOpen": false
     }
   ]
 }
@@ -177,7 +186,7 @@ GET /api/clubs?category=ACADEMIC&recruitingOnly=true
 지원하지 않는 분과 또는 boolean으로 해석할 수 없는 토글 값(예: `recruitingOnly=invalid`)은
 `400 Bad Request`를 반환한다. 프론트는 `true` 또는 `false`를 보낸다.
 
-`recruitmentStatus`가 추가되며 `displayOrder`는 응답에 포함하지 않는다.
+`recruitmentStatus`와 `recruitmentAlwaysOpen`을 포함하며 `displayOrder`는 응답에 포함하지 않는다.
 `clubs` 배열은 관리자가 저장한 표시 순서대로 반환한다. 같은 내부 순서 값이면 `id` 오름차순으로 정렬한다.
 전체·분과별·모집중만 보기 목록 모두 같은 전역 순서를 사용한다.
 새 동아리는 목록 마지막에 추가된다. 프론트는 `clubs` 배열 순서대로 표시한다.
@@ -221,7 +230,8 @@ GET /api/clubs/{clubId}
   "recruitmentEndDate": "2026-10-31",
   "recruitmentStatus": "UPCOMING",
   "recruitmentStartDayOfWeek": "SUNDAY",
-  "recruitmentEndDayOfWeek": "SATURDAY"
+  "recruitmentEndDayOfWeek": "SATURDAY",
+  "recruitmentAlwaysOpen": false
 }
 ```
 
@@ -428,7 +438,8 @@ Content-Type: application/json
 | 동아리 사진 | `profileImageUrl` (배경이 필요하면 `backgroundImageUrl`) | 조회만 가능 |
 | 동아리 이름 | `name` | 조회만 가능 |
 | 한 줄 소개 | `shortDescription` | 조회만 가능 |
-| 모집 상태 | `recruitmentStatus` | 날짜에 따라 자동 결정 |
+| 모집 상태 | `recruitmentStatus` | 상시모집 여부와 날짜에 따라 자동 결정 |
+| 상시모집 여부 | `recruitmentAlwaysOpen` | true/false 수정 가능 |
 | 시작일 | `recruitmentStartDate`, `recruitmentStartDayOfWeek` | 날짜만 수정 가능 |
 | 종료일 | `recruitmentEndDate`, `recruitmentEndDayOfWeek` | 날짜만 수정 가능 |
 | 모집 내용 | `recruitmentContent` | 수정 가능 |
@@ -438,7 +449,7 @@ Content-Type: application/json
 각 항목의 빈 상태를 표시하며, 링크가 없으면 신청 링크 버튼을 표시하지 않는다.
 
 관리 화면에서 편집할 동아리를 선택하면 `GET /api/clubs/{clubId}`로 기존 값을 조회하고,
-`recruitmentContent`, `recruitmentStartDate`, `recruitmentEndDate`, `recruitmentUrl`을
+`recruitmentContent`, `recruitmentStartDate`, `recruitmentEndDate`, `recruitmentUrl`, `recruitmentAlwaysOpen`을
 입력 필드의 초기값으로 사용한다. 이 조회 API 호출을 위해 일반 상세 화면으로 이동할 필요는 없다.
 입력창에서 지운 값은 각각 `null`로 보낸다. 날짜를 비웠을 때는 빈 문자열 대신 `null`을 보낸다.
 
@@ -456,16 +467,30 @@ Content-Type: application/json
   "recruitmentContent": "신입 부원을 모집합니다.",
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
-  "recruitmentUrl": "https://example.com/apply"
+  "recruitmentUrl": "https://example.com/apply",
+  "recruitmentAlwaysOpen": false
 }
 ```
 
-성공 시 `204 No Content`를 반환한다. 네 필드는 각각 `null`을 허용하며 링크만 저장하거나
+성공 시 `204 No Content`를 반환한다. 내용·시작일·종료일·링크 네 필드는 각각 `null`을 허용하며 링크만 저장하거나
 내용 없이 날짜를 저장하는 것도 가능하다. 내용과 링크의 앞뒤 공백은 제거하고 빈 문자열은 `null`로 저장한다.
 링크가 있다면 `http` 또는 `https` URL을 보내야 한다.
 
-이 API는 네 필드를 모두 대체한다. **생략한 필드도 `null`로 저장하므로 유지할 값은 함께 보내야 한다.**
-공고를 삭제하려면 네 필드를 모두 `null`로 보내거나 빈 객체 `{}`를 보낸다.
+이 API는 상시모집 여부를 포함한 다섯 값을 모두 대체한다. **내용·날짜·링크는 생략하면 `null`,
+상시모집은 생략하거나 `null`이면 `false`로 저장하므로 유지할 값은 함께 보내야 한다.**
+날짜 없이 상시모집을 저장하는 요청 예시는 다음과 같다.
+
+```json
+{
+  "recruitmentContent": "언제든 지원할 수 있습니다.",
+  "recruitmentStartDate": null,
+  "recruitmentEndDate": null,
+  "recruitmentUrl": "https://example.com/apply",
+  "recruitmentAlwaysOpen": true
+}
+```
+
+공고를 삭제하려면 내용·시작일·종료일·링크를 모두 `null`, 상시모집을 `false`로 보내거나 빈 객체 `{}`를 보낸다.
 요청 본문 자체는 필요하며, 모두 비우는 요청은 다음과 같다.
 
 ```json
@@ -473,17 +498,19 @@ Content-Type: application/json
   "recruitmentContent": null,
   "recruitmentStartDate": null,
   "recruitmentEndDate": null,
-  "recruitmentUrl": null
+  "recruitmentUrl": null,
+  "recruitmentAlwaysOpen": false
 }
 ```
 
-전체 삭제 후 상태는 `CLOSED`다. 두 날짜가 있을 때 날짜 순서가 거꾸로이거나 날짜 형식·링크가
-잘못되면 `400 Bad Request`다.
+전체 삭제 후 상태는 `CLOSED`다. 상시모집이 `false`이고 두 날짜의 순서가 거꾸로이면 `400 Bad Request`다.
+날짜 형식·링크가 잘못되면 상시모집 여부와 관계없이 `400 Bad Request`다.
 
-새 공고를 등록하거나 기존 공고의 내용·기간·링크 중 하나를 변경하면 해당 동아리를 좋아요한 사용자에게
-기존 관리자 수정 API와 동일한 알림을 생성한다. 네 필드가 모두 같거나 전체 삭제할 때는 알림이 없다.
+새 공고를 등록하거나 기존 공고의 내용·기간·링크·상시모집 여부 중 하나를 변경하면 해당 동아리를 좋아요한 사용자에게
+기존 관리자 수정 API와 동일한 알림을 생성한다. 다섯 값이 모두 같거나 전체 삭제할 때는 알림이 없다.
+나머지 네 값이 없어도 상시모집이 `true`이면 공고가 있는 것으로 판단한다.
 인증이 없으면 `401`, 다른 역할이면 `403`, 동아리가 없으면 `404`를 반환한다.
-서버는 모집공고 내용·기간·링크만 수정한다.
+서버는 모집공고 내용·기간·링크·상시모집 여부만 수정한다.
 
 동아리관리자 계정은 공개 회원가입으로 만들 수 없다. 운영자가 기존 계정을 확인한 뒤
 `user_accounts.role`을 `CLUB_ADMIN`으로 변경한다. 역할 컬럼은 이미 `VARCHAR(20)`이어서
@@ -547,7 +574,7 @@ Content-Type: application/json
 - 인증이 없으면 `401`, USER 권한이면 `403`이다.
 
 연동 순서: `GET /api/admin/clubs`로 필터 없이 전체 조회 → `clubs` 배열 재배치 → 전체 `clubIds` 저장 → 목록 재조회.
-사용자·관리자 목록은 같은 응답 형식이며 `recruitmentStatus`를 포함한다.
+사용자·관리자 목록은 같은 응답 형식이며 `recruitmentStatus`와 `recruitmentAlwaysOpen`을 포함한다.
 순서 변경은 전체 `clubIds` 배열로만 요청한다.
 
 운영 DB에는 `docs/club-display-order-migration-mysql.sql`을 새 백엔드 실행 전에 적용한다.
@@ -591,7 +618,8 @@ Authorization: Bearer {accessToken}
   "recruitmentEndDate": "2026-10-31",
   "recruitmentStatus": "UPCOMING",
   "recruitmentStartDayOfWeek": "SUNDAY",
-  "recruitmentEndDayOfWeek": "SATURDAY"
+  "recruitmentEndDayOfWeek": "SATURDAY",
+  "recruitmentAlwaysOpen": false
 }
 ```
 
@@ -617,7 +645,8 @@ Content-Type: application/json
   "recruitmentContent": "신입 부원을 모집합니다.",
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
-  "recruitmentUrl": "https://example.com/apply"
+  "recruitmentUrl": "https://example.com/apply",
+  "recruitmentAlwaysOpen": false
 }
 ```
 
@@ -635,7 +664,8 @@ Location: /api/clubs/1
 ```
 
 이름과 분과는 필수다. 모집공고 내용·시작일·종료일·링크는 각각 `null` 또는 생략할 수 있다.
-이름과 분과만 보내면 모집공고 네 필드가 모두 `null`이고 상태는 `CLOSED`다.
+상시모집 여부 `recruitmentAlwaysOpen`도 선택 입력이다. `true`면 날짜에 관계없이 `ALWAYS_OPEN`이다.
+생략 또는 `null`이면 `false`로 저장한다. 이름과 분과만 보내면 나머지 모집공고 네 필드가 모두 `null`이고 상태는 `CLOSED`다.
 등록 후 반환받은 ID로 나머지 텍스트 정보를 수정하고, 프로필 이미지와 배경 이미지는 각각 업로드한다.
 생성 직후 `shortDescription`, 소개·활동, SNS URL과 이미지 URL은 `null`이다.
 
@@ -725,7 +755,8 @@ Content-Type: application/json
   "recruitmentContent": "수정된 모집공고 내용 🙌",
   "recruitmentStartDate": "2026-10-25",
   "recruitmentEndDate": "2026-10-31",
-  "recruitmentUrl": "https://example.com/apply"
+  "recruitmentUrl": "https://example.com/apply",
+  "recruitmentAlwaysOpen": false
 }
 ```
 
@@ -733,10 +764,11 @@ Content-Type: application/json
 이미지는 각각의 이미지 업로드 API를 사용한다.
 성공 시 `204 No Content`를 반환한다.
 
-모집공고 네 필드는 각각 `null` 또는 생략 가능하며 동아리관리자 API와 같은 검증을 적용한다.
-이 API도 네 필드를 대체하므로 유지할 내용·날짜·링크를 모두 요청에 포함해야 한다.
-내용·날짜·링크 중 하나가 새로 입력되거나 변경되면 해당 시점에 동아리를 좋아요한 사용자에게
-모집공고 알림을 생성한다. 네 필드가 모두 같거나 전체 삭제할 때는 알림을 생성하지 않는다.
+모집공고 내용·시작일·종료일·링크는 각각 `null` 또는 생략 가능하며 동아리관리자 API와 같은 검증을 적용한다.
+상시모집 여부는 `true`일 때 날짜보다 우선하며 생략 또는 `null`이면 `false`다.
+이 API도 다섯 값을 대체하므로 유지할 내용·날짜·링크·상시모집 여부를 모두 요청에 포함해야 한다.
+내용·날짜·링크·상시모집 여부 중 하나가 새로 입력되거나 변경되면 해당 시점에 동아리를 좋아요한 사용자에게
+모집공고 알림을 생성한다. 다섯 값이 모두 같거나 전체 삭제할 때는 알림을 생성하지 않는다.
 
 ---
 

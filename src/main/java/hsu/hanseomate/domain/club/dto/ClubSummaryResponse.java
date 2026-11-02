@@ -16,7 +16,8 @@ public record ClubSummaryResponse(
         long likeCount,
         boolean likedByMe,
         List<ClubReviewOption> topReviewTags,
-        ClubRecruitmentStatus recruitmentStatus
+        ClubRecruitmentStatus recruitmentStatus,
+        boolean recruitmentAlwaysOpen
 ) {
 
     public ClubSummaryResponse {
@@ -39,7 +40,8 @@ public record ClubSummaryResponse(
                 likeCount,
                 likedByMe,
                 topReviewTags,
-                club.recruitmentStatus(today)
+                club.recruitmentStatus(today),
+                club.isRecruitmentAlwaysOpen()
         );
     }
 }

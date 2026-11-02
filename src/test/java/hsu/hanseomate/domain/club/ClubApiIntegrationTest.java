@@ -178,7 +178,7 @@ class ClubApiIntegrationTest {
 
         mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(19)))
+                .andExpect(jsonPath("$", aMapWithSize(20)))
                 .andExpect(jsonPath("$.name").value("멋쟁이사자처럼 한서대학교"))
                 .andExpect(jsonPath("$.shortDescription").value((Object) null))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
@@ -273,7 +273,7 @@ class ClubApiIntegrationTest {
             mockMvc.perform(get(endpoint))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.clubs[0].id").value(third))
-                    .andExpect(jsonPath("$.clubs[*]", everyItem(aMapWithSize(9))))
+                    .andExpect(jsonPath("$.clubs[*]", everyItem(aMapWithSize(10))))
                     .andExpect(jsonPath("$.clubs[0].displayOrder").doesNotExist())
                     .andExpect(jsonPath("$.clubs[1].id").value(second))
                     .andExpect(jsonPath("$.clubs[2].id").value(first));
@@ -282,7 +282,7 @@ class ClubApiIntegrationTest {
                     .andExpect(jsonPath("$.clubs.length()").value(2))
                     .andExpect(jsonPath("$.clubs[0].id").value(third))
                     .andExpect(jsonPath("$.clubs[1].id").value(first))
-                    .andExpect(jsonPath("$.clubs[*]", everyItem(aMapWithSize(9))))
+                    .andExpect(jsonPath("$.clubs[*]", everyItem(aMapWithSize(10))))
                     .andExpect(jsonPath("$.clubs[1].displayOrder").doesNotExist());
         }
         mockMvc.perform(get("/api/clubs").with(anonymous()))
@@ -399,7 +399,7 @@ class ClubApiIntegrationTest {
 
         MvcResult publicDetailResult = mockMvc.perform(get("/api/clubs/{clubId}", clubId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", aMapWithSize(19)))
+                .andExpect(jsonPath("$", aMapWithSize(20)))
                 .andExpect(jsonPath("$.name").value("상세 조회 동아리"))
                 .andExpect(jsonPath("$.profileImageUrl").value((Object) null))
                 .andExpect(jsonPath("$.backgroundImageUrl").value((Object) null))
@@ -740,6 +740,44 @@ class ClubApiIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT body FROM notifications ORDER BY id DESC LIMIT 1", String.class))
                 .isEqualTo("새로운 모집공고가 등록되었습니다.");
         assertThat(notificationOutboxRepository.count()).isEqualTo(5);
+
+        // Flag-only changes notify likers, while identical saves and deletion stay silent.
+        updatedRequest.put("recruitmentContent", null);
+        updatedRequest.put("recruitmentStartDate", null);
+        updatedRequest.put("recruitmentEndDate", null);
+        updatedRequest.put("recruitmentUrl", "https://example.com/only-link");
+        updatedRequest.put("recruitmentAlwaysOpen", true);
+        mockMvc.perform(put("/api/admin/clubs/{clubId}", clubId)
+                        .contentType(MediaType.APPLICATION_JSON).content(json(updatedRequest)))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(6);
+        assertThat(jdbcTemplate.queryForObject("SELECT body FROM notifications ORDER BY id DESC LIMIT 1", String.class))
+                .isEqualTo("모집공고 내용이 수정되었습니다.");
+        updatedRequest.put("recruitmentAlwaysOpen", false);
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(clubAdminJwt(editorId)).contentType(MediaType.APPLICATION_JSON)
+                        .content(json(updatedRequest)))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(7);
+
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(clubAdminJwt(editorId)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(7);
+        for (int save = 0; save < 2; save++) {
+            mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                            .with(clubAdminJwt(editorId)).contentType(MediaType.APPLICATION_JSON)
+                            .content(json(Map.of("recruitmentAlwaysOpen", true))))
+                    .andExpect(status().isNoContent());
+            assertThat(notificationRepository.count()).isEqualTo(8);
+            assertThat(jdbcTemplate.queryForObject("SELECT body FROM notifications ORDER BY id DESC LIMIT 1", String.class))
+                    .isEqualTo("새로운 모집공고가 등록되었습니다.");
+        }
+        mockMvc.perform(put("/api/clubs/{clubId}/recruitment", clubId)
+                        .with(clubAdminJwt(editorId)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNoContent());
+        assertThat(notificationRepository.count()).isEqualTo(8);
+        assertThat(notificationOutboxRepository.count()).isEqualTo(8);
     }
 
     @Test
@@ -1462,11 +1500,16 @@ class ClubApiIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/admin/clubs'].get.responses['403']")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties",
-                        aMapWithSize(6)))
+                        aMapWithSize(7)))
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.recruitmentUrl").exists())
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.recruitmentUrl").exists())
                 .andExpect(jsonPath("$.components.schemas.ClubRecruitmentUpdateRequest.properties.recruitmentUrl").exists())
                 .andExpect(jsonPath("$.components.schemas.ClubDetailResponse.properties.recruitmentUrl").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.recruitmentAlwaysOpen").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.recruitmentAlwaysOpen").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubRecruitmentUpdateRequest.properties.recruitmentAlwaysOpen").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubDetailResponse.properties.recruitmentAlwaysOpen").exists())
+                .andExpect(jsonPath("$.components.schemas.ClubSummaryResponse.properties.recruitmentAlwaysOpen").exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.name")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ClubCreateRequest.properties.category")
@@ -1490,7 +1533,7 @@ class ClubApiIntegrationTest {
                         "$.paths['/api/admin/clubs/{clubId}'].get.responses['404']"
                 ).exists())
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties",
-                        aMapWithSize(10)))
+                        aMapWithSize(11)))
                 .andExpect(jsonPath("$.components.schemas.ClubUpdateRequest.properties.name")
                         .exists())
                 .andExpect(jsonPath(

@@ -74,7 +74,7 @@ public class AdminClubController {
     public ClubListResponse getClubs(
             @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
             @RequestParam(required = false) String category,
-            @Parameter(description = "모집중만 보기 토글. true면 모집중만, false 또는 생략하면 모든 모집 상태 조회")
+            @Parameter(description = "모집중만 보기 토글. true면 모집중과 상시모집, false 또는 생략하면 모든 모집 상태 조회")
             @RequestParam(defaultValue = "false") boolean recruitingOnly
     ) {
         return clubService.getClubs(category, recruitingOnly);
@@ -134,8 +134,9 @@ public class AdminClubController {
 
     @Operation(
             summary = "동아리 등록",
-            description = "동아리 이름과 분과를 등록하고 모집공고 내용·시작일·종료일·링크를 선택 입력합니다. "
-                    + "모집공고 필드는 각각 null 또는 생략 가능합니다. 나머지 정보는 통합 수정 API로, "
+            description = "동아리 이름과 분과를 등록하고 모집공고 내용·시작일·종료일·링크·상시모집 여부를 선택 입력합니다. "
+                    + "내용·기간·링크는 각각 null 또는 생략 가능합니다. 상시모집은 생략 또는 null이면 false이며 "
+                    + "true면 날짜와 관계없이 ALWAYS_OPEN입니다. 나머지 정보는 통합 수정 API로, "
                     + "이미지는 각각의 업로드 API로 등록합니다."
     )
     @ApiResponses({
@@ -269,7 +270,9 @@ public class AdminClubController {
             summary = "동아리 정보 통합 수정",
             description = "동아리명, 한 줄 소개, 소개, 활동 내용, 문의 링크와 모집공고를 한 번에 수정합니다. "
                     + "모집공고 내용·시작일·종료일·링크는 각각 null 또는 생략 가능합니다. "
-                    + "생략한 값도 null로 저장하며, 네 필드를 모두 null로 보내면 모집공고를 삭제합니다."
+                    + "생략한 값도 null로 저장합니다. recruitmentAlwaysOpen은 생략 또는 null이면 false이며 "
+                    + "true면 날짜와 관계없이 ALWAYS_OPEN입니다. false이고 나머지 네 값이 모두 null이면 모집공고를 삭제합니다. "
+                    + "false일 때 두 날짜가 모두 있으면 종료일은 시작일 이후 또는 같은 날이어야 합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),
