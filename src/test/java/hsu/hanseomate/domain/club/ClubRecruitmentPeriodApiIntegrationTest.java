@@ -1,6 +1,7 @@
 package hsu.hanseomate.domain.club;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -207,17 +208,25 @@ class ClubRecruitmentPeriodApiIntegrationTest {
                 "2026-10-26", "2026-10-31");
         long closed = createClub("체육 모집 완료", ClubCategory.SPORTS, 40,
                 "2026-10-01", "2026-10-24");
+        long alwaysAcademic = createClub("학술 상시모집", ClubCategory.ACADEMIC, 15,
+                "2026-10-01", "2026-10-24");
+        long alwaysSports = createClub("체육 상시모집", ClubCategory.SPORTS, 25,
+                "2026-11-01", "2026-11-30");
+        jdbcTemplate.update("UPDATE clubs SET recruitment_always_open = TRUE WHERE id IN (?, ?)",
+                alwaysAcademic, alwaysSports);
 
         for (String path : List.of("/api/clubs", "/api/admin/clubs")) {
-            assertList(path, null, null, clubId, earlierAcademic, sports, upcoming, closed, laterAcademic);
-            assertList(path, null, "false", clubId, earlierAcademic, sports, upcoming, closed, laterAcademic);
-            assertList(path, null, "true", earlierAcademic, sports, laterAcademic);
-            assertList(path, "ACADEMIC", "false", clubId, earlierAcademic, upcoming, laterAcademic);
-            assertList(path, " academic ", "true", earlierAcademic, laterAcademic);
-            assertList(path, "SPORTS", "true", sports);
+            assertList(path, null, null, clubId, earlierAcademic, alwaysAcademic, sports, alwaysSports,
+                    upcoming, closed, laterAcademic);
+            assertList(path, null, "false", clubId, earlierAcademic, alwaysAcademic, sports, alwaysSports,
+                    upcoming, closed, laterAcademic);
+            assertList(path, null, "true", earlierAcademic, alwaysAcademic, sports, alwaysSports, laterAcademic);
+            assertList(path, "ACADEMIC", "false", clubId, earlierAcademic, alwaysAcademic, upcoming, laterAcademic);
+            assertList(path, " academic ", "true", earlierAcademic, alwaysAcademic, laterAcademic);
+            assertList(path, "SPORTS", "true", sports, alwaysSports);
             assertList(path, "HOBBY", "true");
             assertList(path, "HOBBY", "false");
-            assertList(path, " ", "true", earlierAcademic, sports, laterAcademic);
+            assertList(path, " ", "true", earlierAcademic, alwaysAcademic, sports, alwaysSports, laterAcademic);
         }
     }
 
@@ -326,6 +335,120 @@ class ClubRecruitmentPeriodApiIntegrationTest {
         assertThat(clubRepository.findById(clubId).orElseThrow().getName()).isEqualTo("모집 기간 동아리");
     }
 
+    @Test
+    void allWriteEndpointsPersistAlwaysOpenRegardlessOfMissingOrOrderedDates() throws Exception {
+        int index = 0;
+        for (Map<String, Object> request : List.of(
+                body(null, null, null),
+                body(null, "2026-10-25", null),
+                body(null, null, "2026-10-31"),
+                body("향후 모집", "2026-11-01", "2026-11-30"),
+                body("지난 모집", "2026-09-01", "2026-09-30"),
+                body("기간 내 모집", "2026-10-01", "2026-10-31"),
+                body("역순 날짜도 보존", "2026-11-01", "2026-10-01")
+        )) {
+            request.put("recruitmentAlwaysOpen", true);
+            request.put("name", "상시모집 동아리 " + index++);
+            request.put("category", "SPORTS");
+            request.put("shortDescription", "소개");
+            String response = mockMvc.perform(post("/api/admin/clubs").with(admin())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            long createdId = objectMapper.readTree(response).get("id").asLong();
+            assertRecruitment(createdId, request, "ALWAYS_OPEN");
+
+            request.put("name", "모집 기간 동아리");
+            for (String path : List.of("/api/clubs/{id}/recruitment", "/api/admin/clubs/{id}")) {
+                mockMvc.perform(put(path, clubId).with(path.startsWith("/api/admin/") ? admin() : editor())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                        .andExpect(status().isNoContent());
+                assertRecruitment(clubId, request, "ALWAYS_OPEN");
+                assertStatus("ALWAYS_OPEN");
+            }
+        }
+        // Always-open does not bypass parsing or link validation.
+        Map<String, Object> invalid = body(null, "2026-02-30", null);
+        invalid.put("recruitmentAlwaysOpen", true);
+        assertRejectedByAllWriteEndpoints(invalid);
+        invalid = body(null, null, null);
+        invalid.put("recruitmentAlwaysOpen", true);
+        invalid.put("recruitmentUrl", "javascript:alert(1)");
+        assertRejectedByAllWriteEndpoints(invalid);
+    }
+
+    @Test
+    void disablingAlwaysOpenRestoresDateStatusesAndValidationForBothPutEndpoints() throws Exception {
+        at("2026-10-24T15:00:00Z");
+        List<Map<String, Object>> periods = List.of(
+                body(null, null, null),
+                body(null, "2026-10-25", null),
+                body(null, null, "2026-10-31"),
+                body(null, "2026-11-01", "2026-11-30"),
+                body(null, "2026-10-25", "2026-10-31"),
+                body(null, "2026-10-01", "2026-10-24")
+        );
+        List<String> statuses = List.of("CLOSED", "CLOSED", "CLOSED", "UPCOMING", "RECRUITING", "CLOSED");
+        for (String path : List.of("/api/clubs/{id}/recruitment", "/api/admin/clubs/{id}")) {
+            for (int index = 0; index < periods.size(); index++) {
+                Map<String, Object> request = new LinkedHashMap<>(periods.get(index));
+                request.put("recruitmentAlwaysOpen", true);
+                saveRecruitment(request);
+                request.put("name", "모집 기간 동아리");
+                request.put("shortDescription", "소개");
+                request.put("recruitmentAlwaysOpen", false);
+                mockMvc.perform(put(path, clubId).with(path.startsWith("/api/admin/") ? admin() : editor())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                        .andExpect(status().isNoContent());
+                assertRecruitment(clubId, request, statuses.get(index));
+                assertStatus(statuses.get(index));
+            }
+            Map<String, Object> reversed = body("상시모집", "2026-11-01", "2026-10-01");
+            reversed.put("recruitmentAlwaysOpen", true);
+            saveRecruitment(reversed);
+            reversed.put("recruitmentAlwaysOpen", false);
+            reversed.put("name", "모집 기간 동아리");
+            reversed.put("shortDescription", "소개");
+            mockMvc.perform(put(path, clubId).with(path.startsWith("/api/admin/") ? admin() : editor())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(reversed)))
+                    .andExpect(status().isBadRequest());
+            reversed.put("recruitmentAlwaysOpen", true);
+            assertRecruitment(clubId, reversed, "ALWAYS_OPEN");
+        }
+    }
+
+    @Test
+    void omittedOrNullAlwaysOpenDefaultsToFalseAndPutCanDeleteAlwaysOpenNotice() throws Exception {
+        for (boolean explicitNull : List.of(false, true)) {
+            Map<String, Object> request = new LinkedHashMap<>();
+            if (explicitNull) {
+                request.put("recruitmentAlwaysOpen", null);
+            }
+            for (String path : List.of("/api/clubs/{id}/recruitment", "/api/admin/clubs/{id}")) {
+                saveRecruitment(Map.of("recruitmentAlwaysOpen", true));
+                if (path.startsWith("/api/admin/")) {
+                    request.put("name", "모집 기간 동아리");
+                    request.put("shortDescription", "소개");
+                }
+                mockMvc.perform(put(path, clubId).with(path.startsWith("/api/admin/") ? admin() : editor())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                        .andExpect(status().isNoContent());
+                assertRecruitment(clubId, request, "CLOSED");
+            }
+            request.put("name", "기본값 동아리 " + explicitNull);
+            request.put("category", "SPORTS");
+            String response = mockMvc.perform(post("/api/admin/clubs").with(admin())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            assertRecruitment(objectMapper.readTree(response).get("id").asLong(), request, "CLOSED");
+        }
+    }
+
     private void assertRejectedByAllWriteEndpoints(Map<String, Object> request) throws Exception {
         request.put("name", "실패한 요청의 이름");
         request.put("category", "ACADEMIC");
@@ -351,7 +474,14 @@ class ClubRecruitmentPeriodApiIntegrationTest {
     }
 
     private void assertRecruitment(long id, Map<String, Object> expected) throws Exception {
+        assertRecruitment(id, expected,
+                expected.get("recruitmentStartDate") != null && expected.get("recruitmentEndDate") != null
+                        ? "RECRUITING" : "CLOSED");
+    }
+
+    private void assertRecruitment(long id, Map<String, Object> expected, String expectedStatus) throws Exception {
         Club saved = clubRepository.findById(id).orElseThrow();
+        assertThat(saved.isRecruitmentAlwaysOpen()).isEqualTo(Boolean.TRUE.equals(expected.get("recruitmentAlwaysOpen")));
         assertThat(saved.getRecruitmentContent()).isEqualTo(expected.get("recruitmentContent"));
         assertThat(saved.getRecruitmentUrl()).isEqualTo(expected.get("recruitmentUrl"));
         assertThat(saved.getRecruitmentStartDate()).isEqualTo(expected.get("recruitmentStartDate") == null
@@ -366,22 +496,23 @@ class ClubRecruitmentPeriodApiIntegrationTest {
                 result.andExpect(jsonPath("$." + field).hasJsonPath())
                         .andExpect(jsonPath("$." + field).value(expected.get(field)));
             }
-            result.andExpect(jsonPath("$.recruitmentStatus").value(
-                    expected.get("recruitmentStartDate") != null && expected.get("recruitmentEndDate") != null
-                            ? "RECRUITING" : "CLOSED"))
+            result.andExpect(jsonPath("$.recruitmentStatus").value(expectedStatus))
+                    .andExpect(jsonPath("$.recruitmentAlwaysOpen").value(Boolean.TRUE.equals(expected.get("recruitmentAlwaysOpen"))))
                     .andExpect(jsonPath("$.recruitmentStartDayOfWeek").hasJsonPath())
                     .andExpect(jsonPath("$.recruitmentStartDayOfWeek").value(
-                            expected.get("recruitmentStartDate") == null ? null : "SUNDAY"))
+                            expected.get("recruitmentStartDate") == null ? null
+                                    : LocalDate.parse((String) expected.get("recruitmentStartDate")).getDayOfWeek().name()))
                     .andExpect(jsonPath("$.recruitmentEndDayOfWeek").hasJsonPath())
                     .andExpect(jsonPath("$.recruitmentEndDayOfWeek").value(
-                            expected.get("recruitmentEndDate") == null ? null : "SATURDAY"));
+                            expected.get("recruitmentEndDate") == null ? null
+                                    : LocalDate.parse((String) expected.get("recruitmentEndDate")).getDayOfWeek().name()));
         }
     }
 
     private long createClub(String name, ClubCategory category, int order, String start, String end) {
         Club club = Club.create(name, category);
         club.updateDisplayOrder(order);
-        club.updateRecruitment("모집공고", LocalDate.parse(start), LocalDate.parse(end), null);
+        club.updateRecruitment("모집공고", LocalDate.parse(start), LocalDate.parse(end), null, false);
         return clubRepository.saveAndFlush(club).getId();
     }
 
@@ -402,8 +533,11 @@ class ClubRecruitmentPeriodApiIntegrationTest {
         for (int index = 0; index < expectedIds.length; index++) {
             result.andExpect(jsonPath("$.clubs[" + index + "].id").value(expectedIds[index]));
             if ("true".equals(recruitingOnly)) {
-                result.andExpect(jsonPath("$.clubs[" + index + "].recruitmentStatus").value("RECRUITING"));
+                result.andExpect(jsonPath("$.clubs[" + index + "].recruitmentStatus",
+                        in(List.of("RECRUITING", "ALWAYS_OPEN"))));
             }
+            result.andExpect(jsonPath("$.clubs[" + index + "].recruitmentAlwaysOpen").value(
+                    clubRepository.findById(expectedIds[index]).orElseThrow().isRecruitmentAlwaysOpen()));
         }
     }
 
@@ -417,7 +551,7 @@ class ClubRecruitmentPeriodApiIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.totalCount").value(1))
                     .andExpect(jsonPath("$.clubs[0].recruitmentStatus").value(expected));
-            if ("RECRUITING".equals(expected)) {
+            if ("RECRUITING".equals(expected) || "ALWAYS_OPEN".equals(expected)) {
                 assertList(path, "ACADEMIC", "true", clubId);
             } else {
                 assertList(path, "ACADEMIC", "true");

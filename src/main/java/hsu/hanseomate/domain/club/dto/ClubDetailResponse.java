@@ -31,7 +31,8 @@ public record ClubDetailResponse(
         DayOfWeek recruitmentStartDayOfWeek,
         @Schema(description = "모집 종료일의 요일. 종료일이 없으면 null이며 조회 화면 표시용입니다.",
                 example = "SATURDAY", nullable = true, accessMode = Schema.AccessMode.READ_ONLY)
-        DayOfWeek recruitmentEndDayOfWeek
+        DayOfWeek recruitmentEndDayOfWeek,
+        boolean recruitmentAlwaysOpen
 ) {
 
     public ClubDetailResponse {
@@ -65,7 +66,8 @@ public record ClubDetailResponse(
                 club.recruitmentStatus(today),
                 club.getRecruitmentUrl(),
                 dayOfWeek(club.getRecruitmentStartDate()),
-                dayOfWeek(club.getRecruitmentEndDate())
+                dayOfWeek(club.getRecruitmentEndDate()),
+                club.isRecruitmentAlwaysOpen()
         );
     }
 

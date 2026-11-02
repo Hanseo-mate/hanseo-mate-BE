@@ -27,7 +27,6 @@ import hsu.hanseomate.domain.club.repository.ClubReviewCountProjection;
 import hsu.hanseomate.domain.club.repository.ClubReviewRepository;
 import hsu.hanseomate.domain.club.type.ClubCategory;
 import hsu.hanseomate.domain.club.type.ClubImageType;
-import hsu.hanseomate.domain.club.type.ClubRecruitmentStatus;
 import hsu.hanseomate.domain.club.type.ClubReviewOption;
 import hsu.hanseomate.domain.user.entity.UserAccount;
 import hsu.hanseomate.domain.user.repository.UserAccountRepository;
@@ -98,7 +97,7 @@ public class ClubService {
 
         if (recruitingOnly) {
             clubs = clubs.stream()
-                    .filter(club -> club.recruitmentStatus(today) == ClubRecruitmentStatus.RECRUITING)
+                    .filter(club -> club.recruitmentStatus(today).isRecruiting())
                     .toList();
         }
         if (clubs.isEmpty()) {
@@ -167,9 +166,9 @@ public class ClubService {
                 name,
                 normalizeCategory(request.category())
         );
-        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate());
+        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate(), request.recruitmentAlwaysOpen());
         club.updateRecruitment(content(request.recruitmentContent()),
-                request.recruitmentStartDate(), request.recruitmentEndDate(), optional(request.recruitmentUrl()));
+                request.recruitmentStartDate(), request.recruitmentEndDate(), optional(request.recruitmentUrl()), request.recruitmentAlwaysOpen());
         int lastOrder = existingClubs.stream().mapToInt(Club::getDisplayOrder).max().orElse(0);
         club.updateDisplayOrder(Math.addExact(lastOrder, 1));
 
@@ -225,8 +224,9 @@ public class ClubService {
         LocalDate previousStartDate = club.getRecruitmentStartDate();
         LocalDate previousEndDate = club.getRecruitmentEndDate();
         String previousRecruitmentUrl = club.getRecruitmentUrl();
+        boolean previousAlwaysOpen = club.isRecruitmentAlwaysOpen();
         String recruitmentContent = content(request.recruitmentContent());
-        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate());
+        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate(), request.recruitmentAlwaysOpen());
         validateUniqueName(name, clubId);
 
         club.update(
@@ -239,7 +239,8 @@ public class ClubService {
                 recruitmentContent,
                 request.recruitmentStartDate(),
                 request.recruitmentEndDate(),
-                optional(request.recruitmentUrl())
+                optional(request.recruitmentUrl()),
+                request.recruitmentAlwaysOpen()
         );
 
         try {
@@ -249,7 +250,7 @@ public class ClubService {
         }
 
         publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate,
-                previousRecruitmentUrl);
+                previousRecruitmentUrl, previousAlwaysOpen);
     }
 
     @Transactional
@@ -266,35 +267,37 @@ public class ClubService {
         LocalDate previousStartDate = club.getRecruitmentStartDate();
         LocalDate previousEndDate = club.getRecruitmentEndDate();
         String previousRecruitmentUrl = club.getRecruitmentUrl();
+        boolean previousAlwaysOpen = club.isRecruitmentAlwaysOpen();
         String recruitmentContent = content(request.recruitmentContent());
-        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate());
+        validateRecruitmentPeriod(request.recruitmentStartDate(), request.recruitmentEndDate(), request.recruitmentAlwaysOpen());
         club.updateRecruitment(recruitmentContent,
-                request.recruitmentStartDate(), request.recruitmentEndDate(), optional(request.recruitmentUrl()));
+                request.recruitmentStartDate(), request.recruitmentEndDate(), optional(request.recruitmentUrl()), request.recruitmentAlwaysOpen());
         clubRepository.flush();
         publishRecruitmentChange(club, previousRecruitmentContent, previousStartDate, previousEndDate,
-                previousRecruitmentUrl);
+                previousRecruitmentUrl, previousAlwaysOpen);
     }
 
-    private void validateRecruitmentPeriod(LocalDate start, LocalDate end) {
-        if (start != null && end != null && start.isAfter(end)) {
+    private void validateRecruitmentPeriod(LocalDate start, LocalDate end, boolean alwaysOpen) {
+        if (!alwaysOpen && start != null && end != null && start.isAfter(end)) {
             throw new BadRequestException("모집 종료일은 시작일과 같거나 이후여야 합니다.");
         }
     }
 
     private void publishRecruitmentChange(
             Club club, String previousRecruitmentContent,
-            LocalDate previousStartDate, LocalDate previousEndDate, String previousRecruitmentUrl
+            LocalDate previousStartDate, LocalDate previousEndDate, String previousRecruitmentUrl, boolean previousAlwaysOpen
     ) {
         String recruitmentContent = club.getRecruitmentContent();
         boolean hasRecruitment = recruitmentContent != null || club.getRecruitmentStartDate() != null
-                || club.getRecruitmentEndDate() != null || club.getRecruitmentUrl() != null;
+                || club.getRecruitmentEndDate() != null || club.getRecruitmentUrl() != null || club.isRecruitmentAlwaysOpen();
         if (hasRecruitment
                 && (!Objects.equals(previousRecruitmentContent, recruitmentContent)
                 || !Objects.equals(previousStartDate, club.getRecruitmentStartDate())
                 || !Objects.equals(previousEndDate, club.getRecruitmentEndDate())
-                || !Objects.equals(previousRecruitmentUrl, club.getRecruitmentUrl()))) {
+                || !Objects.equals(previousRecruitmentUrl, club.getRecruitmentUrl())
+                || previousAlwaysOpen != club.isRecruitmentAlwaysOpen())) {
             ChangeType changeType = previousRecruitmentContent == null && previousStartDate == null
-                    && previousEndDate == null && previousRecruitmentUrl == null
+                    && previousEndDate == null && previousRecruitmentUrl == null && !previousAlwaysOpen
                     ? ChangeType.CREATED
                     : ChangeType.UPDATED;
             eventPublisher.publishEvent(new ClubRecruitmentChangedEvent(
