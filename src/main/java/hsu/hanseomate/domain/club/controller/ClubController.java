@@ -67,7 +67,7 @@ public class ClubController {
     public ClubListResponse getClubs(
             @Parameter(description = "분과 코드(ACADEMIC, VOLUNTEER, SPORTS, RELIGION, PERFORMANCE, HOBBY)")
             @RequestParam(required = false) String category,
-            @Parameter(description = "모집중만 보기 토글. true면 모집중만, false 또는 생략하면 모든 모집 상태 조회")
+            @Parameter(description = "모집중만 보기 토글. true면 모집중과 상시모집, false 또는 생략하면 모든 모집 상태 조회")
             @RequestParam(defaultValue = "false") boolean recruitingOnly,
             Authentication authentication
     ) {
@@ -78,7 +78,7 @@ public class ClubController {
             summary = "동아리 상세 조회",
             description = "이미지, 이름, 한 줄 소개, 좋아요, 상위 활동 후기 3개, "
                     + "동아리 소개, 활동 내용, 문의 링크, 모집공고와 후기 작성 수를 조회합니다. "
-                    + "모집 시작일·종료일과 각각의 요일, 신청 링크, 한국 날짜 기준 모집 상태를 반환합니다. "
+                    + "모집 시작일·종료일과 각각의 요일, 신청 링크, 상시모집 여부와 한국 날짜 기준 모집 상태를 반환합니다. "
                     + "마이페이지의 동아리 모집공고 관리 상세에서도 이 API를 사용합니다. "
                     + "유효한 JWT를 보내면 본인 좋아요 여부도 함께 반환합니다."
     )
@@ -110,10 +110,12 @@ public class ClubController {
 
     @Operation(
             summary = "모집공고 작성·수정·삭제",
-            description = "CLUB_ADMIN 권한으로 모든 동아리의 모집공고 내용·기간·링크를 PUT으로 저장합니다. "
+            description = "CLUB_ADMIN 권한으로 모든 동아리의 모집공고 내용·기간·링크·상시모집 여부를 PUT으로 저장합니다. "
                     + "마이페이지의 동아리 모집공고 관리 화면에서 사용하며 날짜는 YYYY-MM-DD만 입력합니다. "
-                    + "네 필드는 각각 null 또는 생략 가능하며, 생략한 값도 null로 저장합니다. "
-                    + "모두 null이면 모집공고 삭제입니다. 두 날짜가 모두 있으면 종료일은 시작일 이후 또는 같은 날이어야 합니다."
+                    + "내용·기간·링크는 각각 null 또는 생략 가능하며, 생략한 값도 null로 저장합니다. "
+                    + "recruitmentAlwaysOpen은 생략 또는 null이면 false입니다. true면 날짜와 관계없이 ALWAYS_OPEN입니다. "
+                    + "false이고 나머지 네 값이 모두 null이면 모집공고 삭제입니다. "
+                    + "false일 때 두 날짜가 모두 있으면 종료일은 시작일 이후 또는 같은 날이어야 합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "수정 성공"),

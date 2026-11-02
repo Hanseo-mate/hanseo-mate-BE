@@ -45,10 +45,15 @@ nullable DATE로 추가합니다. 기존 공고 내용과 이미 저장된 날�
 모집 링크 SQL `docs/0002_club_recruitment_url.sql`은 `clubs.recruitment_url`을 nullable `VARCHAR(2048)`로 추가합니다.
 기존 공고와 기간은 보존하고 기존 링크는 `NULL`로 둡니다. 재실행할 수 있으며 새 JAR 시작 전에 적용해야 합니다.
 
-두 SQL은 DB 이름을 지정하지 않으므로 테스트 DB `hanseo_mate_test`와 운영 DB `hanseo_mate`에 같은 파일을 사용합니다.
+상시모집 SQL `docs/0004_club_recruitment_always_open.sql`은 `clubs.recruitment_always_open`을
+`BIT(1) NOT NULL DEFAULT b'0'`으로 추가합니다. 기존 동아리는 `false`로 시작하므로 현재의 기간 기준 상태를 유지합니다.
+기존 내용·날짜·링크는 변경하지 않으며 컬럼이 이미 있으면 추가를 건너뜁니다. 이 파일도
+`docs/deploy-migrations.txt`에 등록하며 테스트·운영 DB에 같은 파일을 새 JAR 시작 전에 적용해야 합니다.
+
+위 동아리 모집공고 SQL은 DB 이름을 지정하지 않으므로 테스트 DB `hanseo_mate_test`와 운영 DB `hanseo_mate`에 같은 파일을 사용합니다.
 테스트 서버는 `main` Push 시 기존 GitHub Actions가 `docs/`의 같은 번호 형식 SQL을 복사한 뒤
 `migrate-hanseo-test`로 적용하고 새 애플리케이션을 배포합니다. 운영 서버는 사용자가 `hsm-deploy`를 실행할 때 적용됩니다.
-`docs/deploy-migrations.txt`에도 두 파일명을 기록합니다. 기존 이름의 모집기간·링크 SQL은 보존하지만
-신규 자동 배포 대상으로는 위 번호 형식 파일을 사용합니다. 이미 컬럼이 있다면 두 SQL은 해당 컬럼 추가를 건너뜁니다.
+`docs/deploy-migrations.txt`에도 해당 파일명을 기록합니다. 기존 이름의 모집기간·링크 SQL은 보존하지만
+신규 자동 배포 대상으로는 위 번호 형식 파일을 사용합니다. 이미 컬럼이 있다면 위 SQL은 해당 컬럼 추가를 건너뜁니다.
 
 필수 링크의 카테고리 제거 SQL은 이미 제거된 DB에서도 재실행할 수 있습니다. 삭제된 카테고리 데이터는 JAR 복구만으로 되돌릴 수 없습니다. 구버전 JAR로 복구해야 한다면 백업을 기준으로 DB 스키마도 함께 복구해야 링크 등록·수정이 정상 동작합니다.
