@@ -244,13 +244,13 @@ public class HomePageService {
                 .map(StudentCouncilNoticeTitleProjection::getTitle)
                 .orElse(null);
         String academicTitle = noticeRepository
-                .findFirstByNoticeTypeOrderByViewCountDescPostDateDescIdDesc(
+                .findFirstByNoticeTypeOrderByIsHotDescPostDateDescIdDesc(
                         NoticeType.ACADEMIC
                 )
                 .map(NoticeTitleProjection::getTitle)
                 .orElse(null);
         String scholarshipTitle = noticeRepository
-                .findFirstByNoticeTypeOrderByViewCountDescPostDateDescIdDesc(
+                .findFirstByNoticeTypeOrderByIsHotDescPostDateDescIdDesc(
                         NoticeType.SCHOLARSHIP
                 )
                 .map(NoticeTitleProjection::getTitle)
