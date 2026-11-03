@@ -219,7 +219,7 @@ class HomeApiIntegrationTest {
                 .andExpect(jsonPath("$.popularNotices[1].noticeType")
                         .value("ACADEMIC"))
                 .andExpect(jsonPath("$.popularNotices[1].title")
-                        .value("조회수 높은 학사 공지"))
+                        .value("조회수 낮은 학사 공지"))
                 .andExpect(jsonPath("$.popularNotices[2].noticeType")
                         .value("SCHOLARSHIP"))
                 .andExpect(jsonPath("$.popularNotices[2].title")
@@ -588,6 +588,46 @@ class HomeApiIntegrationTest {
         );
     }
 
+    @Test
+    void selectsFirstHotNoticePerCategoryRegardlessOfViewCount() throws Exception {
+        LocalDate date = LocalDate.of(2026, 5, 7);
+        for (String type : List.of("academic", "scholarship")) {
+            insertCrawledNotice(type, type + "-old", type + " 오래된 HOT", date.minusDays(1), 100L);
+            insertCrawledNotice(type, type + "-first", type + " 같은 날짜 먼저 저장한 HOT", date, 50L);
+            insertCrawledNotice(type, type + "-last", type + " 첫 번째 HOT", date, 0L);
+            insertCrawledNotice(type, type + "-normal", type + " 최신 비HOT", date.plusDays(1), 1000L);
+            jdbcTemplate.update("UPDATE notices SET is_hot = FALSE WHERE origin_notice_id = ?", type + "-normal");
+
+            mockMvc.perform(get("/api/notices/categories/" + type))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items[0].title").value(type + " 첫 번째 HOT"));
+        }
+
+        mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.popularNotices[1].title").value("academic 첫 번째 HOT"))
+                .andExpect(jsonPath("$.popularNotices[2].title").value("scholarship 첫 번째 HOT"));
+        assertViewCount("notices", "academic 첫 번째 HOT", 0L);
+        assertViewCount("notices", "scholarship 첫 번째 HOT", 0L);
+    }
+
+    @Test
+    void fallsBackToLatestNoticeWhenCategoriesHaveNoHotNotices() throws Exception {
+        LocalDate date = LocalDate.of(2026, 5, 7);
+        for (String type : List.of("academic", "scholarship")) {
+            insertCrawledNotice(type, type + "-old", type + " 과거 인기 공지", date.minusDays(1), 1000L);
+            insertCrawledNotice(type, type + "-first", type + " 같은 날짜 먼저 저장한 공지", date, 100L);
+            insertCrawledNotice(type, type + "-last", type + " 최신 공지", date, 0L);
+        }
+        jdbcTemplate.update("UPDATE notices SET is_hot = FALSE");
+
+        mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.popularNotices.length()").value(3))
+                .andExpect(jsonPath("$.popularNotices[1].title").value("academic 최신 공지"))
+                .andExpect(jsonPath("$.popularNotices[2].title").value("scholarship 최신 공지"));
+    }
+
     private void insertCrawledNotice(
             String noticeType,
             String originNoticeId,
@@ -615,7 +655,7 @@ class HomeApiIntegrationTest {
                 "<p>content</p>",
                 "관리자",
                 Date.valueOf(postDate),
-                false,
+                true,
                 viewCount
         );
     }

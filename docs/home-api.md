@@ -136,7 +136,9 @@ GET /api/home
 - 로그인하지 않으면 `preferredCampusCode`는 `null`
 - 포스터가 없으면 `posterImageUrls`, `posters`는 `null`
 - 오늘 시간표가 없으면 `todayCourses: []`
-- 인기 공지가 없는 분야는 `title: null`
+- 학생회 공지는 누적 조회수 내림차순 → 작성 시각 내림차순 → ID 내림차순의 첫 공지를 표시합니다.
+- 학사·장학 공지는 각 카테고리에서 HOT 우선 → 게시일 내림차순 → ID 내림차순의 첫 공지를 표시합니다. HOT 공지가 없으면 해당 카테고리의 최신 공지를 표시하며, 조회수는 선정에 반영하지 않습니다.
+- 해당 분야에 공지가 하나도 없으면 `title: null`입니다.
 - 축제 버튼 설정 행이 없으면 `festivalFloatingButtonVisible: false`
 
 ### 축제 플로팅 버튼 연동
