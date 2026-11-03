@@ -123,15 +123,17 @@ public class NoticeController {
         return noticeService.getNoticeDetail(noticeId);
     }
 
-    @Operation(summary = "일반/학생회 공지 통합 검색 및 목록", description = "학생회 공지를 포함하여 띄어쓰기를 무시하고 제목을 검색합니다.")
+    @Operation(summary = "일반/학생회 공지 통합 검색 및 목록", description = "띄어쓰기를 무시하고 제목을 검색합니다. 학생회 → HOT(학사·일반·장학·대학원) → 비HOT 순이며, 같은 그룹은 게시일·ID 내림차순으로 정렬한 뒤 페이지 조회합니다.")
     @GetMapping("/unified")
     public ResponseEntity<List<UnifiedNoticeListItemResponse>> getUnifiedNotices(
-            @Parameter(description = "검색어 (없으면 전체 최신순 조회)")
+            @Parameter(description = "검색어 (없으면 전체 공지를 동일한 우선순위로 조회)")
             @RequestParam(required = false, defaultValue = "") String keyword,
             @Parameter(description = "페이지 번호 (0부터 시작)")
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "0")
+            @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.") int page,
             @Parameter(description = "페이지당 데이터 수")
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20")
+            @Positive(message = "페이지 크기는 1 이상이어야 합니다.") int size
     ) {
         List<UnifiedNoticeListItemResponse> responses = unifiedNoticeService.getUnifiedNotices(keyword, page, size);
         return ResponseEntity.ok(responses);
