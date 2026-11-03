@@ -19,7 +19,7 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     Page<Notice> findAllByNoticeTypeOrderByIsHotDescPostDateDescIdDesc(NoticeType noticeType, Pageable pageable);
 
     Optional<NoticeTitleProjection>
-    findFirstByNoticeTypeOrderByViewCountDescPostDateDescIdDesc(NoticeType noticeType);
+    findFirstByNoticeTypeOrderByIsHotDescPostDateDescIdDesc(NoticeType noticeType);
 
     @Query("""
             SELECT n
