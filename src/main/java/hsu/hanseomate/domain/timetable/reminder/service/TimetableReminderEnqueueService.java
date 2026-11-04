@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.timetable.reminder.service;
 
+import hsu.hanseomate.domain.academiccalendar.service.AcademicCalendarService;
+
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.push.service.NotificationService;
@@ -28,9 +30,12 @@ public class TimetableReminderEnqueueService {
     private final TimetableClassReminderRepository reminderRepository;
     private final NotificationService notificationService;
     private final Clock clock;
+    private final AcademicCalendarService academicCalendarService;
 
     @Transactional
     public boolean enqueue(Candidate candidate) {
+        var term = academicCalendarService.activeTerm(candidate.startsAt().toLocalDate());
+        if (term.isEmpty()) return false;
         // 시간표 추가/삭제와 동일한 부모 행 잠금. 여러 서버가 조회해도 한 번만 생성합니다.
         Timetable timetable = timetableRepository.findByIdForUpdate(candidate.timetableId())
                 .orElse(null);
@@ -39,8 +44,8 @@ public class TimetableReminderEnqueueService {
         }
         LocalDateTime now = LocalDateTime.now(clock.withZone(TimetableReminderPolicy.ZONE));
         if (!TimetableReminderPolicy.isDue(candidate.startsAt(), now)
-                || timetable.getAcademicYear() != candidate.startsAt().getYear()
-                || timetable.getSemester() != TimetableReminderPolicy.semester(candidate.startsAt().toLocalDate())) {
+                || timetable.getAcademicYear() != term.get().year()
+                || timetable.getSemester() != term.get().semester()) {
             return false;
         }
         TimetableCourse entry = timetableCourseRepository.findById(candidate.timetableCourseId())

@@ -19,6 +19,16 @@ import org.springframework.scheduling.support.SimpleTriggerContext;
 
 class ShuttleReservationReminderWorkerTest {
 
+    @Test
+    void vacationWednesdayDoesNotEnqueue() {
+        var service = mock(NotificationService.class);
+        var calendar = mock(hsu.hanseomate.domain.academiccalendar.service.AcademicCalendarService.class);
+        var worker = new ShuttleReservationReminderWorker(service,
+                Clock.fixed(Instant.parse("2026-12-23T08:50:00Z"), ZoneOffset.UTC), calendar);
+        worker.enqueueWeeklyReminder();
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
     @ParameterizedTest
     @CsvSource({
             "2026-10-11T00:00:00Z, 2026-10-14T08:50:00Z",
@@ -41,8 +51,10 @@ class ShuttleReservationReminderWorkerTest {
     @Test
     void enqueuesReminderForTheSameWednesdayAt1800InKorea() {
         NotificationService service = mock(NotificationService.class);
+        var calendar = mock(hsu.hanseomate.domain.academiccalendar.service.AcademicCalendarService.class);
+        org.mockito.Mockito.when(calendar.isTeachingDate(java.time.LocalDate.of(2026, 10, 14))).thenReturn(true);
         ShuttleReservationReminderWorker worker = new ShuttleReservationReminderWorker(
-                service, Clock.fixed(Instant.parse("2026-10-14T08:50:00Z"), ZoneOffset.UTC));
+                service, Clock.fixed(Instant.parse("2026-10-14T08:50:00Z"), ZoneOffset.UTC), calendar);
 
         worker.enqueueWeeklyReminder();
 

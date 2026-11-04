@@ -1,5 +1,13 @@
 package hsu.hanseomate.domain.schoolcalendar.entity;
 
+import hsu.hanseomate.domain.academiccalendar.type.AcademicEventType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.UniqueConstraint;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.time.LocalDateTime;
+
 import hsu.hanseomate.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +25,8 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "school_calendar_events",
+        uniqueConstraints = @UniqueConstraint(name = "uk_school_calendar_source",
+                columnNames = {"source", "academic_year", "semester", "source_event_id"}),
         indexes = @Index(
                 name = "idx_school_calendar_events_dates",
                 columnList = "start_date,end_date,id"
@@ -24,6 +34,25 @@ import lombok.NoArgsConstructor;
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SchoolCalendarEvent extends BaseTimeEntity {
+
+    @Column(nullable = false, length = 20)
+    private String source = "MANUAL";
+    @Column(name = "source_event_id", length = 100)
+    private String sourceEventId;
+    @Column(name = "academic_year")
+    private Integer academicYear;
+    private Integer semester;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "event_type", nullable = false, length = 30)
+    private AcademicEventType eventType =
+            AcademicEventType.OTHER;
+    @Column(name = "source_url", length = 1000)
+    private String sourceUrl;
+    @Column(name = "last_synced_at")
+    private LocalDateTime lastSyncedAt;
+    @Column(nullable = false)
+    private boolean active = true;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

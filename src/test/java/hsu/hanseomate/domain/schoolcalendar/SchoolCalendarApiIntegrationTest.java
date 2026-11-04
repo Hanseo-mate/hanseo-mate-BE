@@ -64,7 +64,8 @@ class SchoolCalendarApiIntegrationTest {
 
         assertThat(columns).containsExactlyInAnyOrder(
                 "id", "start_date", "end_date", "title",
-                "created_at", "updated_at"
+                "created_at", "updated_at", "source", "source_event_id", "academic_year",
+                "semester", "event_type", "source_url", "last_synced_at", "active"
         );
     }
 

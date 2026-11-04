@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.push.worker;
 
+import hsu.hanseomate.domain.academiccalendar.service.AcademicCalendarService;
+
 import hsu.hanseomate.domain.push.service.NotificationService;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -18,9 +20,11 @@ public class ShuttleReservationReminderWorker {
 
     private final NotificationService notificationService;
     private final Clock clock;
+    private final AcademicCalendarService academicCalendarService;
 
     @Scheduled(cron = "0 50 17 * * WED", zone = "Asia/Seoul")
     public void enqueueWeeklyReminder() {
+        if (!academicCalendarService.isTeachingDate(LocalDate.now(clock.withZone(KOREA_ZONE)))) return;
         notificationService.enqueueShuttleReservationReminder(
                 LocalDate.now(clock.withZone(KOREA_ZONE))
                         .atTime(18, 0).atZone(KOREA_ZONE).toOffsetDateTime()

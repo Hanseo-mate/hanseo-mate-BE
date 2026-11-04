@@ -22,11 +22,6 @@ public final class TimetableReminderPolicy {
     private TimetableReminderPolicy() {
     }
 
-    // 현재 캠퍼스맵과 동일한 학기 구분. 개강/종강일 및 휴강 정보는 별도 연동 대상입니다.
-    public static int semester(LocalDate classDate) {
-        return classDate.getMonthValue() <= 6 ? 1 : 2;
-    }
-
     public static boolean isDue(LocalDateTime startsAt, LocalDateTime now) {
         LocalDateTime dueAt = startsAt.minusMinutes(MINUTES_BEFORE);
         return !dueAt.isAfter(now) && dueAt.isAfter(now.minusMinutes(CATCH_UP_MINUTES));
