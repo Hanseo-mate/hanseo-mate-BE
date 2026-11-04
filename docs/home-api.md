@@ -172,3 +172,5 @@ GET /api/home
 - Preflight max age: `3600`초
 
 허용되지 않은 Origin의 브라우저 요청은 차단됩니다.
+
+학사 상태와 semesterDday/examDday 응답은 [학사일정 연동](academic-calendar-integration.md)을 참고하세요.

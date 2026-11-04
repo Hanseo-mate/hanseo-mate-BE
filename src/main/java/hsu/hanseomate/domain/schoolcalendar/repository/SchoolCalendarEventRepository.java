@@ -14,6 +14,17 @@ public interface SchoolCalendarEventRepository
 
     List<SchoolCalendarEvent> findAllByOrderByStartDateAscEndDateAscIdAsc();
 
+    List<SchoolCalendarEvent> findBySourceAndAcademicYearAndSemesterAndActiveTrueOrderByStartDateAsc(
+            String source, Integer academicYear, Integer semester);
+
+    @Query("""
+            select e from SchoolCalendarEvent e where e.active = true
+            and (:year is null or e.academicYear = :year)
+            and (:semester is null or e.semester = :semester)
+            order by e.startDate, e.endDate, e.id
+            """)
+    List<SchoolCalendarEvent> findVisible(@Param("year") Integer year, @Param("semester") Integer semester);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select event from SchoolCalendarEvent event where event.id = :calendarId")
     Optional<SchoolCalendarEvent> findByIdForUpdate(

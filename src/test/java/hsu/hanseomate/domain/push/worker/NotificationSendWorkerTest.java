@@ -26,6 +26,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 class NotificationSendWorkerTest {
+    private hsu.hanseomate.domain.academiccalendar.service.AcademicNotificationPolicy allowedPolicy() {
+        var policy = mock(hsu.hanseomate.domain.academiccalendar.service.AcademicNotificationPolicy.class);
+        when(policy.allows(any())).thenReturn(true);
+        return policy;
+    }
 
     @Test
     void shuttleReminderIsSentToBothLoggedInAndAnonymousActiveDevices() throws Exception {
@@ -34,7 +39,7 @@ class NotificationSendWorkerTest {
         ObjectMapper objectMapper = new ObjectMapper();
         NotificationSendWorker worker = new NotificationSendWorker(
                 dispatchService, expoPushClient, objectMapper,
-                Clock.fixed(Instant.parse("2026-10-14T08:50:30Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-10-14T08:50:30Z"), ZoneOffset.UTC), allowedPolicy());
         String payload = objectMapper.writeValueAsString(new NotificationPayload(
                 "[셔틀 예매 알림]", "약 10분 뒤인 오후 6시에 셔틀 예매가 시작됩니다.",
                 Map.of("version", 1, "type", "shuttle_reservation", "route", "/notifications")));
@@ -67,7 +72,7 @@ class NotificationSendWorkerTest {
         ExpoPushClient expoPushClient = mock(ExpoPushClient.class);
         NotificationSendWorker worker = new NotificationSendWorker(
                 dispatchService, expoPushClient, new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-10-14T09:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-10-14T09:00:00Z"), ZoneOffset.UTC), allowedPolicy());
         NotificationOutbox outbox = NotificationOutbox.create("{}", null,
                 LocalDateTime.of(2026, 10, 14, 9, 0));
         when(dispatchService.claimPendingOutboxes()).thenReturn(List.of(outbox));
@@ -88,7 +93,7 @@ class NotificationSendWorkerTest {
                 dispatchService,
                 expoPushClient,
                 objectMapper,
-                Clock.systemUTC()
+                Clock.systemUTC(), allowedPolicy()
         );
 
         long targetUserId = 42L;

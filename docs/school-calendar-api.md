@@ -118,3 +118,5 @@ CREATE TABLE school_calendar_events (
 
 실제 학교 일정 값은 공식 학사일정을 확인한 뒤 관리자 API로 등록하는 방식을 권장합니다.
 직접 SQL로 넣을 경우 `created_at`, `updated_at`에 `NOW(6)`을 입력해야 합니다.
+
+수집 일정 공개 조회, academicYear/semester 필터 및 source/eventType 추가 필드는 [학사일정 연동](academic-calendar-integration.md)을 참고하세요.

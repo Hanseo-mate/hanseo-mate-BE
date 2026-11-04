@@ -6,3 +6,4 @@
 0002_club_recruitment_url.sql
 0003_notification_preferences.sql
 0004_club_recruitment_always_open.sql
+0005_academic_calendar.sql

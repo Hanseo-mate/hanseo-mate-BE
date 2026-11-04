@@ -19,6 +19,8 @@ repositories {
 }
 
 dependencies {
+    implementation 'de.focus-shift:jollyday-core:2.24.0'
+    runtimeOnly 'de.focus-shift:jollyday-jaxb:2.24.0'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
