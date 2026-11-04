@@ -20,7 +20,15 @@ public class SchoolCalendarEventService {
     private final SchoolCalendarEventRepository schoolCalendarEventRepository;
 
     public List<SchoolCalendarEventResponse> getEvents() {
-        return schoolCalendarEventRepository.findAllByOrderByStartDateAscEndDateAscIdAsc()
+        return getEvents(null, null);
+    }
+
+    public List<SchoolCalendarEventResponse> getEvents(Integer year, Integer semester) {
+        if ((year != null && (year < 2026 || year > 9998))
+                || (semester != null && semester != 1 && semester != 2)) {
+            throw new BadRequestException("학년도는 2026~9998, 학기는 1 또는 2여야 합니다.");
+        }
+        return schoolCalendarEventRepository.findVisible(year, semester)
                 .stream()
                 .map(SchoolCalendarEventResponse::from)
                 .toList();
@@ -45,6 +53,7 @@ public class SchoolCalendarEventService {
             SchoolCalendarEventRequest request
     ) {
         SchoolCalendarEvent event = findEventForUpdate(calendarId);
+        requireManual(event);
         validateDateRange(request.startDate(), request.endDate());
         event.update(
                 request.startDate(),
@@ -58,6 +67,7 @@ public class SchoolCalendarEventService {
     @Transactional
     public void deleteEvent(Long calendarId) {
         SchoolCalendarEvent event = findEventForUpdate(calendarId);
+        requireManual(event);
         schoolCalendarEventRepository.delete(event);
         schoolCalendarEventRepository.flush();
     }
@@ -65,6 +75,12 @@ public class SchoolCalendarEventService {
     private SchoolCalendarEvent findEventForUpdate(Long calendarId) {
         return schoolCalendarEventRepository.findByIdForUpdate(calendarId)
                 .orElseThrow(() -> new SchoolCalendarEventNotFoundException(calendarId));
+    }
+
+    private void requireManual(SchoolCalendarEvent event) {
+        if (!"MANUAL".equals(event.getSource())) {
+            throw new BadRequestException("수집 일정은 학교 원본 동기화로 관리합니다.");
+        }
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {

@@ -103,6 +103,7 @@ class TimetableReminderIntegrationTest {
     @MockitoBean NotificationSendWorker scheduledSender;
     @MockitoBean ExpoPushClient expoClient;
 
+    @Autowired hsu.hanseomate.domain.academiccalendar.service.AcademicNotificationPolicy academicPolicy;
     private TimetableReminderWorker worker;
     private Timetable timetable;
     private Long ownerId;
@@ -115,6 +116,9 @@ class TimetableReminderIntegrationTest {
                 "courses", "course_import_histories", "semesters", "user_accounts")) {
             jdbc.execute("DELETE FROM " + table);
         }
+        jdbc.execute("DELETE FROM school_calendar_events");
+        jdbc.update("INSERT INTO school_calendar_events(start_date,end_date,title,source,academic_year,semester,event_type,active,created_at,updated_at) VALUES ('2026-12-22','2026-12-22','동계방학','HANSEO',2026,2,'VACATION_START',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO school_calendar_events(start_date,end_date,title,source,academic_year,semester,event_type,active,created_at,updated_at) VALUES ('2027-06-22','2027-06-22','하계방학','HANSEO',2027,1,'VACATION_START',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         at("2026-09-07T09:00:00+09:00");
         worker = new TimetableReminderWorker(queryService, enqueueService, clock);
         ownerId = userRepository.saveAndFlush(UserAccount.create("reminder-owner", "hash")).getId();
@@ -157,7 +161,7 @@ class TimetableReminderIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
 
         when(expoClient.sendMessages(anyList())).thenReturn(List.of());
-        new NotificationSendWorker(dispatchService, expoClient, new ObjectMapper(), clock)
+        new NotificationSendWorker(dispatchService, expoClient, new ObjectMapper(), clock, academicPolicy)
                 .processPendingNotifications();
         ArgumentCaptor<List<ExpoPushMessage>> sent = ArgumentCaptor.forClass(List.class);
         verify(expoClient).sendMessages(sent.capture());
@@ -255,12 +259,29 @@ class TimetableReminderIntegrationTest {
     @Test
     void midnightUsesNextClassDateYearAndTermEvenOnUtcServer() {
         Timetable nextYear = timetableRepository.saveAndFlush(Timetable.create(ownerId, 2027, 1));
-        custom(nextYear, DayOfWeek.FRIDAY, "00:00");
-        at("2026-12-31T23:00:30+09:00");
+        custom(nextYear, DayOfWeek.TUESDAY, "00:00");
+        at("2027-03-01T23:00:30+09:00");
         worker.enqueueDueReminders();
         assertThat(notificationRepository.findAll()).singleElement()
                 .satisfies(alert -> assertThat(alert.getPayloadData())
-                        .contains("2027-01-01T00:00:00+09:00"));
+                        .contains("2027-03-02T00:00:00+09:00"));
+    }
+
+    @Test
+    void winterVacationAndSendTimeCalendarChangeSuppressReminders() {
+        custom(timetable, DayOfWeek.MONDAY, "10:00");
+        worker.enqueueDueReminders();
+        assertThat(notificationRepository.count()).isEqualTo(1);
+        // School calendar changed after enqueue, before Expo dispatch.
+        jdbc.update("UPDATE school_calendar_events SET start_date='2026-09-07',end_date='2026-09-07' WHERE academic_year=2026 AND semester=2");
+        new NotificationSendWorker(dispatchService, expoClient, new ObjectMapper(), clock, academicPolicy)
+                .processPendingNotifications();
+        assertThat(outboxRepository.findAll()).singleElement()
+                .extracting(NotificationOutbox::getStatus).isEqualTo(OutboxStatus.EXPIRED);
+        org.mockito.Mockito.verifyNoInteractions(expoClient);
+        at("2026-12-28T09:00:00+09:00");
+        worker.enqueueDueReminders();
+        assertThat(notificationRepository.count()).isEqualTo(1);
     }
 
     @Test
@@ -318,7 +339,7 @@ class TimetableReminderIntegrationTest {
         custom(timetable, DayOfWeek.MONDAY, "10:00");
         worker.enqueueDueReminders();
         at("2026-09-07T09:05:00+09:00");
-        new NotificationSendWorker(dispatchService, expoClient, new ObjectMapper(), clock)
+        new NotificationSendWorker(dispatchService, expoClient, new ObjectMapper(), clock, academicPolicy)
                 .processPendingNotifications();
         assertThat(outboxRepository.findAll()).singleElement()
                 .extracting(NotificationOutbox::getStatus).isEqualTo(OutboxStatus.EXPIRED);

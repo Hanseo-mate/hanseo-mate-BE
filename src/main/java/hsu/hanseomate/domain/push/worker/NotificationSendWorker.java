@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.push.worker;
 
+import hsu.hanseomate.domain.academiccalendar.service.AcademicNotificationPolicy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import hsu.hanseomate.domain.push.client.ExpoPushClient;
@@ -47,6 +49,7 @@ public class NotificationSendWorker {
     private final ExpoPushClient expoPushClient;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final AcademicNotificationPolicy academicNotificationPolicy;
 
     /**
      * 30초마다 실행. PENDING Outbox를 일괄 처리합니다.
@@ -64,24 +67,22 @@ public class NotificationSendWorker {
                 dispatchService.markOutboxExpired(outbox.getId());
                 continue;
             }
-            List<PushDevice> targetDevices = outbox.getTargetUserId() == null
-                    ? dispatchService.findAllActiveDevices()
-                    : dispatchService.findActiveDevicesByUserId(outbox.getTargetUserId());
-
-            if (targetDevices.isEmpty()) {
-                log.info("No active target devices. Marking outbox id={} as SENT.", outbox.getId());
-                dispatchService.markOutboxSent(outbox.getId());
-                continue;
-            }
-            processOutbox(outbox, targetDevices);
+            processOutbox(outbox);
         }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private void processOutbox(NotificationOutbox outbox, List<PushDevice> activeDevices) {
+    private void processOutbox(NotificationOutbox outbox) {
         try {
             NotificationPayload payload = objectMapper.readValue(outbox.getPayload(), NotificationPayload.class);
+            if (!academicNotificationPolicy.allows(payload.getData())) {
+                dispatchService.markOutboxExpired(outbox.getId());
+                return;
+            }
+            List<PushDevice> activeDevices = outbox.getTargetUserId() == null
+                    ? dispatchService.findAllActiveDevices()
+                    : dispatchService.findActiveDevicesByUserId(outbox.getTargetUserId());
             int sentCount = dispatchToDevices(outbox.getId(), payload, activeDevices);
             dispatchService.markOutboxSent(outbox.getId());
             log.info("Outbox id={} sent to {} device(s)", outbox.getId(), sentCount);

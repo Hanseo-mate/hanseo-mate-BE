@@ -90,8 +90,10 @@ class NotificationPreferenceIntegrationTest {
         inactive.deactivate("DeviceNotRegistered");
         devices.saveAndFlush(inactive);
         when(expo.sendMessages(anyList())).thenReturn(List.of());
+        var policy = org.mockito.Mockito.mock(hsu.hanseomate.domain.academiccalendar.service.AcademicNotificationPolicy.class);
+        org.mockito.Mockito.when(policy.allows(org.mockito.ArgumentMatchers.any())).thenReturn(true);
         worker = new NotificationSendWorker(dispatch, expo, new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-10-14T08:50:30Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-10-14T08:50:30Z"), ZoneOffset.UTC), policy);
     }
 
     @Test

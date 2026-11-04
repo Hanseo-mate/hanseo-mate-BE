@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.home.dto;
 
+import hsu.hanseomate.domain.academiccalendar.dto.AcademicDday;
+
 import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
@@ -22,7 +24,10 @@ public record HomePageResponse(
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 defaultValue = "false"
         )
-        boolean festivalFloatingButtonVisible
+        boolean festivalFloatingButtonVisible,
+        String academicStatus,
+        AcademicDday semesterDday,
+        AcademicDday examDday
 ) {
     public HomePageResponse {
         posterImageUrls = posterImageUrls == null

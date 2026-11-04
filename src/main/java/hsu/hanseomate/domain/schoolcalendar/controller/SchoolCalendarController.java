@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.schoolcalendar.controller;
 
+import org.springframework.web.bind.annotation.RequestParam;
+
 import hsu.hanseomate.domain.schoolcalendar.dto.SchoolCalendarEventResponse;
 import hsu.hanseomate.domain.schoolcalendar.service.SchoolCalendarEventService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +30,9 @@ public class SchoolCalendarController {
             @ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping
-    public List<SchoolCalendarEventResponse> getEvents() {
-        return schoolCalendarEventService.getEvents();
+    public List<SchoolCalendarEventResponse> getEvents(
+            @RequestParam(required = false) Integer academicYear,
+            @RequestParam(required = false) Integer semester) {
+        return schoolCalendarEventService.getEvents(academicYear, semester);
     }
 }

@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.home.service;
 
+import hsu.hanseomate.domain.academiccalendar.service.AcademicCalendarService;
+
 import hsu.hanseomate.domain.appsetting.service.FestivalFloatingButtonService;
 import hsu.hanseomate.domain.campusmap.type.CampusCode;
 import hsu.hanseomate.domain.cafeteria.entity.DailyMenu;
@@ -57,9 +59,11 @@ public class HomePageService {
     private final StudentCouncilNoticeRepository studentCouncilNoticeRepository;
     private final UserAccountRepository userAccountRepository;
     private final Clock clock;
+    private final AcademicCalendarService academicCalendarService;
 
     public HomePageResponse getHome(Optional<Long> currentUserId) {
         LocalDate today = LocalDate.now(clock.withZone(KOREA_ZONE));
+        var academic = academicCalendarService.overview(today);
         List<HomePosterResponse> posterResponses = homePosterService.getPosters();
         List<String> posterImageUrls = posterResponses.stream()
                 .map(HomePosterResponse::imageUrl)
@@ -86,7 +90,10 @@ public class HomePageService {
                 todayCourses,
                 popularNotices(),
                 todayCafeteriaMenus(today, selectedRestaurantType),
-                festivalFloatingButtonService.getSetting().visible()
+                festivalFloatingButtonService.getSetting().visible(),
+                academic.academicStatus(),
+                academic.semesterDday(),
+                academic.examDday()
         );
     }
 

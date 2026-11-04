@@ -1,5 +1,7 @@
 package hsu.hanseomate.domain.timetable.reminder.service;
 
+import hsu.hanseomate.domain.academiccalendar.service.AcademicCalendarService;
+
 import hsu.hanseomate.domain.course.entity.CourseSchedule;
 import hsu.hanseomate.domain.course.repository.CourseScheduleRepository;
 import hsu.hanseomate.domain.courseimport.dto.type.DayOfWeek;
@@ -27,11 +29,14 @@ public class TimetableReminderQueryService {
 
     private final TimetableCourseRepository timetableCourseRepository;
     private final CourseScheduleRepository courseScheduleRepository;
+    private final AcademicCalendarService academicCalendarService;
 
     public CandidatePage findCandidates(LocalDate classDate, LocalDateTime now, long afterId) {
+        var term = academicCalendarService.activeTerm(classDate);
+        if (term.isEmpty()) return new CandidatePage(List.of(), afterId, false);
         List<TimetableCourse> entries = timetableCourseRepository.findReminderEntries(
-                classDate.getYear(),
-                TimetableReminderPolicy.semester(classDate),
+                term.get().year(),
+                term.get().semester(),
                 DayOfWeek.valueOf(classDate.getDayOfWeek().name()),
                 afterId,
                 PageRequest.of(0, BATCH_SIZE)
