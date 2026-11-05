@@ -7,6 +7,7 @@ import hsu.hanseomate.domain.schoolcalendar.repository.SchoolCalendarEventReposi
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AcademicCalendarService {
     public static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+    private static final Pattern LEGACY_EXAM_TITLE =
+            Pattern.compile("(?:(\\d{4})학년도)?(?:([12])학기)?(중간고사|기말고사)");
     private final KoreanHolidayCalendar holidays;
     private final SchoolCalendarEventRepository events;
 
@@ -83,8 +86,13 @@ public class AcademicCalendarService {
         final int selectedYear = year;
         LocalDate endLimit = LocalDate.of(year + (semester == 2 ? 1 : 0), semester == 1 ? 9 : 3, 1);
         LocalDate opening = start.get();
+        // Pre-migration school events have MANUAL/null/null/OTHER metadata.
+        // Use them only until this term has a collected snapshot; never combine sources.
+        if (source.isEmpty()) {
+            source = events.findLegacyAcademicCandidates(opening, endLimit);
+        }
         List<SchoolCalendarEvent> vacations = source.stream()
-                .filter(e -> e.getEventType() == AcademicEventType.VACATION_START)
+                .filter(e -> effectiveType(e, selectedYear, selectedSemester) == AcademicEventType.VACATION_START)
                 .filter(e -> e.getStartDate().isAfter(opening) && e.getStartDate().isBefore(endLimit)).toList();
         LocalDate vacation = vacations.size() == 1 ? vacations.get(0).getStartDate() : null;
         return new Term(selectedYear, selectedSemester, opening, vacation, source);
@@ -105,11 +113,35 @@ public class AcademicCalendarService {
     private Optional<SchoolCalendarEvent> uniqueExam(Term term, AcademicEventType type) {
         LocalDate limit = term.vacation() != null ? term.vacation()
                 : LocalDate.of(term.year() + (term.semester() == 2 ? 1 : 0), term.semester() == 1 ? 9 : 3, 1);
-        List<SchoolCalendarEvent> matching = term.events().stream().filter(e -> e.getEventType() == type)
+        List<SchoolCalendarEvent> matching = term.events().stream()
+                .filter(e -> effectiveType(e, term.year(), term.semester()) == type)
                 .filter(e -> !e.getStartDate().isBefore(term.start())
                         && !e.getEndDate().isBefore(e.getStartDate())
                         && e.getEndDate().isBefore(limit)).toList();
         return matching.size() == 1 ? Optional.of(matching.get(0)) : Optional.empty();
+    }
+
+    private AcademicEventType effectiveType(SchoolCalendarEvent event, int year, int semester) {
+        if ("HANSEO".equals(event.getSource())) return event.getEventType();
+        if (!"MANUAL".equals(event.getSource()) || event.getAcademicYear() != null
+                || event.getSemester() != null || event.getEventType() != AcademicEventType.OTHER) {
+            return AcademicEventType.OTHER;
+        }
+        String title = event.getTitle().replaceAll("[\\s\\p{Z}]+", "");
+        var exam = LEGACY_EXAM_TITLE.matcher(title);
+        if (exam.matches()) {
+            if ((exam.group(1) != null && Integer.parseInt(exam.group(1)) != year)
+                    || (exam.group(2) != null && Integer.parseInt(exam.group(2)) != semester)) {
+                return AcademicEventType.OTHER;
+            }
+            return "중간고사".equals(exam.group(3)) ? AcademicEventType.MIDTERM : AcademicEventType.FINAL;
+        }
+        String vacation = semester == 1 ? "하계방학" : "동계방학";
+        if (event.getStartDate().equals(event.getEndDate())
+                && title.matches(vacation + "(?:시작|시작일)?")) {
+            return AcademicEventType.VACATION_START;
+        }
+        return AcademicEventType.OTHER;
     }
 
     private AcademicDday dday(String type, LocalDate start, LocalDate end, LocalDate today) {
